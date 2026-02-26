@@ -63,9 +63,9 @@ class Appointment(Base):
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     appointment_time: Mapped[datetime] = mapped_column(DateTime)
     service_type: Mapped[str] = mapped_column(Text)
-    car_brand: Mapped[Optional[str]] = mapped_column(Text) # НОВОЕ ПОЛЕ
+    car_brand: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="confirmed")
-    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False) # ФЛАГ УВЕДОМЛЕНИЯ
+    reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     customer = relationship("Customer", back_populates="appointments")
 
 async def get_db():
@@ -113,7 +113,6 @@ tools = [
 async def get_free_slots(db: AsyncSession, date_str: str) -> List[str]:
     try: target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     except: return ["Ошибка формата даты."]
-    
     all_slots = [datetime.combine(target_date, time(hour=h)) for h in range(9, 19)]
     stmt = select(Appointment.appointment_time).where(
         and_(Appointment.appointment_time >= datetime.combine(target_date, time.min),
@@ -128,20 +127,16 @@ async def send_whatsapp_message(phone: str, message: str):
     url = f"https://7103.api.greenapi.com/waInstance{GREEN_API_ID}/sendMessage/{GREEN_API_TOKEN}"
     chat_id = f"{phone}@c.us" if not phone.endswith("@c.us") else phone
     async with httpx.AsyncClient() as c:
-        try: await c.post(url, json={"chatId": chat_id, "message": message})
+        try: await c.post(url, json={"chatId": chat_id, "message": message}, timeout=10.0)
         except Exception as e: print(f"WA Error: {e}")
 
 async def check_reminders():
-    """Фоновая задача для напоминаний за 2 часа."""
     async with AsyncSessionLocal() as db:
         now = datetime.now()
         target_time = now + timedelta(hours=2)
-        
         stmt = select(Appointment).options(joinedload(Appointment.customer)).where(
-            and_(Appointment.appointment_time <= target_time,
-                 Appointment.appointment_time > now,
-                 Appointment.status == 'confirmed',
-                 Appointment.reminder_sent == False)
+            and_(Appointment.appointment_time <= target_time, Appointment.appointment_time > now,
+                 Appointment.status == 'confirmed', Appointment.reminder_sent == False)
         )
         result = await db.execute(stmt)
         for appt in result.scalars().all():
@@ -156,6 +151,7 @@ async def check_reminders():
 async def process_chat_logic(db: AsyncSession, business_id: int, phone: str, message_content: str) -> str:
     res = await db.execute(select(Business).where(Business.id == business_id))
     biz = res.scalar_one_or_none()
+    if not biz: return "Business not found in DB."
     
     res = await db.execute(select(Customer).where(Customer.phone_number == phone, Customer.business_id == business_id))
     customer = res.scalar_one_or_none()
@@ -166,11 +162,10 @@ async def process_chat_logic(db: AsyncSession, business_id: int, phone: str, mes
     db.add(Message(customer_id=customer.id, role="user", content=message_content))
     await db.commit()
 
-    res = await db.execute(select(Message).where(Message.customer_id == customer.id).order_by(desc(Message.created_at)).limit(5))
+    res = await db.execute(select(Message).where(Message.customer_id == customer.id).order_by(desc(Message.created_at)).limit(10))
     history = list(reversed(res.scalars().all()))
     
-    # Добавляем инструкцию всегда спрашивать марку авто
-    system_p = (biz.system_prompt or "Helpful assistant.") + "\nIMPORTANT: Always ask for car brand before booking."
+    system_p = (biz.system_prompt or "") + f"\nToday is {datetime.now().strftime('%Y-%m-%d %H:%M')}. Always ask car brand before booking."
     msgs = [{"role": "system", "content": system_p}]
     for m in history: msgs.append({"role": m.role, "content": m.content})
 
@@ -181,21 +176,18 @@ async def process_chat_logic(db: AsyncSession, business_id: int, phone: str, mes
         msgs.append(resp_msg)
         for tc in resp_msg.tool_calls:
             args = json.loads(tc.function.arguments)
+            res_content = ""
             if tc.function.name == "check_availability":
                 slots = await get_free_slots(db, args.get("date"))
                 res_content = json.dumps({"available_slots": slots})
             elif tc.function.name == "create_appointment":
-                appt_dt = datetime.strptime(args.get("appointment_time").replace("T", " "), "%Y-%m-%d %H:%M:%S")
-                # Финальная проверка занятости
-                check_stmt = select(Appointment).where(and_(Appointment.appointment_time == appt_dt, Appointment.status != 'cancelled'))
-                is_busy = await db.execute(check_stmt)
-                if is_busy.scalar_one_or_none():
-                    res_content = json.dumps({"error": "Time already taken"})
-                else:
+                try:
+                    appt_dt = datetime.strptime(args.get("appointment_time").replace("T", " "), "%Y-%m-%d %H:%M:%S")
                     new_app = Appointment(business_id=biz.id, customer_id=customer.id, appointment_time=appt_dt, 
                                           service_type=args.get("service_type"), car_brand=args.get("car_brand"))
                     db.add(new_app); await db.commit()
                     res_content = json.dumps({"status": "success", "id": new_app.id})
+                except Exception as e: res_content = json.dumps({"status": "error", "message": str(e)})
             
             msgs.append({"role": "tool", "tool_call_id": tc.id, "name": tc.function.name, "content": res_content})
         
@@ -214,11 +206,22 @@ async def process_chat_logic(db: AsyncSession, business_id: int, phone: str, mes
 @app.post("/whatsapp-webhook")
 async def wa_webhook(payload: dict, db: AsyncSession = Depends(get_db)):
     if payload.get("typeWebhook") == "incomingMessageReceived":
-        chat_id = payload["senderData"]["chatId"]
-        phone = chat_id.replace("@c.us", "")
-        text = payload["messageData"]["textMessageData"]["textMessage"]
-        response = await process_chat_logic(db, 1, phone, text)
-        if response: await send_whatsapp_message(phone, response)
+        try:
+            chat_id = payload.get("senderData", {}).get("chatId")
+            if not chat_id: return {"status": "no_chat_id"}
+            
+            phone = chat_id.replace("@c.us", "")
+            # Безопасно вытаскиваем текст
+            message_data = payload.get("messageData", {})
+            text = message_data.get("textMessageData", {}).get("textMessage")
+            
+            if not text: # Если пришел стикер или картинка - игнорируем, чтобы не упасть
+                return {"status": "not_a_text"}
+
+            response = await process_chat_logic(db, 1, phone, text)
+            if response: await send_whatsapp_message(phone, response)
+        except Exception as e:
+            print(f"CRITICAL ERROR: {e}")
     return {"status": "ok"}
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -228,7 +231,6 @@ async def admin_panel(db: AsyncSession = Depends(get_db)):
     rows = ""
     for a in res.scalars().all():
         rows += f"<tr><td>{a.customer.phone_number}</td><td>{a.appointment_time.strftime('%Y-%m-%d %H:%M')}</td><td>{a.car_brand}</td><td>{a.service_type}</td><td>{a.status}</td></tr>"
-    
     return f"""
     <html><head><meta charset="utf-8"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"></head>
     <body class="bg-light"><div class="container py-5"><div class="card shadow-sm"><div class="card-header bg-primary text-white"><h3>🚗 Записи автосервиса</h3></div>

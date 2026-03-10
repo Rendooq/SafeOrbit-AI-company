@@ -71,6 +71,11 @@ class Business(Base):
     beauty_pro_token: Mapped[Optional[str]] = mapped_column(Text)
     beauty_pro_location_id: Mapped[Optional[str]] = mapped_column(Text)
     beauty_pro_api_url: Mapped[Optional[str]] = mapped_column(Text, default="https://api.beautypro.com/v1/appointments")
+    integration_system: Mapped[Optional[str]] = mapped_column(Text, default="none") # none, beauty_pro, wins, doctor_eleks
+    wins_token: Mapped[Optional[str]] = mapped_column(Text)
+    wins_branch_id: Mapped[Optional[str]] = mapped_column(Text)
+    doctor_eleks_token: Mapped[Optional[str]] = mapped_column(Text)
+    doctor_eleks_clinic_id: Mapped[Optional[str]] = mapped_column(Text)
     groq_api_key: Mapped[Optional[str]] = mapped_column(Text)
     viber_token: Mapped[Optional[str]] = mapped_column(Text)
     whatsapp_token: Mapped[Optional[str]] = mapped_column(Text)
@@ -281,7 +286,8 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
                     'saved': 'Зміни збережено!',
                     'deleted': 'Запис видалено!',
                     'time_taken': 'Цей час вже зайнятий!',
-                    'sms_sent': 'Повідомлення відправлено клієнту!'
+                    'sms_sent': 'Повідомлення відправлено клієнту!',
+                    'added_and_synced': 'Запис додано та синхронізовано!'
                 }};
                 toastBody.innerText = msgs[msg] || msg;
                 new bootstrap.Toast(toastEl).show();
@@ -655,6 +661,8 @@ async def add_appointment(
 ):
     if not user: return RedirectResponse("/", status_code=303)
     
+    redirect_msg = "added"
+    
     # Якщо майстер додає запис, форсуємо його ID
     if user.role == "master": master_id = str(user.master_id)
 
@@ -717,15 +725,20 @@ async def add_appointment(
         await db.refresh(new_app)
 
         await send_new_appointment_notifications(user.business, new_app, db)
-        
-        if user.business.beauty_pro_token and user.business.beauty_pro_location_id:
-            await push_to_beauty_pro({
+
+        # Push to external system
+        biz = user.business
+        if biz.integration_system == "beauty_pro" and biz.beauty_pro_token and biz.beauty_pro_location_id:
+            result = await push_to_beauty_pro({
                 "phone": phone, "name": name, "service": final_service, 
                 "datetime": dt.isoformat(), "cost": cost
-            }, user.business.beauty_pro_token, user.business.beauty_pro_location_id, user.business.beauty_pro_api_url)
-            
+            }, biz.beauty_pro_token, biz.beauty_pro_location_id, biz.beauty_pro_api_url)
+            if result and result.get("status") == "success":
+                redirect_msg = "added_and_synced"
+        # TODO: Add other integrations like WINS, Doctor Eleks
+
     except ValueError: pass
-    return RedirectResponse("/admin?msg=added", status_code=303)
+    return RedirectResponse(f"/admin?msg={redirect_msg}", status_code=303)
 
 @app.post("/admin/update-appointment")
 async def update_appt(id: int = Form(...), date: str = Form(...), time: str = Form(...), status: str = Form(...), cost: float = Form(0.0), master_id: str = Form(None), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -849,9 +862,16 @@ async def push_to_beauty_pro(data: dict, token: str, location_id: str, api_url: 
     }
     async with httpx.AsyncClient() as client:
         try:
-            await client.post(url, json=payload, headers=headers, timeout=5.0)
+            resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
+            if resp.status_code in [200, 201]:
+                logger.info(f"Beauty Pro PUSH successful: {resp.status_code}")
+                return {"status": "success", "msg": "Запис синхронізовано з Beauty Pro"}
+            else:
+                logger.error(f"Beauty Pro PUSH failed: {resp.status_code} - {resp.text}")
+                return {"status": "error", "msg": f"Помилка Beauty Pro: {resp.status_code}"}
         except Exception as e:
             logger.error(f"Beauty Pro Error: {e}")
+            return {"status": "error", "msg": "Помилка з'єднання з Beauty Pro"}
 
 async def update_customer_support_status(db: AsyncSession, business_id: int, user_identifier: str, status: str):
     """Оновлює статус підтримки клієнта."""
@@ -1004,7 +1024,14 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
         </div>"""
         return get_layout(content, user, "bot")
 
-    bp_status = '<span class="badge bg-success">Підключено</span>' if biz.beauty_pro_token else '<span class="badge bg-secondary">Не налаштовано</span>'
+    integration_systems = {
+        "none": "Немає",
+        "beauty_pro": "Beauty Pro",
+        "wins": "WINS",
+        "doctor_eleks": "Doctor Eleks"
+    }
+    integration_options = "".join([f'<option value="{k}" {"selected" if biz.integration_system == k else ""}>{v}</option>' for k, v in integration_systems.items()])
+
     base_url = str(request.base_url).rstrip('/')
     if base_url.startswith("http://"):
         base_url = base_url.replace("http://", "https://")
@@ -1054,29 +1081,57 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card p-4 mb-4 h-100 border-primary border-2">
-                <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-bold m-0"><i class="fas fa-sync text-primary me-2"></i>Інтеграція Beauty Pro</h5>{bp_status}</div>
+            <div class="card p-4 mb-4 h-100">
+                <h5 class="fw-bold mb-3"><i class="fas fa-sync text-primary me-2"></i>Зовнішні інтеграції</h5>
                 <p class="text-muted small">Автоматична синхронізація графіку та клієнтської бази з Beauty Pro.</p>
-                <form action="/admin/save-beauty-pro-settings" method="post">
-                    <div class="mb-3"><label class="form-label small text-muted">Beauty Pro API Token</label><input name="bp_token" class="form-control bg-light border-0" value="{biz.beauty_pro_token or ''}"></div>
-                    <div class="mb-3"><label class="form-label small text-muted">ID Локації</label><input name="bp_id" class="form-control bg-light border-0" value="{biz.beauty_pro_location_id or ''}"></div>
-                    <div class="mb-3"><label class="form-label small text-muted">API URL (Endpoint)</label><input name="bp_url" class="form-control bg-light border-0" value="{biz.beauty_pro_api_url or 'https://api.beautypro.com/v1/appointments'}"></div>
-                    <div class="d-flex gap-2"><button class="btn btn-primary flex-grow-1">Зберегти</button><button type="button" class="btn btn-outline-secondary" onclick="testBP()">Перевірити</button></div>
+                
+                <form action="/admin/save-integration-settings" method="post">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Оберіть систему для інтеграції</label>
+                        <select name="integration_system" id="integrationSelector" class="form-select bg-light border-0" onchange="showIntegrationForm()">
+                            {integration_options}
+                        </select>
+                    </div>
+
+                    <!-- Beauty Pro Form -->
+                    <div id="form-beauty_pro" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Beauty Pro</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">Beauty Pro API Token</label><input name="bp_token" class="form-control bg-light border-0" value="{biz.beauty_pro_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">ID Локації</label><input name="bp_id" class="form-control bg-light border-0" value="{biz.beauty_pro_location_id or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">API URL (Endpoint)</label><input name="bp_url" class="form-control bg-light border-0" value="{biz.beauty_pro_api_url or 'https://api.beautypro.com/v1/appointments'}"></div>
+                    </div>
+
+                    <!-- WINS Form -->
+                    <div id="form-wins" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування WINS</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">WINS API Token</label><input name="wins_token" class="form-control bg-light border-0" value="{biz.wins_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">ID Філіалу (Branch ID)</label><input name="wins_branch_id" class="form-control bg-light border-0" value="{biz.wins_branch_id or ''}"></div>
+                    </div>
+
+                    <!-- Doctor Eleks Form -->
+                    <div id="form-doctor_eleks" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Doctor Eleks</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">Doctor Eleks API Token</label><input name="de_token" class="form-control bg-light border-0" value="{biz.doctor_eleks_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">ID Клініки (Clinic ID)</label><input name="de_clinic_id" class="form-control bg-light border-0" value="{biz.doctor_eleks_clinic_id or ''}"></div>
+                    </div>
+
+                    <button class="btn btn-primary w-100 mt-3">Зберегти налаштування інтеграції</button>
                 </form>
-                <div id="bpTestResult" class="mt-3 small"></div>
             </div>
         </div>
     </div>"""
     
     scripts = """<script>
-    async function testBP() {
-        let resDiv = document.getElementById('bpTestResult');
-        resDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Перевірка...';
-        let res = await fetch('/admin/test-beauty-pro', {method:'POST'});
-        let data = await res.json();
-        if(data.ok) resDiv.innerHTML = `<span class="text-success"><i class="fas fa-check-circle"></i> ${data.msg}</span>`;
-        else resDiv.innerHTML = `<span class="text-danger"><i class="fas fa-times-circle"></i> ${data.msg}</span>`;
+    function showIntegrationForm() {
+        document.querySelectorAll('.integration-form').forEach(form => form.style.display = 'none');
+        const selectedSystem = document.getElementById('integrationSelector').value;
+        const formToShow = document.getElementById(`form-${selectedSystem}`);
+        if (formToShow) {
+            formToShow.style.display = 'block';
+        }
     }
+    document.addEventListener('DOMContentLoaded', showIntegrationForm);
+
     async function setWebhook(btn) {
         let url = document.getElementById('webhookUrl').value;
         let oldText = btn.innerText;
@@ -1102,6 +1157,31 @@ async def save_master_bot_settings(tg_id: str = Form(None), user: User = Depends
             await db.commit()
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
 
+@app.post("/admin/save-integration-settings")
+async def save_integration_settings(
+    integration_system: str = Form(...),
+    bp_token: str = Form(None), 
+    bp_id: str = Form(None), 
+    bp_url: str = Form(None),
+    wins_token: str = Form(None),
+    wins_branch_id: str = Form(None),
+    de_token: str = Form(None),
+    de_clinic_id: str = Form(None),
+    user: User = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
+):
+    biz = await db.get(Business, user.business_id)
+    biz.integration_system = integration_system
+    biz.beauty_pro_token = bp_token
+    biz.beauty_pro_location_id = bp_id
+    biz.beauty_pro_api_url = bp_url
+    biz.wins_token = wins_token
+    biz.wins_branch_id = wins_branch_id
+    biz.doctor_eleks_token = de_token
+    biz.doctor_eleks_clinic_id = de_clinic_id
+    await db.commit()
+    return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
+
 @app.post("/admin/save-bot-settings")
 async def save_bot(
     tg_token: str = Form(None), tg_enabled: bool = Form(False),
@@ -1124,12 +1204,6 @@ async def save_bot(
     await db.commit()
     return RedirectResponse("/admin/bot-integration", status_code=303)
 
-@app.post("/admin/save-beauty-pro-settings")
-async def save_beauty_pro(bp_token: str = Form(None), bp_id: str = Form(None), bp_url: str = Form(None), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    biz = await db.get(Business, user.business_id)
-    biz.beauty_pro_token = bp_token; biz.beauty_pro_location_id = bp_id; biz.beauty_pro_api_url = bp_url; await db.commit()
-    return RedirectResponse("/admin/bot-integration", status_code=303)
-
 @app.post("/admin/set-webhook")
 async def set_webhook(url: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return {"ok": False, "msg": "Помилка доступу"}
@@ -1142,24 +1216,6 @@ async def set_webhook(url: str = Form(...), user: User = Depends(get_current_use
             data = resp.json()
             if data.get("ok"): return {"ok": True, "msg": f"Webhook успішно встановлено!"}
             return {"ok": False, "msg": f"Помилка Telegram: {data.get('description')}"}
-    except Exception as e: return {"ok": False, "msg": f"Помилка мережі: {str(e)}"}
-
-@app.post("/admin/test-beauty-pro")
-async def test_bp(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return {"ok": False, "msg": "Unauthorized"}
-    biz = await db.get(Business, user.business_id)
-    if not biz.beauty_pro_token: return {"ok": False, "msg": "Токен не вказано"}
-    
-    url = biz.beauty_pro_api_url or "https://api.beautypro.com/v1/appointments"
-    headers = {"Authorization": f"Bearer {biz.beauty_pro_token}", "Content-Type": "application/json"}
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=headers, timeout=5.0)
-            if resp.status_code in [200, 201, 405]:
-                return {"ok": True, "msg": f"З'єднання встановлено! (Код {resp.status_code})"}
-            elif resp.status_code == 401: return {"ok": False, "msg": "Помилка 401: Невірний токен"}
-            else: return {"ok": False, "msg": f"Помилка API: {resp.status_code}"}
     except Exception as e: return {"ok": False, "msg": f"Помилка мережі: {str(e)}"}
 
 async def process_ai_request(business_id: int, question: str, db: AsyncSession, user_id: str = "default", user_name: str = None) -> str:
@@ -1246,6 +1302,7 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
     system_instruction = f"""{biz.system_prompt or 'Ви корисний асистент.'}
     {greeting_instruction}
     Сьогоднішня дата: {datetime.now(UA_TZ).strftime('%Y-%m-%d, %A')}.
+    Тобі КАТЕГОРИЧНО ЗАБОРОНЕНО називати імена інших клієнтів із бази даних.
     
     Доступні майстри: {masters_str}
     Прайс-лист послуг:
@@ -1317,13 +1374,17 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
                     await db.refresh(new_app)
                     await send_new_appointment_notifications(biz, new_app, db)
 
-                    if biz.beauty_pro_token and biz.beauty_pro_location_id:
-                        await push_to_beauty_pro({
+                    sync_msg = ""
+                    # Push to external system
+                    if biz.integration_system == "beauty_pro" and biz.beauty_pro_token and biz.beauty_pro_location_id:
+                        result = await push_to_beauty_pro({
                             "phone": phone, "name": name, "service": data.get('service'), 
                             "datetime": dt.isoformat(), "cost": float(data.get('cost', 0))
                         }, biz.beauty_pro_token, biz.beauty_pro_location_id, biz.beauty_pro_api_url)
-
-                    return f"✅ Запис створено!\n{data['date']} {data['time']}\n{name}\n{data.get('service')}\nСума: {data.get('cost')} грн"
+                        if result and result.get("status") == "success":
+                            sync_msg = f"\n\n({result.get('msg')})"
+                    # TODO: Add other integrations like WINS, Doctor Eleks
+                    return f"✅ Запис створено!\n{data['date']} {data['time']}\n{name}\n{data.get('service')}\nСума: {data.get('cost')} грн{sync_msg}"
         except Exception as e:
             pass
 
@@ -2460,6 +2521,11 @@ async def startup():
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS beauty_pro_token TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS beauty_pro_location_id TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS beauty_pro_api_url TEXT DEFAULT 'https://api.beautypro.com/v1/appointments'"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS integration_system TEXT DEFAULT 'none'"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS wins_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS wins_branch_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS doctor_eleks_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS doctor_eleks_clinic_id TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS groq_api_key TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS viber_token TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS whatsapp_token TEXT"))

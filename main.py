@@ -2866,6 +2866,13 @@ async def help_page(user: User = Depends(get_current_user)):
                     </div>
 
                     <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c12">12. Як змінити пароль?</button></h2>
+                        <div id="c12" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Зверніться до адміністратора системи (Супер-адміна) для зміни паролю вашого акаунту.</p>
+                        </div></div>
+                    </div>
+
+                    <div class="accordion-item">
                         <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c13">13. Як отримати API (Керівництво)</button></h2>
                         <div id="c13" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
                             <h6 class="fw-bold">Telegram Bot API:</h6>
@@ -2897,11 +2904,45 @@ async def help_page(user: User = Depends(get_current_user)):
                             </ul>
                         </div></div>
                     </div>
-                    
+
                     <div class="accordion-item">
-                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c12">12. Як змінити пароль?</button></h2>
-                        <div id="c12" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
-                            <p>Зверніться до адміністратора системи (Супер-адміна) для зміни паролю вашого акаунту.</p>
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c14">14. Довідник полів (Що це і як заповнювати)</button></h2>
+                        <div id="c14" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            
+                            <h6 class="fw-bold text-primary mb-2"><i class="fas fa-robot me-2"></i>Налаштування ШІ</h6>
+                            <table class="table table-sm table-bordered small">
+                                <thead class="table-light"><tr><th>Поле</th><th>Опис та Рекомендації</th></tr></thead>
+                                <tbody>
+                                    <tr>
+                                        <td><b>Модель ШІ</b></td>
+                                        <td>Визначає "інтелект" бота.<br>✅ <b>llama-3.3-70b-versatile:</b> Найрозумніша. Рекомендуємо обирати її.<br>⚠️ <b>llama-3.1-8b-instant:</b> Швидша, але може помилятися в складних діалогах.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Температура</b></td>
+                                        <td>Рівень фантазії (від 0 до 1).<br>✅ <b>0.5:</b> Золота середина (природна мова).<br>❄️ <b>0.1:</b> Сухий робот (тільки факти).<br>🔥 <b>0.9:</b> Дуже креативний (не рекомендується для бізнесу).</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Макс. токенів</b></td>
+                                        <td>Ліміт довжини відповіді. <b>1024</b> — оптимально для чатів. Менше — відповідь може обірватися.</td>
+                                    </tr>
+                                    <tr>
+                                        <td><b>Системна інструкція</b></td>
+                                        <td>Головний сценарій поведінки. Описує, хто такий бот, як спілкуватися, що продавати. Найкраще генерувати через вкладку "AI Генератор".</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <h6 class="fw-bold text-primary mb-2 mt-3"><i class="fas fa-plug me-2"></i>Інтеграції та Пошта</h6>
+                            <table class="table table-sm table-bordered small">
+                                <thead class="table-light"><tr><th>Поле</th><th>Опис</th></tr></thead>
+                                <tbody>
+                                    <tr><td><b>Telegram Chat ID</b></td><td>Ваш особистий ID в Telegram. Туди бот надсилатиме миттєві повідомлення про записи.</td></tr>
+                                    <tr><td><b>SMTP Server/Port</b></td><td>Налаштування поштового сервера (напр. <code>smtp.gmail.com</code>, <code>587</code>) для відправки Email-сповіщень.</td></tr>
+                                    <tr><td><b>Telegram Token</b></td><td>Ключ, який видає @BotFather. Поєднує цю адмінку з вашим ботом.</td></tr>
+                                    <tr><td><b>SMS Sender ID</b></td><td>Ім'я відправника (напр. "MySalon"), яке бачить клієнт. Має бути зареєстроване у SMS-провайдера.</td></tr>
+                                    <tr><td><b>Webhook URL</b></td><td>Технічна адреса, яку треба встановити кнопкою "Підключити", щоб бот "чув" повідомлення.</td></tr>
+                                </tbody>
+                            </table>
                         </div></div>
                     </div>
                 </div>
@@ -3020,8 +3061,6 @@ async def startup():
         if not (await db.execute(select(User).where(User.username == "admin"))).scalar_one_or_none():
             db.add(User(username="admin", password=hash_password("admin12"), role="superadmin"))
             await db.commit()
-    
-    asyncio.create_task(reminder_loop())
     
     asyncio.create_task(reminder_loop())
     

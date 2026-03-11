@@ -271,13 +271,13 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script>
-        function showToast(msg, type = 'success') {
+        function showToast(msg, type = 'success') {{
             const toastEl = document.getElementById('liveToast');
             const toastBody = document.getElementById('toastMsg');
             if (!toastEl || !toastBody) return;
             toastBody.innerText = msg;
             new bootstrap.Toast(toastEl).show();
-        }
+        }}
         function toggleTheme() {{
             const html = document.documentElement;
             const current = html.getAttribute('data-bs-theme');
@@ -3022,3 +3022,6 @@ async def startup():
             await db.commit()
     
     asyncio.create_task(reminder_loop())
+    
+    asyncio.create_task(reminder_loop())
+    

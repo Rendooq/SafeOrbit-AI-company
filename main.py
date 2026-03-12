@@ -57,7 +57,7 @@ class Business(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    type: Mapped[str] = mapped_column(Text, default="barbershop") # barbershop, dentistry, medical, generic
+    type: Mapped[str] = mapped_column(Text, default="barbershop") 
     system_prompt: Mapped[Optional[str]] = mapped_column(Text, default="Ви асистент Барбершопу.")
     has_ai_bot: Mapped[bool] = mapped_column(Boolean, default=False)
     telegram_token: Mapped[Optional[str]] = mapped_column(Text)
@@ -65,7 +65,7 @@ class Business(Base):
     beauty_pro_token: Mapped[Optional[str]] = mapped_column(Text)
     beauty_pro_location_id: Mapped[Optional[str]] = mapped_column(Text)
     beauty_pro_api_url: Mapped[Optional[str]] = mapped_column(Text, default="https://api.beautypro.com/v1/appointments")
-    integration_system: Mapped[Optional[str]] = mapped_column(Text, default="none") # none, beauty_pro, wins, doctor_eleks
+    integration_system: Mapped[Optional[str]] = mapped_column(Text, default="none")
     wins_token: Mapped[Optional[str]] = mapped_column(Text)
     wins_branch_id: Mapped[Optional[str]] = mapped_column(Text)
     doctor_eleks_token: Mapped[Optional[str]] = mapped_column(Text)
@@ -113,7 +113,7 @@ class Customer(Base):
     phone_number: Mapped[str] = mapped_column(Text)
     name: Mapped[Optional[str]] = mapped_column(Text)
     telegram_id: Mapped[Optional[str]] = mapped_column(Text)
-    support_status: Mapped[str] = mapped_column(Text, default="none") # none, waiting, completed
+    support_status: Mapped[str] = mapped_column(Text, default="none")
     is_ai_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -138,7 +138,7 @@ class Service(Base):
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
     name: Mapped[str] = mapped_column(Text)
     price: Mapped[float] = mapped_column(Float)
-    duration: Mapped[int] = mapped_column(Integer) # minutes
+    duration: Mapped[int] = mapped_column(Integer)
 
 class Appointment(Base):
     __tablename__ = "appointments"
@@ -150,7 +150,7 @@ class Appointment(Base):
     service_type: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="confirmed")
     cost: Mapped[float] = mapped_column(Float, default=0.0)
-    source: Mapped[str] = mapped_column(Text, default="manual") # manual, ai
+    source: Mapped[str] = mapped_column(Text, default="manual")
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     customer = relationship("Customer")
     master = relationship("Master")
@@ -159,8 +159,8 @@ class ChatLog(Base):
     __tablename__ = "chat_logs"
     id: Mapped[int] = mapped_column(primary_key=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
-    user_identifier: Mapped[str] = mapped_column(Text) # tg_123 або web_1
-    role: Mapped[str] = mapped_column(Text) # user або assistant
+    user_identifier: Mapped[str] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(Text)
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
@@ -2613,7 +2613,6 @@ async def chats_page(request: Request, user: User = Depends(get_current_user), d
     """
     return get_layout(content, user, "chats")
 
-# --- API ENDPOINTS FOR AJAX CHATS ---
 
 @app.get("/admin/api/chat-lists")
 async def api_chat_lists(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -3042,3 +3041,4 @@ async def startup():
     asyncio.create_task(reminder_loop())
 
     
+

@@ -24,20 +24,16 @@ from starlette.middleware.sessions import SessionMiddleware
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import EmailStr
 
-# ==========================================
-# КОНФІГУРАЦІЯ
-# ==========================================
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://aicrm_fmom_user:Wafz1WOdO5fNj3NJGLzSMsht2oFfRM8l@dpg-d6fkpaldi7vc73agq48g-a.frankfurt-postgres.render.com/aicrm_fmom")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 SECRET_KEY = os.getenv("SECRET_KEY", "SUPER_SECRET_KEY_PRO_999")
-DEFAULT_SMS_SENDER = "Service" # Номер телефону або альфа-ім'я відправника
+DEFAULT_SMS_SENDER = "Service"
 
 UA_TZ = pytz.timezone('Europe/Kyiv')
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 client = AsyncGroq(api_key=GROQ_API_KEY)
 
-# Налаштування логування
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -47,7 +43,6 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=False, s
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Helpery безпеки (Password Hashing)
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -55,9 +50,6 @@ def verify_password(plain_password: str, stored_password: str) -> bool:
     if secrets.compare_digest(plain_password, stored_password): return True
     return secrets.compare_digest(hash_password(plain_password), stored_password)
 
-# ==========================================
-# МОДЕЛІ БД
-# ==========================================
 class Base(DeclarativeBase): pass
 
 class Business(Base):
@@ -175,9 +167,6 @@ class ChatLog(Base):
 async def get_db():
     async with AsyncSessionLocal() as session: yield session
 
-# ==========================================
-# СИСТЕМНІ ФУНКЦІЇ
-# ==========================================
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
     uid = request.session.get("user_id")
     if not uid: return None
@@ -189,7 +178,6 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     is_super = user.role == "superadmin"
     is_master = user.role == "master"
     
-    # Адаптація під тип бізнесу
     biz_type = user.business.type if user.business else "barbershop"
     
     labels = {
@@ -310,9 +298,6 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     </script>
     {scripts}</body></html>"""
 
-# ==========================================
-# ПАНЕЛЬ ВЛАСНИКА
-# ==========================================
 @app.get("/admin", response_class=HTMLResponse)
 async def owner_dash(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role not in ["owner", "master"]: return RedirectResponse("/", status_code=303)
@@ -322,7 +307,6 @@ async def owner_dash(user: User = Depends(get_current_user), db: AsyncSession = 
     week_start = today_start - timedelta(days=today_start.weekday())
     month_start = today_start.replace(day=1)
 
-    # Базові фільтри
     filters = [Appointment.business_id == user.business_id]
     if user.role == "master":
         filters.append(Appointment.master_id == user.master_id)
@@ -353,15 +337,11 @@ async def owner_dash(user: User = Depends(get_current_user), db: AsyncSession = 
     master_options = "".join([f'<option value="{m.id}">{m.name}</option>' for m in masters])
     service_options = "".join([f'<option value="{s.name}" data-id="{s.id}">{s.name} ({s.price} грн)</option>' for s in services])
 
-    # --- АНАЛІТИКА (ДЛЯ ГРАФІКІВ) ---
-    # 1. Джерела (AI vs Manual)
     ai_count = await db.scalar(select(func.count(Appointment.id)).where(and_(*filters, Appointment.source == 'ai'))) or 0
     manual_count = await db.scalar(select(func.count(Appointment.id)).where(and_(*filters, Appointment.source == 'manual'))) or 0
-    
-    # 2. Популярність послуг
+
     top_services = (await db.execute(select(Appointment.service_type, func.count(Appointment.id)).where(and_(*filters)).group_by(Appointment.service_type).order_by(desc(func.count(Appointment.id))).limit(5))).all()
-    
-    # 3. LTV Клієнтів
+
     top_clients = (await db.execute(select(Customer.name, func.sum(Appointment.cost)).join(Appointment).where(and_(Customer.business_id == user.business_id, Appointment.status == 'completed')).group_by(Customer.id).order_by(desc(func.sum(Appointment.cost))).limit(5))).all()
 
     if user.role == "master":
@@ -2961,9 +2941,6 @@ async def help_page(user: User = Depends(get_current_user)):
     """
     return get_layout(content, user, "help")
 
-# ==========================================
-# BACKGROUND TASKS (REMINDERS)
-# ==========================================
 async def reminder_loop():
     while True:
         try:
@@ -3063,4 +3040,5 @@ async def startup():
             await db.commit()
     
     asyncio.create_task(reminder_loop())
+
     

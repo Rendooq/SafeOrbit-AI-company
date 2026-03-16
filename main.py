@@ -941,26 +941,42 @@ async def push_to_beauty_pro(data: dict, token: str, location_id: str, api_url: 
             return {"status": "error", "msg": "Помилка з'єднання з Beauty Pro"}
             
 async def push_to_cleverbox(data: dict, token: str, location_id: str, api_url: str = None):
-    url = api_url or "https://api.cleverbox.crm/v1/appointments"
+    url = api_url or "https://cbox.mobi/api/v2/leads"
     logger.info(f"CLEVERBOX PUSH: Sending to {url} | Data: {data}")
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    
+    # Згідно документації токен передається в спеціальному заголовку "token"
+    headers = {"token": token, "Content-Type": "application/json"}
+    
+    dt_formatted = data['datetime']
+    try:
+        dt_obj = datetime.fromisoformat(data['datetime'])
+        dt_formatted = dt_obj.strftime('%d.%m.%Y %H:%M')
+    except: pass
+    
+    msg_text = f"Запис з AI CRM\nПослуга: {data['service']}\nДата та час: {dt_formatted}\nОчікувана сума: {data['cost']} грн."
+    
     payload = {
-        "location_id": location_id,
-        "phone": data['phone'],
-        "name": data.get('name', ''),
-        "service": data['service'],
-        "datetime": data['datetime'],
-        "price": data['cost']
+        "cmd": "newLead",
+        "data": {
+            "phone": data['phone'],
+            "name": data.get('name', '') or 'Клієнт',
+            "coment": msg_text,
+            "source": "Safe Orbit AI CRM",
+            "message": "Новий запис через AI-Бота"
+        }
     }
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
-            if resp.status_code in [200, 201]:
-                logger.info(f"Cleverbox PUSH successful: {resp.status_code}")
-                return {"status": "success", "msg": "Запис синхронізовано з Cleverbox"}
+            resp_data = resp.json()
+            
+            if resp.status_code == 200 and resp_data.get("ok") is True:
+                logger.info(f"Cleverbox PUSH successful: {resp_data}")
+                return {"status": "success", "msg": "Ліда відправлено в Cleverbox"}
             else:
-                logger.error(f"Cleverbox PUSH failed: {resp.status_code} - {resp.text}")
-                return {"status": "error", "msg": f"Помилка Cleverbox: {resp.status_code}"}
+                error_msg = resp_data.get("error", resp.text)
+                logger.error(f"Cleverbox PUSH failed: {resp.status_code} - {error_msg}")
+                return {"status": "error", "msg": f"Помилка Cleverbox: {error_msg}"}
         except Exception as e:
             logger.error(f"Cleverbox Error: {e}")
             return {"status": "error", "msg": "Помилка з'єднання з Cleverbox"}

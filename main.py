@@ -89,6 +89,7 @@ class Business(Base):
     altegio_company_id: Mapped[Optional[str]] = mapped_column(Text)
     cleverbox_token: Mapped[Optional[str]] = mapped_column(Text)
     cleverbox_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    cleverbox_api_url: Mapped[Optional[str]] = mapped_column(Text)
     working_hours: Mapped[Optional[str]] = mapped_column(Text, default="Пн-Нд: 09:00 - 20:00")
     groq_api_key: Mapped[Optional[str]] = mapped_column(Text)
     viber_token: Mapped[Optional[str]] = mapped_column(Text)
@@ -794,7 +795,7 @@ async def add_appointment(
             result = await push_to_cleverbox({
                 "phone": phone, "name": name, "service": final_service, 
                 "datetime": dt.isoformat(), "cost": cost
-            }, biz.cleverbox_token, biz.cleverbox_location_id)
+            }, biz.cleverbox_token, biz.cleverbox_location_id, biz.cleverbox_api_url)
             if result and result.get("status") == "success":
                 redirect_msg = "added_and_synced"
 
@@ -939,8 +940,8 @@ async def push_to_beauty_pro(data: dict, token: str, location_id: str, api_url: 
             logger.error(f"Beauty Pro Error: {e}")
             return {"status": "error", "msg": "Помилка з'єднання з Beauty Pro"}
             
-async def push_to_cleverbox(data: dict, token: str, location_id: str):
-    url = "https://api.cleverbox.crm/v1/appointments"
+async def push_to_cleverbox(data: dict, token: str, location_id: str, api_url: str = None):
+    url = api_url or "https://api.cleverbox.crm/v1/appointments"
     logger.info(f"CLEVERBOX PUSH: Sending to {url} | Data: {data}")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {
@@ -1164,6 +1165,7 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
                         <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Cleverbox</h6>
                         <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="cb_token" class="form-control bg-light border-0" value="{biz.cleverbox_token or ''}"></div>
                         <div class="mb-3"><label class="form-label small text-muted">ID Локації/Філії</label><input name="cb_id" class="form-control bg-light border-0" value="{biz.cleverbox_location_id or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">API URL (Endpoint)</label><input name="cb_url" class="form-control bg-light border-0" value="{biz.cleverbox_api_url or ''}" placeholder="https://..."></div>
                     </div>
                     <button class="btn btn-primary w-100 mt-3">Зберегти налаштування інтеграції</button>
                 </form>
@@ -1270,6 +1272,7 @@ async def save_integration_settings(
     altegio_company_id: str = Form(None),
     cb_token: str = Form(None),
     cb_id: str = Form(None),
+    cb_url: str = Form(None),
     user: User = Depends(get_current_user), 
     db: AsyncSession = Depends(get_db)
 ):
@@ -1286,6 +1289,7 @@ async def save_integration_settings(
     biz.altegio_company_id = altegio_company_id
     biz.cleverbox_token = cb_token
     biz.cleverbox_location_id = cb_id
+    biz.cleverbox_api_url = cb_url
     await db.commit()
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
 
@@ -1529,7 +1533,7 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
                         result = await push_to_cleverbox({
                             "phone": phone, "name": name, "service": data.get('service'), 
                             "datetime": dt.isoformat(), "cost": float(data.get('cost', 0))
-                        }, biz.cleverbox_token, biz.cleverbox_location_id)
+                        }, biz.cleverbox_token, biz.cleverbox_location_id, biz.cleverbox_api_url)
                         if result and result.get("status") == "success":
                             sync_msg = f"\n\n({result.get('msg')})"
                     
@@ -3308,6 +3312,7 @@ async def startup():
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS altegio_company_id TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS cleverbox_token TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS cleverbox_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS cleverbox_api_url TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS integration_enabled BOOLEAN DEFAULT TRUE"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS working_hours TEXT DEFAULT 'Пн-Нд: 09:00 - 20:00'"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS groq_api_key TEXT"))

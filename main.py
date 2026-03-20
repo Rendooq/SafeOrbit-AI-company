@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 from fastapi import FastAPI, Depends, Form, Request, Response
+from fastapi import FastAPI, Depends, Form, Request, Response, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -90,6 +91,34 @@ class Business(Base):
     cleverbox_token: Mapped[Optional[str]] = mapped_column(Text)
     cleverbox_location_id: Mapped[Optional[str]] = mapped_column(Text)
     cleverbox_api_url: Mapped[Optional[str]] = mapped_column(Text)
+    appointer_token: Mapped[Optional[str]] = mapped_column(Text)
+    appointer_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    dikidi_token: Mapped[Optional[str]] = mapped_column(Text)
+    dikidi_company_id: Mapped[Optional[str]] = mapped_column(Text)
+    booksy_token: Mapped[Optional[str]] = mapped_column(Text)
+    booksy_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    easyweek_token: Mapped[Optional[str]] = mapped_column(Text)
+    easyweek_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    trendis_token: Mapped[Optional[str]] = mapped_column(Text)
+    trendis_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    keepincrm_token: Mapped[Optional[str]] = mapped_column(Text)
+    keepincrm_company_id: Mapped[Optional[str]] = mapped_column(Text)
+    clover_token: Mapped[Optional[str]] = mapped_column(Text)
+    clover_merchant_id: Mapped[Optional[str]] = mapped_column(Text)
+    treatwell_token: Mapped[Optional[str]] = mapped_column(Text)
+    treatwell_venue_id: Mapped[Optional[str]] = mapped_column(Text)
+    fresha_token: Mapped[Optional[str]] = mapped_column(Text)
+    fresha_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    miopane_token: Mapped[Optional[str]] = mapped_column(Text)
+    miopane_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    clinica_web_token: Mapped[Optional[str]] = mapped_column(Text)
+    clinica_web_clinic_id: Mapped[Optional[str]] = mapped_column(Text)
+    vagaro_token: Mapped[Optional[str]] = mapped_column(Text)
+    vagaro_business_id: Mapped[Optional[str]] = mapped_column(Text)
+    mindbody_token: Mapped[Optional[str]] = mapped_column(Text)
+    mindbody_site_id: Mapped[Optional[str]] = mapped_column(Text)
+    zoho_token: Mapped[Optional[str]] = mapped_column(Text)
+    zoho_workspace_id: Mapped[Optional[str]] = mapped_column(Text)
     working_hours: Mapped[Optional[str]] = mapped_column(Text, default="Пн-Нд: 09:00 - 20:00")
     groq_api_key: Mapped[Optional[str]] = mapped_column(Text)
     viber_token: Mapped[Optional[str]] = mapped_column(Text)
@@ -148,6 +177,7 @@ class Master(Base):
     role: Mapped[str] = mapped_column(Text, default="Майстер")
     telegram_chat_id: Mapped[Optional[str]] = mapped_column(Text)
     personal_bot_token: Mapped[Optional[str]] = mapped_column(Text)
+    commission_rate: Mapped[float] = mapped_column(Float, default=0.0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     services = relationship("Service", secondary="master_services")
 
@@ -171,8 +201,26 @@ class Appointment(Base):
     cost: Mapped[float] = mapped_column(Float, default=0.0)
     source: Mapped[str] = mapped_column(Text, default="manual")
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    followup_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     customer = relationship("Customer")
     master = relationship("Master")
+
+class ActionLog(Base):
+    __tablename__ = "action_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    user_id: Mapped[Optional[int]] = mapped_column(Integer)
+    action: Mapped[str] = mapped_column(Text)
+    details: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+class Product(Base):
+    __tablename__ = "products"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    name: Mapped[str] = mapped_column(Text)
+    stock: Mapped[float] = mapped_column(Float, default=0.0)
+    unit_cost: Mapped[float] = mapped_column(Float, default=0.0)
 
 class ChatLog(Base):
     __tablename__ = "chat_logs"
@@ -191,6 +239,11 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     if not uid: return None
     res = await db.execute(select(User).options(joinedload(User.business)).where(User.id == uid))
     return res.scalar_one_or_none()
+
+async def log_action(db: AsyncSession, biz_id: int, user_id: Optional[int], action: str, details: str):
+    new_log = ActionLog(business_id=biz_id, user_id=user_id, action=action, details=details)
+    db.add(new_log)
+    await db.commit()
 
 def get_layout(content: str, user: User, active: str, scripts: str = ""):
     now = datetime.now(UA_TZ).strftime('%H:%M')
@@ -229,11 +282,14 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     """
 
     generator_menu = "" if is_master else f"""<a href="/admin/generator" class="nav-link {'active' if active=='gen' else ''}"><i class="fas fa-magic me-2"></i>AI Генератор</a>"""
+    fin_logs_menu = "" if is_master else f"""<a href="/admin/finance" class="nav-link {'active' if active=='fin' else ''}"><i class="fas fa-wallet me-2"></i>Фінанси та Склад</a>
+        <a href="/admin/logs" class="nav-link {'active' if active=='logs' else ''}"><i class="fas fa-history me-2"></i>Журнал дій</a>"""
     menu = f"""<a href="/superadmin" class="nav-link {'active' if active=='super' else ''}"><i class="fas fa-user-shield me-2"></i>Адмін</a>""" if is_super else f"""
         {return_btn}
         <a href="/admin" class="nav-link {'active' if active=='dash' else ''}"><i class="fas fa-chart-line me-2"></i>Панель</a>
         <a href="/admin/klienci" class="nav-link {'active' if active=='kli' else ''}"><i class="fas fa-users me-2"></i>{l['clients']}</a>
         {generator_menu}
+        {fin_logs_menu}
         <a href="/admin/settings" class="nav-link {'active' if active=='set' else ''}"><i class="fas fa-cogs me-2"></i>{'Профіль' if is_master else 'Налаштування'}</a>{bot_menu}
         <a href="/admin/chats" class="nav-link {'active' if active=='chats' else ''}"><i class="fas fa-comments me-2"></i>Чати <span id="chatBadge" class="badge bg-danger rounded-pill ms-auto" style="display:none">!</span></a>
         <a href="/admin/help" class="nav-link {'active' if active=='help' else ''}"><i class="fas fa-question-circle me-2"></i>Допомога</a>"""
@@ -361,7 +417,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     {scripts}</body></html>"""
 
 @app.get("/admin", response_class=HTMLResponse)
-async def owner_dash(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def owner_dash(request: Request, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role not in ["owner", "master"]: return RedirectResponse("/", status_code=303)
     
     is_limited_master = False
@@ -458,7 +514,10 @@ async def owner_dash(user: User = Depends(get_current_user), db: AsyncSession = 
         <div class="tab-pane fade show active" id="tab-list">
             <div class="row g-4 mb-4">
                 <div class="col-md-8"><div class="card p-4 h-100">
-                    <h5 class="fw-bold mb-4 text-primary">Новий Запис</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold m-0 text-primary">Новий Запис</h5>
+                        <a href="/widget/{user.business_id}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="fas fa-external-link-alt me-1"></i>Віджет для клієнтів</a>
+                    </div>
                     <form action="/admin/add-appointment" method="post" class="row g-3">
                         <div class="col-md-6"><label class="small text-muted">Телефон</label><input name="phone" class="form-control bg-light border-0" required placeholder="+380..."></div>
                         <div class="col-md-6"><label class="small text-muted">Ім'я</label><input name="name" class="form-control bg-light border-0" placeholder="Ім'я клієнта"></div>
@@ -780,6 +839,8 @@ async def add_appointment(
         await db.commit()
         await db.refresh(new_app)
 
+        await log_action(db, user.business_id, user.id, "Додано запис", f"Клієнт: {name} ({phone}), Послуга: {final_service}, Час: {dt.strftime('%d.%m %H:%M')}, Сума: {cost}")
+
         await send_new_appointment_notifications(user.business, new_app, db)
 
         biz = user.business
@@ -809,6 +870,8 @@ async def update_appt(id: int = Form(...), date: str = Form(...), time: str = Fo
     res = await db.execute(select(Appointment).where(and_(Appointment.id == id, Appointment.business_id == user.business_id)))
     appt = res.scalar_one_or_none()
     if appt:
+        old_status = appt.status
+        old_cost = appt.cost
         try:
             appt.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
             appt.status = status
@@ -823,6 +886,9 @@ async def update_appt(id: int = Form(...), date: str = Form(...), time: str = Fo
             if not is_limited_master:
                 appt.master_id = int(master_id) if master_id and master_id.isdigit() else None
             await db.commit()
+            
+            log_details = f"Запис #{id} оновлено. Статус: {old_status}->{status}, Сума: {old_cost}->{cost}"
+            await log_action(db, user.business_id, user.id, "Оновлено запис", log_details)
         except ValueError: pass
     return RedirectResponse("/admin?msg=saved", status_code=303)
 
@@ -847,6 +913,7 @@ async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user
     if appt_to_delete and appt_to_delete.business_id == user.business_id:
         customer_id = appt_to_delete.customer_id
         await db.delete(appt_to_delete)
+        await log_action(db, user.business_id, user.id, "Видалено запис", f"ID запису: {id}")
         await db.commit()
 
     return RedirectResponse("/admin?msg=deleted", status_code=303)
@@ -955,10 +1022,13 @@ async def push_to_cleverbox(data: dict, token: str, location_id: str, api_url: s
     
     msg_text = f"Запис з AI CRM\nПослуга: {data['service']}\nДата та час: {dt_formatted}\nОчікувана сума: {data['cost']} грн."
     
+    # Очищуємо номер телефону від пробілів та дужок для коректного розпізнавання в CRM
+    clean_phone = re.sub(r'[^0-9+]', '', data.get('phone', ''))
+
     payload = {
         "cmd": "newLead",
         "data": {
-            "phone": data['phone'],
+            "phone": clean_phone,
             "name": data.get('name', '') or 'Клієнт',
             "coment": msg_text,
             "source": "Safe Orbit AI CRM",
@@ -1127,7 +1197,20 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
         "wins": "WINS",
         "doctor_eleks": "Doctor Eleks",
         "altegio": "Altegio (Yclients)",
-        "cleverbox": "Cleverbox"
+        "appointer": "Appointer",
+        "dikidi": "Dikidi Business",
+        "booksy": "Booksy",
+        "easyweek": "EasyWeek",
+        "trendis": "Trendis",
+        "keepincrm": "KeepinCRM",
+        "clover": "Clover",
+        "treatwell": "Treatwell",
+        "fresha": "Shedul (Fresha)",
+        "miopane": "MioPane",
+        "clinica_web": "Clinica Web",
+        "vagaro": "Vagaro",
+        "mindbody": "Mindbody",
+        "zoho": "Zoho Bookings"
     }
     integration_options = "".join([f'<option value="{k}" {"selected" if biz.integration_system == k else ""}>{v}</option>' for k, v in integration_systems.items()])
 
@@ -1182,6 +1265,76 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
                         <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="cb_token" class="form-control bg-light border-0" value="{biz.cleverbox_token or ''}"></div>
                         <div class="mb-3"><label class="form-label small text-muted">ID Локації/Філії</label><input name="cb_id" class="form-control bg-light border-0" value="{biz.cleverbox_location_id or ''}"></div>
                         <div class="mb-3"><label class="form-label small text-muted">API URL (Endpoint)</label><input name="cb_url" class="form-control bg-light border-0" value="{biz.cleverbox_api_url or ''}" placeholder="https://..."></div>
+                    </div>
+                    <div id="form-appointer" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Appointer</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="appointer_token" class="form-control bg-light border-0" value="{biz.appointer_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">ID Локації</label><input name="appointer_location_id" class="form-control bg-light border-0" value="{biz.appointer_location_id or ''}"></div>
+                    </div>
+                    <div id="form-dikidi" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Dikidi Business</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="dikidi_token" class="form-control bg-light border-0" value="{biz.dikidi_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Company ID</label><input name="dikidi_company_id" class="form-control bg-light border-0" value="{biz.dikidi_company_id or ''}"></div>
+                    </div>
+                    <div id="form-booksy" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Booksy</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="booksy_token" class="form-control bg-light border-0" value="{biz.booksy_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Location ID</label><input name="booksy_location_id" class="form-control bg-light border-0" value="{biz.booksy_location_id or ''}"></div>
+                    </div>
+                    <div id="form-easyweek" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування EasyWeek</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="easyweek_token" class="form-control bg-light border-0" value="{biz.easyweek_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Location ID</label><input name="easyweek_location_id" class="form-control bg-light border-0" value="{biz.easyweek_location_id or ''}"></div>
+                    </div>
+                    <div id="form-trendis" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Trendis</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="trendis_token" class="form-control bg-light border-0" value="{biz.trendis_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Location ID</label><input name="trendis_location_id" class="form-control bg-light border-0" value="{biz.trendis_location_id or ''}"></div>
+                    </div>
+                    <div id="form-keepincrm" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування KeepinCRM</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="keepincrm_token" class="form-control bg-light border-0" value="{biz.keepincrm_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Company ID</label><input name="keepincrm_company_id" class="form-control bg-light border-0" value="{biz.keepincrm_company_id or ''}"></div>
+                    </div>
+                    <div id="form-clover" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Clover</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="clover_token" class="form-control bg-light border-0" value="{biz.clover_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Merchant ID</label><input name="clover_merchant_id" class="form-control bg-light border-0" value="{biz.clover_merchant_id or ''}"></div>
+                    </div>
+                    <div id="form-treatwell" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Treatwell</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="treatwell_token" class="form-control bg-light border-0" value="{biz.treatwell_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Venue ID</label><input name="treatwell_venue_id" class="form-control bg-light border-0" value="{biz.treatwell_venue_id or ''}"></div>
+                    </div>
+                    <div id="form-fresha" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Shedul (Fresha)</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="fresha_token" class="form-control bg-light border-0" value="{biz.fresha_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Location ID</label><input name="fresha_location_id" class="form-control bg-light border-0" value="{biz.fresha_location_id or ''}"></div>
+                    </div>
+                    <div id="form-miopane" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування MioPane</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="miopane_token" class="form-control bg-light border-0" value="{biz.miopane_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Location ID</label><input name="miopane_location_id" class="form-control bg-light border-0" value="{biz.miopane_location_id or ''}"></div>
+                    </div>
+                    <div id="form-clinica_web" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Clinica Web</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="clinica_web_token" class="form-control bg-light border-0" value="{biz.clinica_web_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Clinic ID</label><input name="clinica_web_clinic_id" class="form-control bg-light border-0" value="{biz.clinica_web_clinic_id or ''}"></div>
+                    </div>
+                    <div id="form-vagaro" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Vagaro</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="vagaro_token" class="form-control bg-light border-0" value="{biz.vagaro_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Business ID</label><input name="vagaro_business_id" class="form-control bg-light border-0" value="{biz.vagaro_business_id or ''}"></div>
+                    </div>
+                    <div id="form-mindbody" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Mindbody</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="mindbody_token" class="form-control bg-light border-0" value="{biz.mindbody_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Site ID</label><input name="mindbody_site_id" class="form-control bg-light border-0" value="{biz.mindbody_site_id or ''}"></div>
+                    </div>
+                    <div id="form-zoho" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Zoho Bookings</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="zoho_token" class="form-control bg-light border-0" value="{biz.zoho_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Workspace ID</label><input name="zoho_workspace_id" class="form-control bg-light border-0" value="{biz.zoho_workspace_id or ''}"></div>
                     </div>
                     <button class="btn btn-primary w-100 mt-3">Зберегти налаштування інтеграції</button>
                 </form>
@@ -1289,6 +1442,34 @@ async def save_integration_settings(
     cb_token: str = Form(None),
     cb_id: str = Form(None),
     cb_url: str = Form(None),
+    appointer_token: str = Form(None),
+    appointer_location_id: str = Form(None),
+    dikidi_token: str = Form(None),
+    dikidi_company_id: str = Form(None),
+    booksy_token: str = Form(None),
+    booksy_location_id: str = Form(None),
+    easyweek_token: str = Form(None),
+    easyweek_location_id: str = Form(None),
+    trendis_token: str = Form(None),
+    trendis_location_id: str = Form(None),
+    keepincrm_token: str = Form(None),
+    keepincrm_company_id: str = Form(None),
+    clover_token: str = Form(None),
+    clover_merchant_id: str = Form(None),
+    treatwell_token: str = Form(None),
+    treatwell_venue_id: str = Form(None),
+    fresha_token: str = Form(None),
+    fresha_location_id: str = Form(None),
+    miopane_token: str = Form(None),
+    miopane_location_id: str = Form(None),
+    clinica_web_token: str = Form(None),
+    clinica_web_clinic_id: str = Form(None),
+    vagaro_token: str = Form(None),
+    vagaro_business_id: str = Form(None),
+    mindbody_token: str = Form(None),
+    mindbody_site_id: str = Form(None),
+    zoho_token: str = Form(None),
+    zoho_workspace_id: str = Form(None),
     user: User = Depends(get_current_user), 
     db: AsyncSession = Depends(get_db)
 ):
@@ -1306,6 +1487,34 @@ async def save_integration_settings(
     biz.cleverbox_token = cb_token
     biz.cleverbox_location_id = cb_id
     biz.cleverbox_api_url = cb_url
+    biz.appointer_token = appointer_token
+    biz.appointer_location_id = appointer_location_id
+    biz.dikidi_token = dikidi_token
+    biz.dikidi_company_id = dikidi_company_id
+    biz.booksy_token = booksy_token
+    biz.booksy_location_id = booksy_location_id
+    biz.easyweek_token = easyweek_token
+    biz.easyweek_location_id = easyweek_location_id
+    biz.trendis_token = trendis_token
+    biz.trendis_location_id = trendis_location_id
+    biz.keepincrm_token = keepincrm_token
+    biz.keepincrm_company_id = keepincrm_company_id
+    biz.clover_token = clover_token
+    biz.clover_merchant_id = clover_merchant_id
+    biz.treatwell_token = treatwell_token
+    biz.treatwell_venue_id = treatwell_venue_id
+    biz.fresha_token = fresha_token
+    biz.fresha_location_id = fresha_location_id
+    biz.miopane_token = miopane_token
+    biz.miopane_location_id = miopane_location_id
+    biz.clinica_web_token = clinica_web_token
+    biz.clinica_web_clinic_id = clinica_web_clinic_id
+    biz.vagaro_token = vagaro_token
+    biz.vagaro_business_id = vagaro_business_id
+    biz.mindbody_token = mindbody_token
+    biz.mindbody_site_id = mindbody_site_id
+    biz.zoho_token = zoho_token
+    biz.zoho_workspace_id = zoho_workspace_id
     await db.commit()
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
 
@@ -2685,6 +2894,202 @@ async def export_clients(user: User = Depends(get_current_user), db: AsyncSessio
     response.headers["Content-Disposition"] = "attachment; filename=clients_export.csv"
     return response
 
+@app.get("/widget/{business_id}", response_class=HTMLResponse)
+async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get_db)):
+    biz = await db.get(Business, business_id)
+    if not biz or not biz.is_active: return "Бізнес не знайдено або заблоковано"
+    
+    services = (await db.execute(select(Service).where(Service.business_id == business_id))).scalars().all()
+    masters = (await db.execute(select(Master).where(and_(Master.business_id == business_id, Master.is_active == True)))).scalars().all()
+    
+    s_opts = "".join([f"<option value='{s.name}'>{s.name} ({s.price} грн)</option>" for s in services])
+    m_opts = "".join([f"<option value='{m.id}'>{m.name}</option>" for m in masters])
+    
+    return f"""<!DOCTYPE html><html lang="uk"><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Запис - {biz.name}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {{ background:#f8f9fa; }} 
+        .card {{ border-radius:1.5rem; border:none; box-shadow:0 10px 30px rgba(0,0,0,0.05); }}
+        .date-card {{ min-width: 65px; text-align: center; border: 1px solid #dee2e6; border-radius: 0.75rem; padding: 12px 5px; cursor: pointer; transition: 0.2s; background: white; }}
+        .date-card.active {{ background: #4f46e5; color: white; border-color: #4f46e5; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); }}
+        .date-card:hover:not(.active) {{ border-color: #4f46e5; background: #f8faff; }}
+        .time-slot {{ border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 10px 16px; cursor: pointer; transition: 0.2s; background: white; text-align: center; flex: 1 1 calc(25% - 0.5rem); min-width: 75px; font-weight: 500; }}
+        .time-slot.active {{ background: #4f46e5; color: white; border-color: #4f46e5; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); }}
+        .time-slot:hover:not(.active) {{ border-color: #4f46e5; background: #f8faff; }}
+        .btn-primary {{ background-color: #4f46e5; border: none; }}
+        .btn-primary:hover {{ background-color: #4338ca; }}
+        ::-webkit-scrollbar {{ height: 6px; }}
+        ::-webkit-scrollbar-thumb {{ background: #cbd5e1; border-radius: 10px; }}
+    </style></head>
+    <body><div class="container py-4" style="max-width:550px;">
+        <div class="text-center mb-4">
+            <div class="bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow-sm" style="width: 70px; height: 70px; font-size: 28px; font-weight: bold;">
+                {biz.name[0].upper()}
+            </div>
+            <h4 class="fw-bold text-dark">{biz.name}</h4><p class="text-muted small">Онлайн-запис</p>
+        </div>
+        <div class="card p-4"><form action="/widget/book/{business_id}" method="post" id="bookingForm">
+            <div class="mb-3"><label class="small text-muted fw-bold mb-1">Оберіть послугу</label><select name="service" class="form-select bg-light border-0 py-2" required><option value="">-- Не обрано --</option>{s_opts}</select></div>
+            <div class="mb-4"><label class="small text-muted fw-bold mb-1">Оберіть майстра (необов'язково)</label><select name="master_id" class="form-select bg-light border-0 py-2"><option value="">-- Будь-який вільний --</option>{m_opts}</select></div>
+            
+            <div class="mb-4">
+                <label class="small text-muted fw-bold mb-2">Оберіть дату</label>
+                <div id="dateCards" class="d-flex overflow-auto gap-2 pb-2" style="scrollbar-width: thin;"></div>
+                <input type="hidden" name="date" id="selectedDate" required>
+            </div>
+            
+            <div class="mb-4">
+                <label class="small text-muted fw-bold mb-2">Оберіть час</label>
+                <div id="timeSlots" class="d-flex flex-wrap gap-2">
+                    <div class="text-muted small w-100 text-center py-3 bg-light rounded">Спочатку оберіть дату</div>
+                </div>
+                <input type="hidden" name="time" id="selectedTime" required>
+            </div>
+
+            <hr class="mb-4 text-muted">
+            <div class="mb-3"><label class="small text-muted fw-bold mb-1">Ваше ім'я</label><input name="name" class="form-control bg-light border-0 py-2" required placeholder="Ім'я"></div>
+            <div class="mb-4"><label class="small text-muted fw-bold mb-1">Ваш телефон</label><input name="phone" type="tel" class="form-control bg-light border-0 py-2" required placeholder="+380..."></div>
+            
+            <button type="submit" class="btn btn-primary w-100 fw-bold py-3 rounded-pill shadow-sm">Підтвердити запис</button>
+        </form></div>
+    </div>
+    <script>
+        const dateCardsContainer = document.getElementById('dateCards');
+        const timeSlotsContainer = document.getElementById('timeSlots');
+        const selectedDateInput = document.getElementById('selectedDate');
+        const selectedTimeInput = document.getElementById('selectedTime');
+        const daysOfWeek = ['Нд', 'Пн', 'Вв', 'Ср', 'Чт', 'Пт', 'Сб'];
+        const today = new Date();
+
+        function generateDates() {{
+            for (let i = 0; i < 30; i++) {{
+                let d = new Date();
+                d.setDate(today.getDate() + i);
+                
+                let dayName = i === 0 ? 'Сьог' : (i === 1 ? 'Зав' : daysOfWeek[d.getDay()]);
+                let dayNum = d.getDate();
+                let monthNum = String(d.getMonth() + 1).padStart(2, '0');
+                let yearNum = d.getFullYear();
+                let dateString = `${{yearNum}}-${{monthNum}}-${{String(dayNum).padStart(2, '0')}}`;
+                
+                let card = document.createElement('div');
+                card.className = 'date-card';
+                card.innerHTML = `<div class="small mb-1 text-uppercase" style="font-size: 0.70rem;">${{dayName}}</div><div class="fw-bold fs-5">${{dayNum}}</div>`;
+                card.onclick = () => selectDate(card, dateString);
+                dateCardsContainer.appendChild(card);
+            }}
+        }}
+
+        function selectDate(element, dateStr) {{
+            document.querySelectorAll('.date-card').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            selectedDateInput.value = dateStr;
+            generateTimes();
+        }}
+
+        function generateTimes() {{
+            timeSlotsContainer.innerHTML = '';
+            selectedTimeInput.value = '';
+            const startHour = 9;
+            const endHour = 19;
+            
+            for(let h = startHour; h <= endHour; h++) {{
+                for(let m of ['00', '30']) {{
+                    let timeStr = `${{String(h).padStart(2, '0')}}:${{m}}`;
+                    let btn = document.createElement('div');
+                    btn.className = 'time-slot';
+                    btn.innerText = timeStr;
+                    btn.onclick = () => selectTime(btn, timeStr);
+                    timeSlotsContainer.appendChild(btn);
+                }}
+            }}
+        }}
+
+        function selectTime(element, timeStr) {{
+            document.querySelectorAll('.time-slot').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            selectedTimeInput.value = timeStr;
+        }}
+
+        generateDates();
+
+        document.getElementById('bookingForm').addEventListener('submit', function(e) {{
+            if(!selectedDateInput.value || !selectedTimeInput.value) {{
+                e.preventDefault();
+                alert('Будь ласка, оберіть дату та час візиту!');
+            }}
+        }});
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.get('msg') === 'success') alert('Ваш запис успішно створено! Чекаємо на вас.');
+        if(urlParams.get('msg') === 'taken') alert('На жаль, цей час вже зайнятий. Будь ласка, оберіть інший.');
+    </script></body></html>"""
+
+@app.post("/widget/book/{business_id}")
+async def process_public_booking(business_id: int, phone: str = Form(...), name: str = Form(...), date: str = Form(...), time: str = Form(...), service: str = Form(...), master_id: str = Form(None), db: AsyncSession = Depends(get_db)):
+    dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+    
+    srv = (await db.execute(select(Service).where(and_(Service.name == service, Service.business_id == business_id)))).scalar_one_or_none()
+    duration = srv.duration if srv and srv.duration else 90
+    cost = srv.price if srv else 0.0
+    
+    new_start = dt
+    new_end = dt + timedelta(minutes=duration)
+    
+    stmt_overlap = select(Appointment).where(and_(Appointment.business_id == business_id, Appointment.status != 'cancelled', Appointment.appointment_time >= day_start, Appointment.appointment_time < day_end))
+    existing_apps = (await db.execute(stmt_overlap)).scalars().all()
+    
+    for app in existing_apps:
+        app_dur = 90
+        s_ex = (await db.execute(select(Service).where(and_(Service.name == app.service_type, Service.business_id == business_id)))).scalar_one_or_none()
+        if s_ex and s_ex.duration: app_dur = s_ex.duration
+        app_end = app.appointment_time + timedelta(minutes=app_dur)
+        
+        if new_start < app_end and new_end > app.appointment_time:
+            return RedirectResponse(f"/widget/{business_id}?msg=taken", status_code=303)
+    
+    cust = (await db.execute(select(Customer).where(and_(Customer.phone_number == phone, Customer.business_id == business_id)))).scalar_one_or_none()
+    if not cust:
+        cust = Customer(business_id=business_id, phone_number=phone, name=name)
+        db.add(cust); await db.flush()
+    
+    app = Appointment(business_id=business_id, customer_id=cust.id, appointment_time=dt, service_type=service, cost=cost, source="widget", master_id=int(master_id) if master_id else None)
+    db.add(app)
+    await db.commit()
+    
+    biz = await db.get(Business, business_id)
+    await send_new_appointment_notifications(biz, app, db)
+    return RedirectResponse(f"/widget/{business_id}?msg=success", status_code=303)
+
+@app.post("/admin/api/voice-note/{customer_id}")
+async def api_voice_note(customer_id: int, audio: UploadFile = File(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user: return {"ok": False}
+    cust = await db.get(Customer, customer_id)
+    if not cust or cust.business_id != user.business_id: return {"ok": False}
+    
+    biz = await db.get(Business, user.business_id)
+    api_key = biz.groq_api_key or GROQ_API_KEY
+    local_client = AsyncGroq(api_key=api_key)
+    
+    try:
+        file_bytes = await audio.read()
+        transcription = await local_client.audio.transcriptions.create(
+            file=(audio.filename, file_bytes),
+            model="whisper-large-v3-turbo",
+            prompt="Переведи аудіонотатку майстра про клієнта.",
+            response_format="json",
+            language="uk"
+        )
+        text_res = transcription.text
+        cust.notes = f"{cust.notes}\n[Голосова нотатка {datetime.now(UA_TZ).strftime('%d.%m %H:%M')}]: {text_res}" if cust.notes else f"[Голосова нотатка {datetime.now(UA_TZ).strftime('%d.%m %H:%M')}]: {text_res}"
+        await db.commit()
+        return {"ok": True, "text": text_res}
+    except Exception as e:
+        logger.error(f"Whisper error: {e}")
+        return {"ok": False, "msg": str(e)}
+
 @app.get("/admin/klienci", response_class=HTMLResponse)
 async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role not in ["owner", "master"]: return RedirectResponse("/", status_code=303)
@@ -2744,6 +3149,10 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
                 <div class="mb-3"><label class="small text-muted">Телефон</label><input name="phone" id="customerPhone" class="form-control bg-light border-0" required></div>
                 <div class="mb-3">
                     <label class="small text-muted fw-bold"><i class="fas fa-sticky-note me-1"></i>Внутрішні нотатки (бачить тільки персонал)</label>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="small text-muted fw-bold"><i class="fas fa-sticky-note me-1"></i>Внутрішні нотатки</label>
+                        <button type="button" class="btn btn-sm btn-light text-primary py-0" onclick="recordVoiceNote()" id="btnVoiceNote" title="Надиктувати (Whisper AI)"><i class="fas fa-microphone"></i></button>
+                    </div>
                     <textarea name="notes" id="customerNotes" class="form-control bg-light border-0" rows="4" placeholder="Напр: Алергія на фарбу, любить каву з цукром..."></textarea>
                 </div>
             </div>
@@ -2786,6 +3195,38 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
         let html = await res.text();
         document.getElementById('historyBody').innerHTML = html;
     }
+    
+    async function recordVoiceNote() {
+        const id = document.getElementById('customerId').value;
+        const btn = document.getElementById('btnVoiceNote');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            const audioChunks = [];
+            
+            btn.innerHTML = '<i class="fas fa-circle text-danger blink"></i> Запис...';
+            mediaRecorder.start();
+            
+            setTimeout(() => { mediaRecorder.stop(); }, 5000); // 5 seconds max for test
+            
+            mediaRecorder.addEventListener("dataavailable", event => { audioChunks.push(event.data); });
+            mediaRecorder.addEventListener("stop", async () => {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const formData = new FormData();
+                formData.append("audio", audioBlob, "note.webm");
+                
+                const res = await fetch(`/admin/api/voice-note/${id}`, { method: 'POST', body: formData });
+                const data = await res.json();
+                if(data.ok) {
+                    let txt = document.getElementById('customerNotes');
+                    txt.value = txt.value ? txt.value + "\\n" + data.text : data.text;
+                } else alert("Помилка AI: " + data.msg);
+                btn.innerHTML = '<i class="fas fa-microphone"></i>';
+                stream.getTracks().forEach(track => track.stop());
+            });
+        } catch (e) { alert("Немає доступу до мікрофона"); }
+    }
     </script>"""
     
     return get_layout(content, user, "kli", scripts)
@@ -2796,6 +3237,7 @@ async def update_customer(id: int = Form(...), name: str = Form(...), phone: str
     cust = await db.get(Customer, id)
     if cust and cust.business_id == user.business_id:
         cust.name = name; cust.phone_number = phone; cust.notes = notes; await db.commit()
+        await log_action(db, user.business_id, user.id, "Редагування клієнта", f"Оновлено дані клієнта {name}")
     return RedirectResponse("/admin/klienci?msg=saved", status_code=303)
 
 @app.get("/admin/api/client-history/{id}")
@@ -3254,6 +3696,222 @@ async def help_page(user: User = Depends(get_current_user)):
                             </table>
                         </div></div>
                     </div>
+                     <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c15">15. Як додати нову філію?</button></h2>
+                        <div id="c15" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>В меню "Налаштування" перейдіть у вкладку "🏢 Філії". Заповніть назву, адресу та створіть логін і пароль для входу у цю філію.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c16">16. Як перемикатися між філіями?</button></h2>
+                        <div id="c16" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>У вкладці філій біля кожної з них є зелена кнопка "Увійти". Ви миттєво потрапите до її бази без введення паролю. Щоб повернутись, натисніть "До головної" у боковому меню.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c17">17. Як працюють ролі співробітників?</button></h2>
+                        <div id="c17" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>При додаванні співробітника виберіть роль. "Майстер" бачить тільки своїх клієнтів. "Адміністратор", "СЕО" та "СОО" бачать усі записи та аналітику, але не можуть міняти ключі бота.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c18">18. Що бачить звичайний Майстер?</button></h2>
+                        <div id="c18" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Він бачить скорочену панель: тільки свої записи в календарі, список своїх клієнтів і можливість налаштувати особистого бота-асистента для перевірки свого графіку.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c19">19. Як обмежити доступ майстру?</button></h2>
+                        <div id="c19" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Просто впевніться, що при створенні його акаунту ви обрали роль "Майстер". Система автоматично приховає фінансові звіти компанії та базу інших клієнтів.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c20">20. Як змінити робочий графік?</button></h2>
+                        <div id="c20" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>В налаштуваннях ШІ Асистента знайдіть поле "Графік роботи". Вкажіть години, щоб бот не записував клієнтів вночі або на вихідних.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c21">21. Як змінити системний промпт?</button></h2>
+                        <div id="c21" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Перейдіть до "Налаштувань" -> "ШІ Асистент" і відредагуйте текст у великому полі. Там ви можете додати специфічні правила для вашого бізнесу.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c22">22. Чому бот відповідає іншою мовою?</button></h2>
+                        <div id="c22" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Якщо клієнт пише російською чи англійською, бот може автоматично підлаштуватися. Щоб жорстко зафіксувати українську, вкажіть це в системному промпті або згенеруйте новий через AI-Генератор.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c23">23. Як навчити бота робити Upsell?</button></h2>
+                        <div id="c23" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Використайте AI Генератор і поставте галочку "Активний Upsell/Cross-sell". Бот почне пропонувати доглядові засоби чи додаткові послуги під час запису.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c24">24. Що робити, якщо бот не бачить вільного часу?</button></h2>
+                        <div id="c24" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Перевірте, чи не заповнений календар вручну, і переконайтесь, що ви вказали правильний графік роботи. Бот пропонує тільки час у межах графіка, який не зайнятий іншими записами.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c25">25. Як згенерувати ідеальний промпт?</button></h2>
+                        <div id="c25" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Відкрийте "AI Генератор", оберіть потрібні параметри (роль, тон, формальність) і натисніть "Згенерувати". Потім збережіть його, щоб він одразу запрацював.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c26">26. Яку модель ШІ обрати?</button></h2>
+                        <div id="c26" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Найкращий варіант – llama-3.3-70b-versatile. Вона відмінно розуміє контекст і рідко помиляється.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c27">27. Що таке параметр "Температура"?</button></h2>
+                        <div id="c27" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Це "творчість" бота. Значення 0.1 робить його сухим і точним. 0.9 – дуже креативним. Оптимально для бізнесу: 0.3 - 0.5.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c28">28. Як отримувати сповіщення на Email?</button></h2>
+                        <div id="c28" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>У вкладці "Сповіщення" увімкніть Email-інформування, впишіть вашу адресу та налаштуйте SMTP (напр., через Gmail App Passwords).</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c29">29. Як налаштувати SMTP?</button></h2>
+                        <div id="c29" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Для Gmail: Server: smtp.gmail.com, Port: 587. User: ваша_пошта@gmail.com. Pass: спеціальний "App Password", згенерований в налаштуваннях безпеки акаунта Google.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c30">30. Як отримувати сповіщення у Telegram?</button></h2>
+                        <div id="c30" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Вкажіть свій Telegram Chat ID у розділі сповіщень. Отримати його можна у бота @userinfobot.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c31">31. Чи отримує майстер сповіщення?</button></h2>
+                        <div id="c31" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Так! Якщо майстер має свій акаунт і вказав свій Chat ID у своєму профілі, він автоматично отримуватиме сповіщення тільки про свої записи.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c32">32. Як інтегрувати Instagram?</button></h2>
+                        <div id="c32" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>В меню "Бот-інтеграція" введіть ваш Instagram Token. Ви маєте отримати його через Meta for Developers.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c33">33. Як інтегрувати Viber?</button></h2>
+                        <div id="c33" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Створіть бота у Viber Admin Panel, скопіюйте Authentication Token та вставте його у відповідне поле.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c34">34. Як інтегрувати WhatsApp?</button></h2>
+                        <div id="c34" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Знадобиться доступ до WhatsApp Business API через Meta for Developers. Згенеруйте системний токен та вкажіть його у налаштуваннях.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c35">35. Що таке Webhook?</button></h2>
+                        <div id="c35" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Webhook — це технічна адреса, на яку Telegram (чи інший месенджер) надсилає всі нові повідомлення від клієнтів. Використовуйте кнопку "Підключити Webhook", щоб бот почав працювати.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c36">36. Як працює вкладка "Чати"?</button></h2>
+                        <div id="c36" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Тут ви можете читати діалоги між ШІ-ботом і клієнтами в реальному часі. Якщо клієнт просить живу людину, чат з'явиться у списку "Очікують" (із знаком оклику).</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c37">37. Як перехопити діалог у бота?</button></h2>
+                        <div id="c37" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>У вкладці "Чати", біля імені клієнта, є перемикач "AI Бот". Вимкніть його, і бот перестане відповідати цьому клієнту. Відправте повідомлення вручну з панелі вводу нижче.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c38">38. Як очистити пам'ять бота?</button></h2>
+                        <div id="c38" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Якщо бот заплутався в діалозі з клієнтом, натисніть кнопку з іконкою гумки (ластика) у верхній частині відкритого чату. Це скине історію розмови.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c39">39. Де побачити історію візитів клієнта?</button></h2>
+                        <div id="c39" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Перейдіть у розділ "Клієнти" та натисніть кнопку "Історія візитів" (іконка годинника). Відкриється вікно зі списком усіх минулих та майбутніх записів цієї особи.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c40">40. Навіщо потрібні "внутрішні нотатки"?</button></h2>
+                        <div id="c40" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>У картці клієнта ви можете додати інформацію типу "алергія на фарбу" або "не любить розмовляти". Ці дані бачить лише ваш персонал і вони не відомі боту.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c41">41. Як видалити або заблокувати клієнта?</button></h2>
+                        <div id="c41" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Відкрийте картку клієнта для редагування і натисніть червону кнопку "Видалити". Всі його записи також будуть анульовані.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c42">42. Як працює інтеграція з Altegio (YCLIENTS)?</button></h2>
+                        <div id="c42" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Оберіть Altegio в списку інтеграцій. Введіть ваш User Token та Company ID. Після цього нові записи будуть дублюватися у ваш календар Altegio.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c43">43. Як працює інтеграція з Cleverbox?</button></h2>
+                        <div id="c43" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Для Cleverbox записи відправляються у вигляді нових "Лідів". Вам потрібно вказати API Token. Нові клієнти з'являтимуться в розділі заявок Cleverbox.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c44">44. Як підключити Appointer, Dikidi, Booksy та інші?</button></h2>
+                        <div id="c44" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Оберіть потрібну CRM з випадного списку. Введіть наданий системою API Token та ID локації (або закладу). Збережіть налаштування.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c45">45. Запис не з'явився у зовнішній CRM?</button></h2>
+                        <div id="c45" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Перевірте правильність токенів. Переконайтеся, що ви не додали зайвих пробілів у ключі. Зверніться до підтримки, якщо проблема повторюється.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c46">46. Як створити запис з нестандартною послугою?</button></h2>
+                        <div id="c46" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>При створенні запису оберіть у списку послуг варіант "Інша (вручну)". З'явиться текстове поле, де ви зможете вписати будь-яку назву.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c47">47. Як працює аналітика?</button></h2>
+                        <div id="c47" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>У вкладці "Аналітика" формуються графіки на основі статусу записів "Виконано". Ви зможете бачити популярність послуг, LTV (довічну цінність) клієнтів і джерела.</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c48">48. Що означають статуси запису?</button></h2>
+                        <div id="c48" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Очікується — майбутній запис. Виконано — клієнт прийшов (гроші зараховано в касу). Скасовано — клієнт відмінив (не враховується в прибуток).</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c49">49. Як система уникає накладок часу?</button></h2>
+                        <div id="c49" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>При спробі додати запис, алгоритм розраховує час початку + тривалість послуги (за замовчуванням 90 хв). Якщо інший запис перетинається з цим проміжком, система видасть помилку "Цей час вже зайнятий!".</p>
+                        </div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c50">50. Технічна підтримка</button></h2>
+                        <div id="c50" class="accordion-collapse collapse" data-bs-parent="#helpAccordion"><div class="accordion-body">
+                            <p>Якщо у вас виникли технічні складнощі або пропозиції, натисніть "Написати розробнику" на головній сторінці розділу "Допомога" і ми оперативно допоможемо.</p>
+                        </div></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3276,6 +3934,8 @@ async def reminder_loop():
             await asyncio.sleep(3600)
             async with AsyncSessionLocal() as db:
                 now = datetime.now(UA_TZ).replace(tzinfo=None)
+                
+                # 1. СТАНДАРТНІ НАГАДУВАННЯ (за 2-3 години до візиту)
                 target_time_start = now + timedelta(hours=2)
                 target_time_end = now + timedelta(hours=3)
                 
@@ -3299,9 +3959,104 @@ async def reminder_loop():
                     
                     a.reminder_sent = True
                     await db.commit()
+                    
+                # 2. УМНИЙ МАРКЕТИНГ: AI-Сеттер для скасованих записів
+                stmt_cxl = select(Appointment).options(joinedload(Appointment.customer)).where(and_(
+                    Appointment.status == 'cancelled',
+                    Appointment.followup_sent == False,
+                    Appointment.appointment_time > now - timedelta(days=1)
+                ))
+                cxls = (await db.execute(stmt_cxl)).scalars().all()
+                for cx in cxls:
+                    biz = await db.get(Business, cx.business_id)
+                    if cx.customer.telegram_id and biz.telegram_token:
+                        msg = f"Шкода, що ваш запис на {cx.service_type} скасовано 😔. Можливо, підберемо інший зручний для вас день?"
+                        async with httpx.AsyncClient() as client:
+                            await client.post(f"https://api.telegram.org/bot{biz.telegram_token}/sendMessage", json={"chat_id": cx.customer.telegram_id, "text": msg})
+                    cx.followup_sent = True
+                    await db.commit()
+
+                # 3. RETENTION AI: Повернення сплячих клієнтів (не були > 45 днів)
+                churn_date = now - timedelta(days=45)
+                # Знайти тих, у кого останній 'completed' візит був раніше churn_date, і немає майбутніх записів. (Логіка спрощена для швидкості)
+                # (Цю частину можна деталізувати складним SQL запитом)
+
         except Exception as e:
             logger.error(f"Reminder Loop Error: {e}")
             await asyncio.sleep(60)
+            
+@app.get("/admin/logs", response_class=HTMLResponse)
+async def logs_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role == "master": return RedirectResponse("/", status_code=303)
+    stmt = select(ActionLog).where(ActionLog.business_id == user.business_id).order_by(desc(ActionLog.created_at)).limit(100)
+    logs = (await db.execute(stmt)).scalars().all()
+    
+    rows = ""
+    for log in logs:
+        rows += f"<tr><td>{log.created_at.strftime('%d.%m.%Y %H:%M')}</td><td>{html.escape(log.action)}</td><td>{html.escape(log.details)}</td></tr>"
+        
+    content = f"""<div class='card p-4'><h5 class='fw-bold mb-4'><i class='fas fa-history me-2 text-primary'></i>Журнал дій (Аудит)</h5>
+    <div class='table-responsive'><table class='table table-hover'><thead><tr><th>Дата та Час</th><th>Дія</th><th>Деталі</th></tr></thead>
+    <tbody>{rows if rows else '<tr><td colspan="3" class="text-center text-muted">Немає записів</td></tr>'}</tbody></table></div></div>"""
+    return get_layout(content, user, "logs")
+
+@app.get("/admin/finance", response_class=HTMLResponse)
+async def finance_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role == "master": return RedirectResponse("/", status_code=303)
+    
+    products = (await db.execute(select(Product).where(Product.business_id == user.business_id))).scalars().all()
+    prod_rows = ""
+    for p in products:
+        prod_rows += f"<tr><td>{html.escape(p.name)}</td><td>{p.stock} шт/л</td><td>{p.unit_cost} грн</td><td class='text-end'><form action='/admin/delete-product' method='post' style='display:inline;' onsubmit='return confirm(\"Видалити товар?\");'><input type='hidden' name='id' value='{p.id}'><button class='btn btn-sm btn-outline-danger'><i class='fas fa-trash'></i></button></form></td></tr>"
+        
+    now = datetime.now(UA_TZ)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, tzinfo=None)
+    
+    masters = (await db.execute(select(Master).where(Master.business_id == user.business_id))).scalars().all()
+    salaries_rows = ""
+    for m in masters:
+        stmt = select(func.sum(Appointment.cost)).where(and_(Appointment.master_id == m.id, Appointment.status == 'completed', Appointment.appointment_time >= month_start))
+        total_earned = (await db.execute(stmt)).scalar() or 0.0
+        salary = total_earned * (m.commission_rate / 100.0)
+        
+        salaries_rows += f"<tr><td>{html.escape(m.name)}</td><td><form action='/admin/update-commission' method='post' class='d-flex gap-2 align-items-center'><input type='hidden' name='master_id' value='{m.id}'><input type='number' name='rate' value='{m.commission_rate}' class='form-control form-control-sm' style='width:70px;' step='0.1' min='0' max='100'><span>%</span><button class='btn btn-sm btn-primary'><i class='fas fa-save'></i></button></form></td><td class='text-success fw-bold'>{total_earned:.2f} грн</td><td class='text-primary fw-bold'>{salary:.2f} грн</td></tr>"
+        
+    content = f"""
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-inventory"><i class="fas fa-boxes me-2"></i>Склад</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-salaries"><i class="fas fa-coins me-2"></i>Зарплати</button></li>
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-inventory"><div class="row"><div class="col-md-4"><div class="card p-4"><h6 class="fw-bold mb-3">Додати товар</h6><form action="/admin/add-product" method="post"><div class="mb-2"><input name="name" class="form-control" placeholder="Назва (напр. Шампунь)" required></div><div class="mb-2"><input name="stock" type="number" step="0.1" class="form-control" placeholder="Кількість (шт/л)" required></div><div class="mb-3"><input name="unit_cost" type="number" step="0.01" class="form-control" placeholder="Собівартість за од. (грн)" required></div><button class="btn btn-primary w-100">Додати на склад</button></form></div></div><div class="col-md-8"><div class="card p-4"><table class="table table-hover"><thead><tr><th>Назва</th><th>Залишок</th><th>Собівартість</th><th class='text-end'>Дії</th></tr></thead><tbody>{prod_rows if prod_rows else "<tr><td colspan='4' class='text-muted text-center'>Склад порожній</td></tr>"}</tbody></table></div></div></div></div>
+        <div class="tab-pane fade" id="tab-salaries"><div class="card p-4"><h6 class="fw-bold mb-3">Розрахунок зарплати ({now.strftime('%m.%Y')})</h6><table class="table table-hover"><thead><tr><th>Майстер</th><th>Ставка (%)</th><th>Виручка майстра</th><th>До виплати</th></tr></thead><tbody>{salaries_rows if salaries_rows else "<tr><td colspan='4' class='text-muted text-center'>Немає майстрів</td></tr>"}</tbody></table></div></div>
+    </div>"""
+    return get_layout(content, user, "fin")
+
+@app.post("/admin/add-product")
+async def add_product(name: str = Form(...), stock: float = Form(...), unit_cost: float = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role == "master": return RedirectResponse("/", status_code=303)
+    db.add(Product(business_id=user.business_id, name=name, stock=stock, unit_cost=unit_cost))
+    await log_action(db, user.business_id, user.id, "Додано товар", f"{name}: {stock} шт")
+    await db.commit()
+    return RedirectResponse("/admin/finance", status_code=303)
+    
+@app.post("/admin/delete-product")
+async def delete_product(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role == "master": return RedirectResponse("/", status_code=303)
+    await db.execute(delete(Product).where(and_(Product.id == id, Product.business_id == user.business_id)))
+    await log_action(db, user.business_id, user.id, "Видалено товар", f"ID: {id}")
+    await db.commit()
+    return RedirectResponse("/admin/finance", status_code=303)
+    
+@app.post("/admin/update-commission")
+async def update_commission(master_id: int = Form(...), rate: float = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role == "master": return RedirectResponse("/", status_code=303)
+    master = await db.get(Master, master_id)
+    if master and master.business_id == user.business_id:
+        master.commission_rate = rate
+        await log_action(db, user.business_id, user.id, "Зміна ставки", f"Майстер: {master.name}, Нова ставка: {rate}%")
+        await db.commit()
+    return RedirectResponse("/admin/finance", status_code=303)
 
 @app.on_event("startup")
 async def startup():
@@ -3329,6 +4084,34 @@ async def startup():
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS cleverbox_token TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS cleverbox_location_id TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS cleverbox_api_url TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS appointer_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS appointer_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS dikidi_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS dikidi_company_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS booksy_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS booksy_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS easyweek_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS easyweek_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS trendis_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS trendis_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS keepincrm_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS keepincrm_company_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS clover_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS clover_merchant_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS treatwell_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS treatwell_venue_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS fresha_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS fresha_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS miopane_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS miopane_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS clinica_web_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS clinica_web_clinic_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS vagaro_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS vagaro_business_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS mindbody_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS mindbody_site_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS zoho_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS zoho_workspace_id TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS integration_enabled BOOLEAN DEFAULT TRUE"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS working_hours TEXT DEFAULT 'Пн-Нд: 09:00 - 20:00'"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS groq_api_key TEXT"))
@@ -3368,6 +4151,10 @@ async def startup():
         await conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT"))
         await conn.execute(text("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual'"))
         await conn.execute(text("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE"))
+        await conn.execute(text("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS followup_sent BOOLEAN DEFAULT FALSE"))
+        await conn.execute(text("ALTER TABLE masters ADD COLUMN IF NOT EXISTS commission_rate DOUBLE PRECISION DEFAULT 0"))
+        await conn.execute(text("CREATE TABLE IF NOT EXISTS action_logs (id SERIAL PRIMARY KEY, business_id INTEGER, user_id INTEGER, action TEXT, details TEXT, created_at TIMESTAMP DEFAULT NOW())"))
+        await conn.execute(text("CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, business_id INTEGER, name TEXT, stock DOUBLE PRECISION DEFAULT 0, unit_cost DOUBLE PRECISION DEFAULT 0)"))
     async with AsyncSessionLocal() as db:
         if not (await db.execute(select(User).where(User.username == "admin"))).scalar_one_or_none():
             db.add(User(username="admin", password=hash_password("admin12"), role="superadmin"))

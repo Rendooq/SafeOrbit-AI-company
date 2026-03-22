@@ -4,6 +4,7 @@ import secrets
 import asyncio
 import io
 import os
+import shutil
 import re
 import logging
 import httpx
@@ -119,6 +120,11 @@ class Business(Base):
     mindbody_site_id: Mapped[Optional[str]] = mapped_column(Text)
     zoho_token: Mapped[Optional[str]] = mapped_column(Text)
     zoho_workspace_id: Mapped[Optional[str]] = mapped_column(Text)
+    integrica_token: Mapped[Optional[str]] = mapped_column(Text)
+    integrica_location_id: Mapped[Optional[str]] = mapped_column(Text)
+    integrica_api_url: Mapped[Optional[str]] = mapped_column(Text)
+    payment_status: Mapped[str] = mapped_column(Text, default="approved")
+    receipt_url: Mapped[Optional[str]] = mapped_column(Text)
     working_hours: Mapped[Optional[str]] = mapped_column(Text, default="Пн-Нд: 09:00 - 20:00")
     groq_api_key: Mapped[Optional[str]] = mapped_column(Text)
     viber_token: Mapped[Optional[str]] = mapped_column(Text)
@@ -163,6 +169,8 @@ class Customer(Base):
     support_status: Mapped[str] = mapped_column(Text, default="none")
     is_ai_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[Optional[str]] = mapped_column(Text)
+    photo_urls: Mapped[Optional[str]] = mapped_column(Text)
+    discount_percent: Mapped[float] = mapped_column(Float, default=0.0)
 
 class MasterService(Base):
     __tablename__ = "master_services"
@@ -293,48 +301,139 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         <a href="/admin/settings" class="nav-link {'active' if active=='set' else ''}"><i class="fas fa-cogs me-2"></i>{'Профіль' if is_master else 'Налаштування'}</a>{bot_menu}
         <a href="/admin/chats" class="nav-link {'active' if active=='chats' else ''}"><i class="fas fa-comments me-2"></i>Чати <span id="chatBadge" class="badge bg-danger rounded-pill ms-auto" style="display:none">!</span></a>
         <a href="/admin/help" class="nav-link {'active' if active=='help' else ''}"><i class="fas fa-question-circle me-2"></i>Допомога</a>"""
+    
+    scripts += """
+    <script>
+    let lastAppId = null;
+    let lastPendingCount = null;
+    async function checkNotifications() {
+        if (!("Notification" in window) || Notification.permission !== "granted") return;
+        try {
+            let res = await fetch('/api/check-notifications');
+            let data = await res.json();
+            if (data.type === 'superadmin') {
+                if (lastPendingCount !== null && data.pending_count > lastPendingCount) {
+                    new Notification("SafeOrbit: Нова оплата!", { body: "У панелі з'явився новий чек для перевірки.", icon: "/static/favicon.png" });
+                }
+                lastPendingCount = data.pending_count;
+            } else if (data.type === 'admin') {
+                if (lastAppId !== null && data.latest_appointment_id > lastAppId) {
+                    new Notification("SafeOrbit: Новий запис!", { body: "Додано новий запис від клієнта. Перевірте розклад.", icon: "/static/favicon.png" });
+                }
+                lastAppId = data.latest_appointment_id;
+            }
+        } catch (e) {}
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        if ("Notification" in window) {
+            document.body.addEventListener('click', () => {
+                if (Notification.permission === "default") Notification.requestPermission();
+            }, { once: true });
+        }
+        setTimeout(checkNotifications, 2000);
+        setInterval(checkNotifications, 15000);
+    });
+    </script>
+    """
+    
     return f"""
-    <!DOCTYPE html><html lang="uk" data-bs-theme="light" lang="uk"><head><meta charset="utf-8">
+    <!DOCTYPE html><html lang="uk" data-bs-theme="light"><head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Safe Orbit CRM</title>
+    <title>SafeOrbit CRM</title>
     <link rel="icon" href="/static/favicon.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {{ --primary: #4f46e5; --bg: #f3f4f6; --sidebar: #111827; --card-bg: #ffffff; --text: #374151; }}
-        [data-bs-theme="dark"] {{ --bg: #111827; --sidebar: #0f172a; --card-bg: #1f2937; --text: #f3f4f6; }}
+        :root {{ --primary: #4f46e5; --primary-hover: #4338ca; --bg: #f3f4f6; --sidebar: #0b0f19; --card-bg: #ffffff; --text: #111827; --border: #e5e7eb; --sidebar-text: #9ca3af; }}
+        [data-bs-theme="dark"] {{ --bg: #0b0f19; --sidebar: #030712; --card-bg: #111827; --text: #f9fafb; --border: rgba(255,255,255,0.08); --sidebar-text: #6b7280; }}
         
-        body {{ background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); transition: background 0.3s, color 0.3s; }}
-        .sidebar {{ background: var(--sidebar); min-height: 100vh; color: #9ca3af; }}
-        .nav-link {{ color: #9ca3af; border-radius: 8px; margin: 4px 0; padding: 10px 15px; transition: all 0.2s; }}
-        .nav-link:hover {{ background: rgba(255,255,255,0.1); color: #ffffff !important; }}
-        .nav-link.active {{ background: var(--primary); color: white; font-weight: 500; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }}
-        .card {{ border: none; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); background: var(--card-bg); transition: transform 0.2s; }}
-        .btn-primary {{ background-color: var(--primary); border: none; padding: 10px 20px; border-radius: 8px; }}
-        .btn-primary:hover {{ background-color: #4338ca; }}
+        body {{ background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; letter-spacing: -0.01em; transition: background 0.3s, color 0.3s; }}
+        .sidebar {{ background: var(--sidebar); min-height: 100vh; color: var(--sidebar-text); border-right: 1px solid var(--border); position: sticky; top: 0; }}
+        .nav-link {{ color: var(--sidebar-text); border-radius: 8px; margin: 2px 0; padding: 12px 16px; transition: all 0.2s ease; font-weight: 500; font-size: 0.95rem; }}
+        .nav-link:hover {{ background: rgba(255,255,255,0.05); color: #ffffff !important; transform: translateX(4px); }}
+        .nav-link.active {{ background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white !important; font-weight: 600; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }}
+        
+        @keyframes fadeInUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+        .animate-up {{ animation: fadeInUp 0.5s ease-out forwards; }}
+        .card {{ border: 1px solid var(--border); border-radius: 24px; box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.04); background: var(--card-bg); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); animation: fadeInUp 0.5s ease-out forwards; }}
+        .card:hover {{ box-shadow: 0 15px 40px -5px rgba(0, 0, 0, 0.08); transform: translateY(-4px); }}
+        .btn {{ border-radius: 12px; font-weight: 600; letter-spacing: -0.01em; transition: all 0.2s; }}
+        .btn-primary {{ background: linear-gradient(135deg, var(--primary), #a855f7); border: none; padding: 10px 22px; color: white; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25); }}
+        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 8px 20px rgba(79, 70, 229, 0.35); filter: brightness(1.05); }}
+        .btn-primary:active {{ transform: scale(0.97); }}
+        
+        .table-responsive {{ border-radius: 12px; border: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; }}
         .table {{ color: var(--text); }}
-        .table-hover tbody tr:hover {{ background-color: rgba(79, 70, 229, 0.2) !important; color: var(--text) !important; }}
-        h3, h4, h5, h6 {{ font-weight: 600; color: var(--text); }}
-        .bg-white {{ background-color: var(--card-bg) !important; color: var(--text) !important; }}
-        .bg-light {{ background-color: var(--card-bg) !important; color: var(--text) !important; }}
-        .form-control, .form-select {{ background-color: var(--card-bg); color: var(--text); border: 1px solid rgba(128, 128, 128, 0.2); }}
-        .form-control:focus, .form-select:focus {{ background-color: var(--card-bg); color: var(--text); }}
+        .table th {{ background-color: rgba(0,0,0,0.02); border-bottom: 2px solid var(--border); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; padding: 1rem; white-space: nowrap; }}
+        [data-bs-theme="dark"] .table th {{ background-color: rgba(255,255,255,0.02); color: #9ca3af; }}
+        .table td {{ padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; }}
+        .table-hover tbody tr:hover {{ background-color: rgba(79, 70, 229, 0.04) !important; color: var(--text) !important; }}
         
+        h1, h2, h3, h4, h5, h6 {{ font-weight: 700; color: var(--text); letter-spacing: -0.02em; }}
+        .bg-white {{ background-color: var(--card-bg) !important; color: var(--text) !important; }}
+        .bg-light {{ background-color: rgba(0,0,0,0.02) !important; color: var(--text) !important; }}
+        [data-bs-theme="dark"] .bg-light {{ background-color: rgba(255,255,255,0.02) !important; }}
+        
+        .form-control, .form-select {{ background-color: var(--card-bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 1rem; font-size: 0.95rem; box-shadow: inset 0 1px 2px rgba(0,0,0,0.01); transition: all 0.2s; }}
+        .form-control:focus, .form-select:focus {{ background-color: var(--card-bg); color: var(--text); border-color: var(--primary); box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15); outline: none; }}
+        
+        ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
+        ::-webkit-scrollbar-track {{ background: transparent; }}
+        ::-webkit-scrollbar-thumb {{ background: rgba(156, 163, 175, 0.5); border-radius: 10px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: rgba(156, 163, 175, 0.8); }}
+        
+        .nav-pills {{ background: rgba(0,0,0,0.03); padding: 6px; border-radius: 1rem; display: inline-flex; overflow-x: auto; max-width: 100%; white-space: nowrap; -webkit-overflow-scrolling: touch; gap: 4px; border: 1px solid var(--border); }}
+        .nav-pills::-webkit-scrollbar {{ display: none; }}
+        .nav-pills .nav-link {{ color: var(--text); border-radius: 0.8rem; font-weight: 600; padding: 0.6rem 1.2rem; transition: all 0.3s; }}
+        .nav-pills .nav-link.active {{ background: var(--card-bg); color: var(--primary) !important; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.08); transform: scale(1.02); }}
+        [data-bs-theme="dark"] .nav-pills {{ background: rgba(255,255,255,0.05); }}
+        [data-bs-theme="dark"] .nav-pills .nav-link.active {{ background: var(--card-bg); }}
+
+        .mobile-header {{ background: rgba(255, 255, 255, 0.85) !important; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }}
+        [data-bs-theme="dark"] .mobile-header {{ background: rgba(11, 15, 25, 0.85) !important; border-bottom-color: rgba(255,255,255,0.05); }}
+
         @media (max-width: 768px) {{
             .sidebar {{ display: none !important; }}
-            .main-content {{ padding-top: 80px; }}
+            .main-content {{ padding: 1rem !important; padding-top: 85px !important; }}
+            .card {{ padding: 1.25rem !important; margin-bottom: 1rem; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }}
+            .table-responsive {{ border-radius: 8px; }}
+            .row {{ margin-left: -0.5rem; margin-right: -0.5rem; }}
+            .row > * {{ padding-left: 0.5rem; padding-right: 0.5rem; }}
+            h3 {{ font-size: 1.5rem; }}
+        }}
+        
+        /* --- Cleaner & Robust FullCalendar Styling --- */
+        .fc {{ font-family: 'Inter', sans-serif; --fc-border-color: var(--border); --fc-today-bg-color: rgba(79, 70, 229, 0.05); --fc-button-bg-color: var(--card-bg); --fc-button-border-color: var(--border); --fc-button-text-color: var(--text); --fc-button-hover-bg-color: rgba(0,0,0,0.02); --fc-button-active-bg-color: var(--primary); --fc-button-active-border-color: var(--primary); --fc-button-active-text-color: white; }}
+        .fc-theme-standard .fc-scrollgrid {{ border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--card-bg); box-shadow: 0 4px 6px rgba(0,0,0,0.02); }}
+        .fc .fc-toolbar-title {{ font-weight: 700; font-size: 1.4rem; color: var(--text); letter-spacing: -0.02em; }}
+        .fc .fc-button {{ border-radius: 8px; font-weight: 500; text-transform: capitalize; padding: 0.5rem 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important; transition: all 0.2s; outline: none !important; }}
+        .fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active {{ box-shadow: 0 4px 12px rgba(79,70,229,0.3) !important; transform: scale(0.98); }}
+        .fc-event {{ border-radius: 6px; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 0.85rem; font-weight: 600; padding: 2px 4px; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }}
+        .fc-event:hover {{ transform: translateY(-2px); z-index: 5 !important; box-shadow: 0 6px 12px rgba(0,0,0,0.15); }}
+        .fc-timegrid-now-indicator-line {{ border-color: #ef4444; border-width: 2px; }}
+        .fc-timegrid-now-indicator-arrow {{ border-color: #ef4444; }}
+        
+        select.form-select option {{ background-color: var(--card-bg); color: var(--text); }}
+        
+        @media (max-width: 768px) {{ 
+            .fc .fc-toolbar {{ flex-direction: column; gap: 12px; align-items: stretch; }}
+            .fc .fc-toolbar-title {{ font-size: 1.2rem; text-align: center; }}
+            .fc .fc-button {{ padding: 0.4rem 0.6rem; font-size: 0.85rem; width: 100%; }}
+            .fc-toolbar-chunk:last-child .fc-button-group {{ display: flex; width: 100%; }}
+            .fc-view-harness {{ overflow-x: auto; }}
+            .fc-scrollgrid {{ min-width: 600px; }}
         }}
     </style></head>
     <body>
     
-    <nav class="navbar fixed-top d-md-none shadow-sm" style="background-color: var(--sidebar); color: white;">
+    <nav class="navbar fixed-top d-md-none shadow-sm mobile-header">
       <div class="container-fluid">
         <div class="d-flex align-items-center gap-3">
             <button class="btn text-white p-0 border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMobile"><i class="fas fa-bars fa-lg"></i></button>
-            <span class="navbar-brand mb-0 h1 text-white fw-bold ms-2">Safe Orbit</span>
+            <span class="navbar-brand mb-0 h1 text-white fw-bold ms-2">SafeOrbit CRM</span>
         </div>
         <a href="/logout" class="text-white opacity-75"><i class="fas fa-sign-out-alt fa-lg"></i></a>
       </div>
@@ -353,9 +452,9 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
 
     <div id="app" class="container-fluid"><div class="row">
         <div class="col-md-2 sidebar p-4 d-none d-md-block">
-            <div class="d-flex align-items-center mb-5"><i class="fas fa-bolt text-primary fa-2x me-2"></i><h4 class="m-0 text-white">Safe Orbit CRM</h4></div>
+            <div class="d-flex align-items-center mb-5"><div class="bg-primary rounded p-2 me-2 d-flex align-items-center justify-content-center shadow-sm"><i class="fas fa-bolt text-white fa-lg"></i></div><h4 class="m-0 text-white fw-bold">SafeOrbit CRM</h4></div>
             <nav class="nav flex-column gap-1">{menu}</nav>
-            <button class="btn btn-outline-secondary w-100 mt-3 btn-sm" onclick="toggleTheme()"><i class="fas fa-adjust me-2"></i>Тема</button>
+            <button class="btn btn-dark w-100 mt-3 border-0" style="background: rgba(255,255,255,0.05);" onclick="toggleTheme()"><i class="fas fa-moon me-2"></i>Тема</button>
             <div class="mt-auto pt-5"><a href="/logout" class="nav-link text-danger"><i class="fas fa-sign-out-alt me-2"></i>Вихід</a></div>
         </div>
         <div class="col-md-10 p-4 main-content">
@@ -487,24 +586,25 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
             <td class='fw-bold text-success'>{a.cost:.0f} грн</td>
             <td>{badge}</td>
             <td class='text-end'>
+                <a href="/admin/receipt/{a.id}" target="_blank" class="btn btn-sm btn-outline-info me-1" title="Чек (PDF)"><i class="fas fa-file-invoice"></i></a>
                 <button class="btn btn-sm btn-outline-success me-1" onclick="openNotify('{a.customer.phone_number}', '{d_str}', '{t_str}')" title="Оповістити"><i class="fas fa-comment-dots"></i></button>
                 <button class='btn btn-sm btn-light text-primary' onclick='editApp({a.id}, "{d_str}", "{t_str}", "{a.status}", {a.cost}, "{a.master_id or ""}")'><i class='fas fa-edit'></i></button>
             </td>
         </tr>"""
 
     content = f"""
-    <div class="row g-4 mb-4">
-        <div class="col-md-3"><div class="card p-3 border-start border-4 border-primary">
-            <small class="text-muted fw-bold">ЗАПИСІВ СЬОГОДНІ</small><h3 class="fw-bold m-0">{c_day}</h3></div></div>
-        <div class="col-md-3"><div class="card p-3 border-start border-4 border-info">
-            <small class="text-muted fw-bold">ЗАПИСІВ МІСЯЦЬ</small><h3 class="fw-bold m-0">{c_month}</h3></div></div>
-        <div class="col-md-3"><div class="card p-3 border-start border-4 border-success">
-            <small class="text-muted fw-bold">КАСА МІСЯЦЬ</small><h3 class="fw-bold m-0 text-success">{rev_month:.0f} ₴</h3></div></div>
-        <div class="col-md-3"><div class="card p-3 border-start border-4 border-warning">
-            <small class="text-muted fw-bold">КАСА ВСЬОГО</small><h3 class="fw-bold m-0 text-warning">{rev_total:.0f} ₴</h3></div></div>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="card p-3 border-start border-4 border-primary h-100" style="animation-delay: 0.1s;">
+            <small class="text-muted fw-bold" style="font-size: 0.75rem;">ЗАПИСІВ СЬОГОДНІ</small><h3 class="fw-bold m-0">{c_day}</h3></div></div>
+        <div class="col-6 col-md-3"><div class="card p-3 border-start border-4 border-info h-100" style="animation-delay: 0.2s;">
+            <small class="text-muted fw-bold" style="font-size: 0.75rem;">ЗАПИСІВ МІСЯЦЬ</small><h3 class="fw-bold m-0">{c_month}</h3></div></div>
+        <div class="col-6 col-md-3"><div class="card p-3 border-start border-4 border-success h-100" style="animation-delay: 0.3s;">
+            <small class="text-muted fw-bold" style="font-size: 0.75rem;">КАСА МІСЯЦЬ</small><h3 class="fw-bold m-0 text-success">{rev_month:.0f} ₴</h3></div></div>
+        <div class="col-6 col-md-3"><div class="card p-3 border-start border-4 border-warning h-100" style="animation-delay: 0.4s;">
+            <small class="text-muted fw-bold" style="font-size: 0.75rem;">КАСА ВСЬОГО</small><h3 class="fw-bold m-0 text-warning">{rev_total:.0f} ₴</h3></div></div>
     </div>
     
-    <ul class="nav nav-tabs mb-4" id="dashTabs" role="tablist">
+    <ul class="nav nav-pills mb-4" id="dashTabs" role="tablist">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-list"><i class="fas fa-list me-2"></i>Список</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-calendar" onclick="initCalendar()"><i class="fas fa-calendar-alt me-2"></i>Календар</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-analytics" onclick="initCharts()"><i class="fas fa-chart-pie me-2"></i>Аналітика</button></li>
@@ -699,15 +799,29 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     function initCalendar() {{
         if(calendar) return;
         var calendarEl = document.getElementById('calendar');
+        var isMobile = window.innerWidth < 768;
         calendar = new FullCalendar.Calendar(calendarEl, {{
-            initialView: 'timeGridWeek',
-            headerToolbar: {{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' }},
+            initialView: isMobile ? 'timeGridDay' : 'timeGridWeek',
+            initialView: isMobile ? 'listWeek' : 'timeGridWeek',
+            headerToolbar: isMobile 
+                ? {{ left: 'prev,next', center: 'title', right: 'timeGridDay,listWeek' }} 
+                : {{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }},
             locale: 'uk',
             firstDay: 1,
             slotMinTime: '08:00:00',
             slotMaxTime: '22:00:00',
+            slotLabelFormat: {{ hour: '2-digit', minute: '2-digit', omitZeroMinute: false, meridiem: false }},
+            contentHeight: isMobile ? 'auto' : 650,
+            stickyHeaderDates: true,
+            nowIndicator: true,
             events: '/admin/api/calendar-events',
             editable: true,
+            eventClick: function(info) {{
+                let props = info.event.extendedProps;
+                if (props && props.id) {{
+                    editApp(props.id, props.date, props.time, props.status, props.cost, props.master_id);
+                }}
+            }},
             eventDrop: async function(info) {{
                 if(!confirm("Перенести запис на " + info.event.start.toLocaleString() + "?")) {{
                     info.revert(); return;
@@ -849,16 +963,30 @@ async def add_appointment(
                 "phone": phone, "name": name, "service": final_service, 
                 "datetime": dt.isoformat(), "cost": cost
             }, biz.beauty_pro_token, biz.beauty_pro_location_id, biz.beauty_pro_api_url)
-            if result and result.get("status") == "success":
-                redirect_msg = "added_and_synced"
+            if result:
+                await log_action(db, user.business_id, user.id, "Синхронізація CRM (Beauty Pro)", result.get("msg", "Невідомо"))
+                if result.get("status") == "success":
+                    redirect_msg = "added_and_synced"
                 
         if biz.integration_system == "cleverbox" and biz.cleverbox_token:
             result = await push_to_cleverbox({
                 "phone": phone, "name": name, "service": final_service, 
                 "datetime": dt.isoformat(), "cost": cost
             }, biz.cleverbox_token, biz.cleverbox_location_id, biz.cleverbox_api_url)
-            if result and result.get("status") == "success":
-                redirect_msg = "added_and_synced"
+            if result:
+                await log_action(db, user.business_id, user.id, "Синхронізація CRM (Cleverbox)", result.get("msg", "Невідомо"))
+                if result.get("status") == "success":
+                    redirect_msg = "added_and_synced"
+                
+        if biz.integration_system == "integrica" and biz.integrica_token:
+            result = await push_to_integrica({
+                "phone": phone, "name": name, "service": final_service, 
+                "datetime": dt.isoformat(), "cost": cost
+            }, biz.integrica_token, biz.integrica_location_id, biz.integrica_api_url)
+            if result:
+                await log_action(db, user.business_id, user.id, "Синхронізація CRM (Integrica)", result.get("msg", "Невідомо"))
+                if result.get("status") == "success":
+                    redirect_msg = "added_and_synced"
 
     except ValueError: pass
     return RedirectResponse(f"/admin?msg={redirect_msg}", status_code=303)
@@ -917,6 +1045,60 @@ async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user
         await db.commit()
 
     return RedirectResponse("/admin?msg=deleted", status_code=303)
+
+@app.get("/admin/receipt/{id}", response_class=HTMLResponse)
+async def generate_receipt(id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user: return RedirectResponse("/", status_code=303)
+    appt = await db.get(Appointment, id)
+    if not appt or appt.business_id != user.business_id:
+        return HTMLResponse("Помилка доступу", status_code=403)
+    
+    biz = await db.get(Business, appt.business_id)
+    master = await db.get(Master, appt.master_id) if appt.master_id else None
+    customer = await db.get(Customer, appt.customer_id)
+    master_name = master.name if master else "Система"
+    
+    return f"""<!DOCTYPE html>
+    <html lang="uk">
+    <head>
+        <meta charset="utf-8">
+        <title>Чек #{appt.id}</title>
+        <style>
+            body {{ font-family: 'Courier New', Courier, monospace; background: #e5e7eb; display: flex; justify-content: center; padding: 2rem; margin: 0; }}
+            .receipt {{ background: white; padding: 2rem; width: 320px; border-radius: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); color: #000; }}
+            .text-center {{ text-align: center; }}
+            .fw-bold {{ font-weight: 700; }}
+            .border-bottom {{ border-bottom: 2px dashed #000; margin: 1rem 0; }}
+            .d-flex {{ display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; }}
+            @media print {{
+                body {{ background: white; padding: 0; }}
+                .receipt {{ width: 100%; box-shadow: none; padding: 0; margin: 0; }}
+                .no-print {{ display: none !important; }}
+            }}
+            .btn {{ display: block; width: 100%; background: #4f46e5; color: white; text-align: center; padding: 0.8rem; text-decoration: none; border-radius: 8px; font-family: sans-serif; font-weight: 600; margin-top: 2rem; cursor: pointer; border: none; font-size: 1rem; }}
+            .btn:hover {{ background: #4338ca; }}
+        </style>
+    </head>
+    <body>
+        <div class="receipt">
+            <div class="text-center fw-bold" style="font-size: 1.4rem; margin-bottom: 0.5rem;">{html.escape(biz.name)}</div>
+            <div class="text-center" style="font-size: 0.85rem; margin-bottom: 1rem;">{html.escape(biz.address or 'Адреса не вказана')}</div>
+            <div class="border-bottom"></div>
+            <div class="d-flex"><span>Чек №:</span><span>{appt.id}</span></div>
+            <div class="d-flex"><span>Дата:</span><span>{appt.appointment_time.strftime('%d.%m.%Y %H:%M')}</span></div>
+            <div class="d-flex"><span>Клієнт:</span><span>{html.escape(customer.name or 'Гість')}</span></div>
+            <div class="d-flex"><span>Касир:</span><span>{html.escape(master_name)}</span></div>
+            <div class="border-bottom"></div>
+            <div class="fw-bold mb-2">Послуга:</div>
+            <div class="d-flex"><span>{html.escape(appt.service_type)}</span><span>{appt.cost:.2f} ₴</span></div>
+            <div class="border-bottom"></div>
+            <div class="d-flex fw-bold" style="font-size: 1.2rem;"><span>СУМА ДО СПЛАТИ:</span><span>{appt.cost:.2f} ₴</span></div>
+            <div class="border-bottom"></div>
+            <div class="text-center" style="font-size: 0.85rem;">Дякуємо за візит!<br>Чекаємо на вас знову.</div>
+            <button class="btn no-print" onclick="window.print()">🖨️ Зберегти PDF / Друк</button>
+        </div>
+    </body>
+    </html>"""
 
 @app.post("/admin/send-sms")
 async def send_sms_endpoint(phone: str = Form(...), message: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -978,7 +1160,21 @@ async def get_calendar_events(user: User = Depends(get_current_user), db: AsyncS
         color = "#10b981" if a.status == 'completed' else "#4f46e5"
         title = f"{a.customer.name or 'Клієнт'} ({a.service_type})"
         
-        events.append({"id": a.id, "title": title, "start": a.appointment_time.isoformat(), "end": end_time.isoformat(), "color": color})
+        events.append({
+            "id": a.id, 
+            "title": title, 
+            "start": a.appointment_time.isoformat(), 
+            "end": end_time.isoformat(), 
+            "color": color,
+            "extendedProps": {
+                "id": a.id,
+                "status": a.status,
+                "cost": a.cost,
+                "master_id": str(a.master_id) if a.master_id else "",
+                "date": a.appointment_time.strftime('%Y-%m-%d'),
+                "time": a.appointment_time.strftime('%H:%M')
+            }
+        })
     
     return events
 
@@ -1031,7 +1227,7 @@ async def push_to_cleverbox(data: dict, token: str, location_id: str, api_url: s
             "phone": clean_phone,
             "name": data.get('name', '') or 'Клієнт',
             "coment": msg_text,
-            "source": "Safe Orbit AI CRM",
+            "source": "SafeOrbit CRM",
             "message": "Новий запис через AI-Бота"
         }
     }
@@ -1050,6 +1246,30 @@ async def push_to_cleverbox(data: dict, token: str, location_id: str, api_url: s
         except Exception as e:
             logger.error(f"Cleverbox Error: {e}")
             return {"status": "error", "msg": "Помилка з'єднання з Cleverbox"}
+            
+async def push_to_integrica(data: dict, token: str, location_id: str, api_url: str = None):
+    url = api_url or "https://api.integrica.com/v1/appointments"
+    logger.info(f"INTEGRICA PUSH: Sending to {url} | Data: {data}")
+    
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {
+        "location_id": location_id,
+        "customer_phone": data.get('phone', ''),
+        "customer_name": data.get('name', '') or 'Клієнт',
+        "service": data['service'],
+        "datetime": data['datetime'],
+        "price": data['cost']
+    }
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
+            if resp.status_code in [200, 201, 204]:
+                return {"status": "success", "msg": "Запис синхронізовано з Integrica"}
+            else:
+                return {"status": "error", "msg": f"Помилка Integrica: {resp.status_code}"}
+        except Exception as e:
+            logger.error(f"Integrica Error: {e}")
+            return {"status": "error", "msg": "Помилка з'єднання з Integrica"}
 
 async def update_customer_support_status(db: AsyncSession, business_id: int, user_identifier: str, status: str):
     stmt = select(Customer).where(Customer.business_id == business_id)
@@ -1210,7 +1430,8 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
         "clinica_web": "Clinica Web",
         "vagaro": "Vagaro",
         "mindbody": "Mindbody",
-        "zoho": "Zoho Bookings"
+        "zoho": "Zoho Bookings",
+        "integrica": "Integrica"
     }
     integration_options = "".join([f'<option value="{k}" {"selected" if biz.integration_system == k else ""}>{v}</option>' for k, v in integration_systems.items()])
 
@@ -1232,7 +1453,7 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
                 <h5 class="fw-bold mb-3"><i class="fas fa-sync text-primary me-2"></i>Зовнішні інтеграції</h5>
                 <p class="text-muted small">Автоматична синхронізація графіку та клієнтської бази.</p>
                 
-                <form action="/admin/save-integration-settings" method="post">
+                <form action="/admin/save-integration-settings" method="post" id="integrationForm">
                     <div class="mb-3">
                         <label class="form-label small text-muted">Оберіть систему для інтеграції</label>
                         <select name="integration_system" id="integrationSelector" class="form-select bg-light border-0" onchange="showIntegrationForm()">
@@ -1336,14 +1557,21 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
                         <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="zoho_token" class="form-control bg-light border-0" value="{biz.zoho_token or ''}"></div>
                         <div class="mb-3"><label class="form-label small text-muted">Workspace ID</label><input name="zoho_workspace_id" class="form-control bg-light border-0" value="{biz.zoho_workspace_id or ''}"></div>
                     </div>
-                    <button class="btn btn-primary w-100 mt-3">Зберегти налаштування інтеграції</button>
+                    <div id="form-integrica" class="integration-form" style="display: none;">
+                        <h6 class="mt-4 mb-3 text-muted border-bottom pb-2">Налаштування Integrica</h6>
+                        <div class="mb-3"><label class="form-label small text-muted">API Token</label><input name="integrica_token" class="form-control bg-light border-0" value="{biz.integrica_token or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">Project/Location ID</label><input name="integrica_location_id" class="form-control bg-light border-0" value="{biz.integrica_location_id or ''}"></div>
+                        <div class="mb-3"><label class="form-label small text-muted">API URL (Endpoint)</label><input name="integrica_api_url" class="form-control bg-light border-0" value="{biz.integrica_api_url or ''}" placeholder="https://api.integrica.com/v1/..."></div>
+                    </div>
+                    <button type="button" id="pingBtn" class="btn btn-outline-info w-100 mt-3 mb-2 fw-bold" onclick="pingIntegration()"><i class="fas fa-network-wired me-2"></i>Перевірити з'єднання (Ping)</button>
+                    <button class="btn btn-primary w-100">Зберегти налаштування інтеграції</button>
                 </form>
             </div>
         </div>"""
     else:
         ext_integrations_html = """
         <div class="col-md-6">
-            <div class="card p-4 mb-4 h-100 d-flex flex-column justify-content-center align-items-center bg-light border-0">
+            <div class="card p-4 mb-4 h-100 d-flex flex-column justify-content-center align-items-center bg-light border-0" style="min-height: 250px;">
                 <i class="fas fa-lock fa-3x text-secondary opacity-50 mb-3"></i>
                 <h5 class="text-muted fw-bold">Інтеграції вимкнено</h5>
                 <p class="text-muted small text-center mb-0 px-3">Для підключення Altegio, Beauty Pro, WINS або Doctor Eleks зверніться до адміністратора.</p>
@@ -1392,15 +1620,42 @@ async def bot_integration_page(request: Request, user: User = Depends(get_curren
     
     scripts = """<script>
     function showIntegrationForm() {
-        document.querySelectorAll('.integration-form').forEach(form => form.style.display = 'none');
+        document.querySelectorAll('.integration-form').forEach(form => {
+            form.style.display = 'none';
+            form.classList.remove('animate-up');
+        });
         const selector = document.getElementById('integrationSelector');
         if (selector) {
             const selectedSystem = selector.value;
             const formToShow = document.getElementById(`form-${selectedSystem}`);
-            if (formToShow) formToShow.style.display = 'block';
+            if (formToShow) {
+                formToShow.style.display = 'block';
+                void formToShow.offsetWidth; // Примусовий ререндер для запуску анімації
+                formToShow.classList.add('animate-up');
+            }
         }
     }
     document.addEventListener('DOMContentLoaded', showIntegrationForm);
+
+    async function pingIntegration() {
+        const form = document.getElementById('integrationForm');
+        const btn = document.getElementById('pingBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Перевірка...';
+        btn.disabled = true;
+
+        try {
+            let formData = new FormData(form);
+            let res = await fetch('/admin/api/ping-integration', {method: 'POST', body: formData});
+            let data = await res.json();
+            showToast(data.msg, data.ok ? 'success' : 'error');
+        } catch (e) {
+            showToast('Помилка мережі при перевірці', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
 
     async function setWebhook(btn) {
         let url = document.getElementById('webhookUrl').value;
@@ -1426,6 +1681,57 @@ async def save_master_bot_settings(tg_id: str = Form(None), user: User = Depends
             master.telegram_chat_id = tg_id
             await db.commit()
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
+
+@app.post("/admin/api/ping-integration")
+async def api_ping_integration(request: Request, user: User = Depends(get_current_user)):
+    if not user: return {"ok": False, "msg": "Не авторизовано"}
+    
+    form_data = await request.form()
+    system = form_data.get("integration_system")
+    
+    if system == "none" or not system:
+        return {"ok": True, "msg": "Інтеграцію вимкнено."}
+        
+    token = ""
+    url = ""
+    headers = {}
+    
+    if system == "beauty_pro":
+        token = form_data.get("bp_token")
+        url = form_data.get("bp_url") or "https://api.beautypro.com/v1/appointments"
+        headers = {"Authorization": f"Bearer {token}"}
+    elif system == "cleverbox":
+        token = form_data.get("cb_token")
+        url = form_data.get("cb_url") or "https://cbox.mobi/api/v2/leads"
+        headers = {"token": token}
+    elif system == "integrica":
+        token = form_data.get("integrica_token")
+        url = form_data.get("integrica_api_url") or "https://api.integrica.com/v1/appointments"
+        headers = {"Authorization": f"Bearer {token}"}
+    elif system == "altegio":
+        token = form_data.get("altegio_token")
+        url = "https://api.alteg.io/api/v1/company"
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.alteg.io.v1+json"}
+    else:
+        token = form_data.get(f"{system}_token")
+        
+    if not token:
+        return {"ok": False, "msg": "❌ Будь ласка, введіть API Token перед перевіркою!"}
+        
+    if not url:
+        return {"ok": True, "msg": f"✅ Токен присутній. (Тестовий Ping для {system} в розробці)"}
+        
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=headers, timeout=5.0)
+            if resp.status_code in [200, 201, 204, 400, 405, 422]:
+                return {"ok": True, "msg": f"✅ З'єднання успішне! (Код: {resp.status_code})"}
+            elif resp.status_code in [401, 403]:
+                return {"ok": False, "msg": f"❌ Помилка авторизації. Перевірте токен! (Код: {resp.status_code})"}
+            else:
+                return {"ok": False, "msg": f"⚠️ Невідома відповідь сервера (Код: {resp.status_code})"}
+    except Exception as e:
+        return {"ok": False, "msg": f"❌ Помилка з'єднання: {str(e)}"}
 
 @app.post("/admin/save-integration-settings")
 async def save_integration_settings(
@@ -1470,6 +1776,9 @@ async def save_integration_settings(
     mindbody_site_id: str = Form(None),
     zoho_token: str = Form(None),
     zoho_workspace_id: str = Form(None),
+    integrica_token: str = Form(None),
+    integrica_location_id: str = Form(None),
+    integrica_api_url: str = Form(None),
     user: User = Depends(get_current_user), 
     db: AsyncSession = Depends(get_db)
 ):
@@ -1515,6 +1824,9 @@ async def save_integration_settings(
     biz.mindbody_site_id = mindbody_site_id
     biz.zoho_token = zoho_token
     biz.zoho_workspace_id = zoho_workspace_id
+    biz.integrica_token = integrica_token
+    biz.integrica_location_id = integrica_location_id
+    biz.integrica_api_url = integrica_api_url
     await db.commit()
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
 
@@ -1632,9 +1944,14 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
     if has_talked_today:
         greeting_instruction = "СУВОРА ІНСТРУКЦІЯ: ТИ ВЖЕ ВІТАВСЯ СЬОГОДНІ. НЕ КАЖИ 'Добрий день', 'Привіт', 'Вітаю'. Одразу відповідай на запит."
 
+    discount_instruction = ""
+    if customer and getattr(customer, 'discount_percent', 0) > 0:
+        discount_instruction = f"УВАГА: Цей клієнт має персональну знижку {customer.discount_percent}%. Враховуй це при розрахунку вартості та нагадуй клієнту про його привілей!\n"
+
     system_instruction = f"""{biz.system_prompt or 'Ви корисний асистент.'}
     Графік роботи: {biz.working_hours or 'Не вказано'}
     {greeting_instruction}
+    {discount_instruction}
     Сьогоднішня дата: {datetime.now(UA_TZ).strftime('%Y-%m-%d, %A')}.
     Поточний час: {datetime.now(UA_TZ).strftime('%H:%M')}.
     
@@ -1751,19 +2068,35 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
                             "phone": phone, "name": name, "service": data.get('service'), 
                             "datetime": dt.isoformat(), "cost": float(data.get('cost', 0))
                         }, biz.beauty_pro_token, biz.beauty_pro_location_id, biz.beauty_pro_api_url)
-                        if result and result.get("status") == "success":
-                            sync_msg = f"\n\n({result.get('msg')})"
+                        if result:
+                            db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Beauty Pro)", details=f"AI Бот: {result.get('msg', '')}"))
+                            if result.get("status") == "success":
+                                sync_msg = f"\n\n({result.get('msg')})"
                             
                     if biz.integration_system == "cleverbox" and biz.cleverbox_token:
                         result = await push_to_cleverbox({
                             "phone": phone, "name": name, "service": data.get('service'), 
                             "datetime": dt.isoformat(), "cost": float(data.get('cost', 0))
                         }, biz.cleverbox_token, biz.cleverbox_location_id, biz.cleverbox_api_url)
-                        if result and result.get("status") == "success":
-                            sync_msg = f"\n\n({result.get('msg')})"
+                        if result:
+                            db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Cleverbox)", details=f"AI Бот: {result.get('msg', '')}"))
+                            if result.get("status") == "success":
+                                sync_msg = f"\n\n({result.get('msg')})"
+                            
+                    if biz.integration_system == "integrica" and biz.integrica_token:
+                        result = await push_to_integrica({
+                            "phone": phone, "name": name, "service": data.get('service'), 
+                            "datetime": dt.isoformat(), "cost": float(data.get('cost', 0))
+                        }, biz.integrica_token, biz.integrica_location_id, biz.integrica_api_url)
+                        if result:
+                            db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Integrica)", details=f"AI Бот: {result.get('msg', '')}"))
+                            if result.get("status") == "success":
+                                sync_msg = f"\n\n({result.get('msg')})"
                     
                     if biz.integration_system == "altegio" and biz.altegio_token:
                         pass
+                    
+                    await db.commit()
 
                     return f"✅ Запис створено!\n{data['date']} {data['time']}\n{name}\n{data.get('service')}\nСума: {data.get('cost')} грн{sync_msg}"
         except Exception as e:
@@ -1782,6 +2115,7 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
 async def ask_ai(question: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return {"answer": "Помилка доступу"}
     answer = await process_ai_request(user.business_id, question, db, f"web_{user.id}")
+    if not answer: answer = "AI-Асистент тимчасово недоступний або вимкнено в налаштуваннях."
     return {"answer": answer.replace("\n", "<br>")}
 
 @app.post("/webhook/telegram/{business_id}")
@@ -1863,22 +2197,127 @@ async def telegram_webhook(business_id: int, request: Request, db: AsyncSession 
         logger.error(f"Telegram Webhook Error: {e}")
         return {"ok": False}
 
+@app.get("/api/check-notifications")
+async def check_notifications(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user: return {"type": "none"}
+    if user.role == "superadmin":
+        count = await db.scalar(select(func.count(Business.id)).where(Business.payment_status == 'pending'))
+        return {"type": "superadmin", "pending_count": count or 0}
+    else:
+        latest = await db.scalar(select(func.max(Appointment.id)).where(Appointment.business_id == user.business_id))
+        return {"type": "admin", "latest_appointment_id": latest or 0}
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page():
+    return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Реєстрація | SafeOrbit</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+    body { background: radial-gradient(circle at top left, #312e81, #0f172a 40%, #000000 100%); font-family: 'Inter', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 2rem 1rem; color: #f8fafc; }
+    .login-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); padding: 2.5rem; border-radius: 28px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 30px 60px -12px rgba(0,0,0,0.6); width: 100%; max-width: 500px; text-align: center; }
+    .form-control { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 0.9rem 1.2rem; font-size: 1rem; color: white; }
+    .form-control:focus { border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2); background: rgba(0,0,0,0.4); color: white; outline: none; }
+    .btn-primary { background: linear-gradient(135deg, #4f46e5, #6366f1); border: none; border-radius: 12px; padding: 1rem; font-weight: 600; font-size: 1.05rem; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4); color: white; }
+    </style></head>
+    <body>
+    <div class="login-card">
+        <div class="mb-3"><i class="fas fa-store fa-3x" style="color: #ec4899;"></i></div>
+        <h3 class="fw-bold text-white mb-1">Реєстрація бізнесу</h3>
+        <p class="mb-4" style="color: #94a3b8;">Створіть свій простір в SafeOrbit</p>
+        <form action="/register" method="post" enctype="multipart/form-data" class="text-start">
+            <div class="mb-3"><label class="form-label small fw-semibold text-light">Назва компанії (салону, клініки)</label><input name="name" class="form-control" required></div>
+            <div class="mb-3"><label class="form-label small fw-semibold text-light">Сфера діяльності</label>
+                <select name="type" class="form-control" style="background-color: #1e293b;"><option value="barbershop">Салон краси / Барбершоп</option><option value="dentistry">Стоматологія</option><option value="medical">Клініка</option><option value="generic">Інше</option></select>
+            </div>
+            <div class="mb-3"><label class="form-label small fw-semibold text-light">Телефон (буде вашим логіном)</label><input name="phone" type="tel" class="form-control" placeholder="+380..." required></div>
+            <div class="mb-4"><label class="form-label small fw-semibold text-light">Придумайте пароль</label><input name="password" type="password" class="form-control" required></div>
+            
+            <div class="alert alert-warning text-dark p-4 rounded-4 shadow-sm mb-4" style="background: linear-gradient(135deg, #fef08a, #facc15); border: none;">
+                <h6 class="fw-bold mb-3 text-center"><i class="fas fa-credit-card me-2"></i>Оплата підписки</h6>
+                <p class="small mb-3 text-center">Для активації акаунту необхідно сплатити суму в розмірі: <b>53000 грн</b>.</p>
+                
+                <div class="d-flex justify-content-center gap-2 mb-3">
+                    <button type="button" class="btn btn-sm btn-dark px-3 rounded-pill fw-bold shadow-sm" id="btnIban" onclick="document.getElementById('payIban').style.display='block'; document.getElementById('payQr').style.display='none'; this.classList.replace('btn-outline-dark', 'btn-dark'); document.getElementById('btnQr').classList.replace('btn-dark', 'btn-outline-dark');">IBAN (Рахунок)</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark px-3 rounded-pill fw-bold shadow-sm" id="btnQr" onclick="document.getElementById('payQr').style.display='block'; document.getElementById('payIban').style.display='none'; this.classList.replace('btn-outline-dark', 'btn-dark'); document.getElementById('btnIban').classList.replace('btn-dark', 'btn-outline-dark');"><i class="fas fa-qrcode me-1"></i> QR-код</button>
+                </div>
+                
+                <div id="payIban" class="bg-white rounded p-3 mb-3 text-center shadow-sm">
+                    <span class="fs-6 fw-bold text-dark d-block mb-1" style="word-break: break-all; letter-spacing: 1px;">UA363220010000026205345692520</span>
+                    <span class="badge bg-dark text-white">Monobank</span>
+                </div>
+                
+                <div id="payQr" class="bg-white rounded p-2 mb-3 text-center shadow-sm" style="display:none;">
+                    <img src="/static/payment_qr.png" alt="QR-код" class="img-fluid rounded" style="width: 100%; max-width: 320px; height: auto;" onerror="this.style.display='none'; document.getElementById('qrFallback').style.display='block';">
+                    <div id="qrFallback" class="text-muted small py-3 fw-bold" style="display:none;">
+                        <i class="fas fa-image mb-2 fa-2x opacity-50"></i><br>Тут буде ваш QR-код.<br>
+                        <span class="fw-normal" style="font-size: 0.75rem;">(Завантажте payment_qr.png у папку static)</span>
+                    </div>
+                </div>
+                
+                <label class="small fw-bold mb-2">Прикріпіть скріншот (чек) успішної оплати:</label>
+                <input type="file" name="receipt" class="form-control form-control-sm border-0 text-dark bg-white" accept="image/*" required>
+            </div>
+            <button class="btn btn-primary w-100 text-white">🚀 Зареєструватись та Відправити чек</button>
+            <div class="mt-4 text-center"><a href="/" class="text-info text-decoration-none small fw-bold">Вже є акаунт? Увійти</a></div>
+        </form>
+    </div>
+    </body></html>"""
+
+@app.post("/register")
+async def register_post(name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), receipt: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    existing = (await db.execute(select(User).where(User.username == phone))).scalar_one_or_none()
+    if existing: return HTMLResponse("Цей номер вже зареєстровано. Поверніться назад.", status_code=400)
+    
+    os.makedirs("static/uploads/receipts", exist_ok=True)
+    ext = receipt.filename.split('.')[-1] if '.' in receipt.filename else 'jpg'
+    fname = f"receipt_{int(datetime.now().timestamp())}.{ext}"
+    fpath = f"static/uploads/receipts/{fname}"
+    with open(fpath, "wb") as buffer: shutil.copyfileobj(receipt.file, buffer)
+        
+    nb = Business(name=name, type=type, is_active=False, payment_status="pending", receipt_url=f"/{fpath}")
+    db.add(nb); await db.commit(); await db.refresh(nb)
+    nu = User(username=phone, password=hash_password(password), role="owner", business_id=nb.id)
+    db.add(nu); await db.commit()
+    return RedirectResponse("/?msg=registered", status_code=303)
+
 @app.get("/", response_class=HTMLResponse)
 async def login_page():
     return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Вхід</title>
     <link rel="icon" href="/static/favicon.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <style>body { background: #f3f4f6; font-family: 'Inter', sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; }</style></head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+    body { background: radial-gradient(circle at top right, #312e81, #0f172a 40%, #000000 100%); font-family: 'Inter', sans-serif; height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; color: #f8fafc; }
+    .login-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); padding: 3rem; border-radius: 28px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 30px 60px -12px rgba(0,0,0,0.6); width: 100%; max-width: 420px; text-align: center; }
+    .login-icon { background: linear-gradient(135deg, #4f46e5, #ec4899); color: white; width: 64px; height: 64px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 1.5rem; box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4); border: 1px solid rgba(255,255,255,0.2); }
+    .form-control { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 0.9rem 1.2rem; font-size: 1rem; color: white; transition: all 0.3s ease; }
+    .form-control:focus { border-color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2); background: rgba(0,0,0,0.4); color: white; outline: none; }
+    .form-control::placeholder { color: #64748b; font-weight: 400; }
+    .btn-primary { background: linear-gradient(135deg, #4f46e5, #6366f1); border: none; border-radius: 12px; padding: 1rem; font-weight: 600; font-size: 1.05rem; transition: all 0.3s; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4); color: white; letter-spacing: 0.5px; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(79, 70, 229, 0.5); filter: brightness(1.1); }
+    @media (max-width: 480px) { .login-card { padding: 2rem; border-radius: 20px; margin: 1rem; } body { padding: 1rem; } }
+    </style></head>
     <body>
-    <div class="card p-4 p-md-5 shadow-lg border-0 m-3" style="width: 100%; max-width: 400px; border-radius: 24px;">
-        <div class="text-center mb-4"><h3 class="fw-bold text-dark">Увійти</h3><p class="text-muted">Введіть дані для входу</p></div>
-        <form action="/login" method="post">
-            <div class="mb-3"><label class="form-label small text-muted">Номер телефону</label><input name="username" type="tel" class="form-control form-control-lg bg-light border-0" required></div>
-            <div class="mb-4"><label class="form-label small text-muted">Пароль</label><input name="password" type="password" class="form-control form-control-lg bg-light border-0" required></div>
-            <button class="btn btn-primary w-100 btn-lg fw-bold" style="background: #4f46e5;">Увійти</button>
+    <div class="login-card">
+        <div class="login-icon"><i class="fas fa-bolt"></i></div>
+        <h2 class="fw-bold text-white mb-1" style="letter-spacing: -1px;">SafeOrbit CRM</h2>
+        <p class="mb-4" style="color: #94a3b8;">Авторизуйтесь для доступу в систему</p>
+        <form action="/login" method="post" class="text-start">
+            <div class="mb-3"><label class="form-label small fw-semibold" style="color: #cbd5e1;">Номер телефону</label><input name="username" type="tel" class="form-control" placeholder="+380..." required></div>
+            <div class="mb-4"><label class="form-label small fw-semibold" style="color: #cbd5e1;">Пароль</label><input name="password" type="password" class="form-control" placeholder="••••••••" required></div>
+            <button class="btn btn-primary w-100 text-white">Увійти в систему</button>
+            <div class="mt-4 text-center"><a href="/register" class="text-info text-decoration-none fw-bold" style="letter-spacing: 0.5px;">Створити акаунт (Реєстрація)</a></div>
         </form>
-    </div></body></html>"""
+    </div>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.get('msg') === 'registered') {
+            alert('🎉 Заявка успішно відправлена! Після перевірки чека адміністратор активує ваш акаунт.');
+            window.history.replaceState(null, null, window.location.pathname);
+        }
+    </script>
+    </body></html>"""
 
 @app.post("/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...), db: AsyncSession = Depends(get_db)):
@@ -1916,31 +2355,37 @@ async def super_admin_page(user: User = Depends(get_current_user), db: AsyncSess
         c = await db.scalar(select(func.count(Appointment.id)).where(Appointment.business_id == b.id))
         counts[b.id] = c
 
-    rows = ""
-    for b in bizs:
-        ai_badge = f"<span class='badge {'bg-primary' if b.has_ai_bot else 'bg-light text-muted'}'>ШІ: {'Увімк' if b.has_ai_bot else 'Вимк'}</span>"
-        int_badge = f"<span class='badge {'bg-success' if getattr(b, 'integration_enabled', True) else 'bg-light text-muted'}'>CRM: {'Увімк' if getattr(b, 'integration_enabled', True) else 'Вимк'}</span>"
-        parent_tag = "<br><span class='badge bg-info bg-opacity-10 text-info mt-1'><i class='fas fa-code-branch me-1'></i>Філія</span>" if b.parent_id else ""
-        
-        rows += f"""<tr class='align-middle'>
-            <td><span class='text-muted'>#{b.id}</span></td>
-            <td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small>{parent_tag}</td>
-            <td><span class='badge {'bg-success' if b.is_active else 'bg-danger'}'>{'АКТИВНИЙ' if b.is_active else 'ЗАБЛОКОВАНИЙ'}</span></td>
-            <td><span class='badge {'bg-info text-dark' if b.has_ai_bot else 'bg-light text-muted'}'>{'Увімкнено' if b.has_ai_bot else 'Вимкнено'}</span></td>
-            <td class='text-muted small'>{counts.get(b.id, 0)} записів</td>
-            <td><span class='badge {'bg-success' if b.is_active else 'bg-danger'}'>{'АКТИВНИЙ' if b.is_active else 'ЗАБЛ.'}</span></td>
-            <td><div class="d-flex flex-column gap-1 align-items-start">{ai_badge}{int_badge}</div></td>
-            <td class='text-end'>
-                <div class="btn-group">
-                    <a href='/superadmin/toggle/{b.id}' class='btn btn-sm btn-outline-secondary' title="Блокувати"><i class='fas fa-power-off'></i></a>
-                    <a href='/superadmin/toggle-ai/{b.id}' class='btn btn-sm btn-outline-primary' title="AI Бот"><i class='fas fa-robot'></i></a>
-                    <a href='/superadmin/toggle-integration/{b.id}' class='btn btn-sm btn-outline-success' title="Увімк/Вимк CRM Інтеграції"><i class='fas fa-plug'></i></a>
-                    <button class='btn btn-sm btn-outline-warning' onclick="resetPass({b.id}, '{html.escape(b.name, quote=True)}')" title="Скинути пароль"><i class='fas fa-key'></i></button>
-                    <button class='btn btn-sm btn-outline-danger' onclick="deleteBiz({b.id})" title="Видалити"><i class='fas fa-trash'></i></button>
-                </div>
-            </td>
-        </tr>"""
+    pending_rows = ""
+    active_rows = ""
     
+    for b in bizs:
+        if getattr(b, 'payment_status', 'approved') == 'pending':
+            receipt_html = f"<a href='{b.receipt_url}' target='_blank' class='btn btn-sm btn-info text-white fw-bold'><i class='fas fa-file-invoice-dollar me-1'></i>Відкрити чек</a>" if getattr(b, 'receipt_url', None) else "<span class='text-muted small'>Немає чеку</span>"
+            pending_rows += f"<tr class='align-middle border-warning bg-warning bg-opacity-10'><td><span class='text-muted'>#{b.id}</span></td><td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small></td><td>{receipt_html}</td><td class='text-end'><form action='/superadmin/approve-payment/{b.id}' method='post' class='d-inline'><button class='btn btn-sm btn-success me-2'><i class='fas fa-check me-1'></i>Підтвердити</button></form><form action='/superadmin/reject-payment/{b.id}' method='post' class='d-inline' onsubmit=\"return confirm('Відхилити та видалити цю заявку?');\"><button class='btn btn-sm btn-danger'><i class='fas fa-times'></i></button></form></td></tr>"
+        else:
+            ai_badge = f"<span class='badge {'bg-primary' if b.has_ai_bot else 'bg-light text-muted'}'>ШІ: {'Увімк' if b.has_ai_bot else 'Вимк'}</span>"
+            int_badge = f"<span class='badge {'bg-success' if getattr(b, 'integration_enabled', True) else 'bg-light text-muted'}'>CRM: {'Увімк' if getattr(b, 'integration_enabled', True) else 'Вимк'}</span>"
+            parent_tag = "<br><span class='badge bg-info bg-opacity-10 text-info mt-1'><i class='fas fa-code-branch me-1'></i>Філія</span>" if b.parent_id else ""
+            
+            active_rows += f"""<tr class='align-middle'>
+                <td><span class='text-muted'>#{b.id}</span></td>
+                <td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small>{parent_tag}</td>
+                <td><span class='badge {'bg-success' if b.is_active else 'bg-danger'}'>{'АКТИВНИЙ' if b.is_active else 'ЗАБЛОКОВАНИЙ'}</span></td>
+                <td class='text-muted small'>{counts.get(b.id, 0)} записів</td>
+                <td><div class="d-flex flex-column gap-1 align-items-start">{ai_badge}{int_badge}</div></td>
+                <td class='text-end'>
+                    <div class="btn-group">
+                        <a href='/superadmin/toggle/{b.id}' class='btn btn-sm btn-outline-secondary' title="Блокувати"><i class='fas fa-power-off'></i></a>
+                        <a href='/superadmin/toggle-ai/{b.id}' class='btn btn-sm btn-outline-primary' title="AI Бот"><i class='fas fa-robot'></i></a>
+                        <a href='/superadmin/toggle-integration/{b.id}' class='btn btn-sm btn-outline-success' title="Увімк/Вимк CRM Інтеграції"><i class='fas fa-plug'></i></a>
+                        <button class='btn btn-sm btn-outline-warning' onclick="resetPass({b.id}, '{html.escape(b.name, quote=True)}')" title="Скинути пароль"><i class='fas fa-key'></i></button>
+                        <button class='btn btn-sm btn-outline-danger' onclick="deleteBiz({b.id})" title="Видалити"><i class='fas fa-trash'></i></button>
+                    </div>
+                </td>
+            </tr>"""
+            
+    pending_table = f"<div class='card p-4 mb-4 border border-warning shadow-sm'><h5 class='fw-bold mb-3 text-warning'><i class='fas fa-clock me-2'></i>Очікують перевірки оплати</h5><div class='table-responsive'><table class='table'><thead><tr><th>ID</th><th>Бізнес</th><th>Квитанція</th><th class='text-end'>Дії</th></tr></thead><tbody>{pending_rows}</tbody></table></div></div>" if pending_rows else ""
+
     content = f"""<div class='row'><div class='col-md-4'><div class='card p-4 mb-4'><h5 class='fw-bold mb-3'>Додати Бізнес</h5><form action='/superadmin/add-sto' method='post'>
     <div class='mb-3'><label class='small text-muted'>Назва бізнесу</label><input name='name' class='form-control bg-light border-0' required></div>
     <div class='mb-3'><label class='small text-muted'>Тип бізнесу</label><select name='type' class='form-select bg-light border-0'>
@@ -1949,8 +2394,8 @@ async def super_admin_page(user: User = Depends(get_current_user), db: AsyncSess
         <option value='medical'>Клініка / Лікарня</option>
         <option value='generic'>Інше (Універсальне)</option>
     </select></div>
-    <div class='mb-3'><label class='small text-muted'>Телефон власника</label><input name='phone' type='tel' class='form-control bg-light border-0' required></div><div class='mb-4'><label class='small text-muted'>Пароль</label><input name='p' class='form-control bg-light border-0' required></div><button class='btn btn-primary w-100'>Створити акаунт</button></form></div></div><div class='col-md-8'><div class='card p-4'><h5 class='fw-bold mb-3'>Список Бізнесів</h5><div class='table-responsive'><table class='table table-hover'><thead><tr><th>ID</th><th>Назва / Тип</th><th>Статистика</th><th>Статус</th><th>ШІ Бот</th><th class='text-end'>Дії</th></tr></thead><tbody>{rows}</tbody></table></div></div></div></div>
-    </select></div><div class='mb-3'><label class='small text-muted'>Телефон власника</label><input name='phone' type='tel' class='form-control bg-light border-0' required></div><div class='mb-4'><label class='small text-muted'>Пароль</label><input name='p' class='form-control bg-light border-0' required></div><button class='btn btn-primary w-100'>Створити акаунт</button></form></div></div><div class='col-md-8'><div class='card p-4'><h5 class='fw-bold mb-3'>Список Бізнесів</h5><div class='table-responsive'><table class='table table-hover'><thead><tr><th>ID</th><th>Назва / Тип</th><th>Записи</th><th>Статус</th><th>Додатки</th><th class='text-end'>Дії</th></tr></thead><tbody>{rows}</tbody></table></div></div></div></div>
+    <div class='mb-3'><label class='small text-muted'>Телефон власника (Логін)</label><input name='phone' type='tel' class='form-control bg-light border-0' required></div><div class='mb-4'><label class='small text-muted'>Пароль</label><input name='p' class='form-control bg-light border-0' required></div><button class='btn btn-primary w-100'>Створити акаунт</button></form></div></div>
+    <div class='col-md-8'>{pending_table}<div class='card p-4'><h5 class='fw-bold mb-3'>Список Активних Бізнесів</h5><div class='table-responsive'><table class='table table-hover'><thead><tr><th>ID</th><th>Назва / Тип</th><th>Статус</th><th>Записи</th><th>ШІ / CRM</th><th class='text-end'>Дії</th></tr></thead><tbody>{active_rows if active_rows else "<tr><td colspan='6' class='text-center text-muted'>Пусто</td></tr>"}</tbody></table></div></div></div></div>
     
     <div class="modal fade" id="resetModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow">
         <div class="modal-header border-0"><h5 class="modal-title fw-bold">Зміна паролю</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -1982,10 +2427,29 @@ async def super_admin_page(user: User = Depends(get_current_user), db: AsyncSess
 
 @app.post("/superadmin/add-sto")
 async def add_sto_fixed(name: str = Form(...), type: str = Form(...), phone: str = Form(...), p: str = Form(...), db: AsyncSession = Depends(get_db)):
+    existing = (await db.execute(select(User).where(User.username == phone))).scalar_one_or_none()
+    if existing: return RedirectResponse("/superadmin?msg=login_exists", status_code=303)
+
     nb = Business(name=name, type=type, system_prompt=f"Ви асистент {type}.")
     db.add(nb); await db.commit(); await db.refresh(nb)
     nu = User(username=phone, password=hash_password(p), role="owner", business_id=nb.id)
     db.add(nu); await db.commit()
+    return RedirectResponse("/superadmin", status_code=303)
+
+@app.post("/superadmin/approve-payment/{biz_id}")
+async def superadmin_approve_payment(biz_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if user and user.role == "superadmin":
+        biz = await db.get(Business, biz_id)
+        if biz:
+            biz.payment_status = "approved"
+            biz.is_active = True
+            await db.commit()
+    return RedirectResponse("/superadmin", status_code=303)
+
+@app.post("/superadmin/reject-payment/{biz_id}")
+async def superadmin_reject_payment(biz_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if user and user.role == "superadmin":
+        await delete_business(id=biz_id, user=user, db=db)
     return RedirectResponse("/superadmin", status_code=303)
 
 @app.get("/superadmin/toggle/{bid}")
@@ -2905,55 +3369,118 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
     s_opts = "".join([f"<option value='{s.name}'>{s.name} ({s.price} грн)</option>" for s in services])
     m_opts = "".join([f"<option value='{m.id}'>{m.name}</option>" for m in masters])
     
-    return f"""<!DOCTYPE html><html lang="uk"><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Запис - {biz.name}</title>
+    return f"""<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Онлайн-запис | {html.escape(biz.name)}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {{ background:#f8f9fa; }} 
-        .card {{ border-radius:1.5rem; border:none; box-shadow:0 10px 30px rgba(0,0,0,0.05); }}
-        .date-card {{ min-width: 65px; text-align: center; border: 1px solid #dee2e6; border-radius: 0.75rem; padding: 12px 5px; cursor: pointer; transition: 0.2s; background: white; }}
-        .date-card.active {{ background: #4f46e5; color: white; border-color: #4f46e5; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); }}
-        .date-card:hover:not(.active) {{ border-color: #4f46e5; background: #f8faff; }}
-        .time-slot {{ border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 10px 16px; cursor: pointer; transition: 0.2s; background: white; text-align: center; flex: 1 1 calc(25% - 0.5rem); min-width: 75px; font-weight: 500; }}
-        .time-slot.active {{ background: #4f46e5; color: white; border-color: #4f46e5; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); }}
-        .time-slot:hover:not(.active) {{ border-color: #4f46e5; background: #f8faff; }}
-        .btn-primary {{ background-color: #4f46e5; border: none; }}
-        .btn-primary:hover {{ background-color: #4338ca; }}
-        ::-webkit-scrollbar {{ height: 6px; }}
-        ::-webkit-scrollbar-thumb {{ background: #cbd5e1; border-radius: 10px; }}
+        :root {{ --p: #6366f1; --p-hover: #4f46e5; --bg: #f8fafc; --surface: #ffffff; --text: #0f172a; --text-muted: #64748b; }}
+        body {{ background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; padding-bottom: 2rem; }}
+        @keyframes slideUp {{ from {{ opacity: 0; transform: translateY(20px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+        .animate-up {{ animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }}
+        
+        .header-block {{ background: var(--surface); padding: 2.5rem 1rem 2rem; text-align: center; border-bottom-left-radius: 40px; border-bottom-right-radius: 40px; box-shadow: 0 10px 40px -10px rgba(0,0,0,0.06); margin-bottom: 2rem; position: relative; }}
+        .avatar-wrapper {{ width: 84px; height: 84px; background: linear-gradient(135deg, var(--p), #a855f7); color: white; border-radius: 28px; display: inline-flex; align-items: center; justify-content: center; font-size: 36px; font-weight: 700; box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.4); margin-bottom: 1rem; transform: rotate(-5deg); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }}
+        .avatar-wrapper:hover {{ transform: rotate(0deg) scale(1.05); }}
+        
+        .booking-container {{ max-width: 500px; margin: auto; padding: 0 1rem; }}
+        .glass-card {{ background: var(--surface); border-radius: 32px; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.05); padding: 1.5rem; margin-bottom: 1.5rem; }}
+        
+        .input-modern {{ background: #f1f5f9; border: 2px solid transparent; border-radius: 20px; padding: 1.2rem 1.25rem; width: 100%; transition: all 0.3s; font-weight: 500; color: var(--text); appearance: none; font-size: 1rem; }}
+        .input-modern:focus {{ background: #ffffff; border-color: var(--p); outline: none; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15); }}
+        
+        .section-title {{ font-weight: 700; font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; color: var(--text); letter-spacing: -0.01em; }}
+        
+        .date-scroll {{ display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: none; -ms-overflow-style: none; margin: 0 -0.5rem; padding: 0 0.5rem; }}
+        .date-scroll::-webkit-scrollbar {{ display: none; }}
+        .date-card {{ flex: 0 0 calc(25% - 0.5rem); min-width: 75px; background: #f1f5f9; border: 2px solid transparent; border-radius: 24px; padding: 1.2rem 0.5rem; text-align: center; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); user-select: none; display: flex; flex-direction: column; gap: 6px; }}
+        .date-card .day-name {{ font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }}
+        .date-card .day-num {{ font-size: 1.4rem; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }}
+        .date-card.active {{ background: var(--p); border-color: var(--p); transform: translateY(-4px); box-shadow: 0 12px 24px -6px rgba(99, 102, 241, 0.4); }}
+        .date-card.active .day-name, .date-card.active .day-num {{ color: white; }}
+        
+        .time-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.75rem; }}
+        .time-slot {{ background: #f1f5f9; border: 2px solid transparent; border-radius: 16px; padding: 1rem 0.5rem; text-align: center; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 600; color: var(--text); user-select: none; font-size: 1rem; }}
+        .time-slot.active {{ background: var(--p); color: white; border-color: var(--p); transform: scale(1.05); box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.35); }}
+        
+        .btn-super {{ background: linear-gradient(135deg, var(--p), #a855f7); color: white; border: none; border-radius: 20px; padding: 1.25rem; font-size: 1.15rem; font-weight: 700; width: 100%; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.5); letter-spacing: -0.01em; }}
+        .btn-super:active {{ transform: scale(0.96); }}
+        .btn-super:hover {{ transform: translateY(-3px); box-shadow: 0 15px 35px -5px rgba(99, 102, 241, 0.6); }}
+        
+        .loader-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; justify-content: center; align-items: center; z-index: 9999; transition: opacity 0.5s ease; opacity: 1; pointer-events: none; }}
+        .loader-overlay.hidden {{ opacity: 0; }}
+        .spinner {{ width: 48px; height: 48px; border: 4px solid rgba(99, 102, 241, 0.2); border-left-color: var(--p); border-radius: 50%; animation: spin 1s linear infinite; }}
+        @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+        
+        .toast-msg {{ position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #10b981; color: white; padding: 1rem 2rem; border-radius: 100px; font-weight: 600; box-shadow: 0 10px 30px rgba(16, 185, 129, 0.4); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); z-index: 10000; }}
+        .toast-msg.show {{ transform: translateX(-50%) translateY(0); }}
+        .toast-msg.error {{ background: #ef4444; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); }}
+        
+        @media (max-width: 480px) {{
+            .glass-card {{ border-radius: 24px; padding: 1.25rem; margin-bottom: 1rem; }}
+            .header-block {{ padding: 2.5rem 1rem 1.5rem; border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; margin-bottom: 1.5rem; }}
+            .avatar-wrapper {{ width: 72px; height: 72px; font-size: 30px; border-radius: 22px; }}
+        }}
     </style></head>
-    <body><div class="container py-4" style="max-width:550px;">
-        <div class="text-center mb-4">
-            <div class="bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow-sm" style="width: 70px; height: 70px; font-size: 28px; font-weight: bold;">
-                {biz.name[0].upper()}
-            </div>
-            <h4 class="fw-bold text-dark">{biz.name}</h4><p class="text-muted small">Онлайн-запис</p>
+    <body>
+        <div class="loader-overlay" id="loader"><div class="spinner"></div></div>
+        <div class="toast-msg" id="toastMsg"></div>
+        
+        <div class="header-block">
+            <div class="avatar-wrapper animate-up" style="animation-delay: 0.1s;">{(biz.name[0].upper() if biz.name else 'S')}</div>
+            <h3 class="fw-bold mb-1 animate-up" style="animation-delay: 0.2s; letter-spacing: -0.03em;">{html.escape(biz.name)}</h3>
+            <p class="text-muted mb-0 animate-up" style="animation-delay: 0.3s;">Оберіть послугу та зручний час</p>
         </div>
-        <div class="card p-4"><form action="/widget/book/{business_id}" method="post" id="bookingForm">
-            <div class="mb-3"><label class="small text-muted fw-bold mb-1">Оберіть послугу</label><select name="service" class="form-select bg-light border-0 py-2" required><option value="">-- Не обрано --</option>{s_opts}</select></div>
-            <div class="mb-4"><label class="small text-muted fw-bold mb-1">Оберіть майстра (необов'язково)</label><select name="master_id" class="form-select bg-light border-0 py-2"><option value="">-- Будь-який вільний --</option>{m_opts}</select></div>
-            
-            <div class="mb-4">
-                <label class="small text-muted fw-bold mb-2">Оберіть дату</label>
-                <div id="dateCards" class="d-flex overflow-auto gap-2 pb-2" style="scrollbar-width: thin;"></div>
-                <input type="hidden" name="date" id="selectedDate" required>
-            </div>
-            
-            <div class="mb-4">
-                <label class="small text-muted fw-bold mb-2">Оберіть час</label>
-                <div id="timeSlots" class="d-flex flex-wrap gap-2">
-                    <div class="text-muted small w-100 text-center py-3 bg-light rounded">Спочатку оберіть дату</div>
+        
+        <div class="booking-container">
+            <form action="/widget/book/{business_id}" method="post" id="bookingForm">
+                <div class="glass-card animate-up" style="animation-delay: 0.4s;">
+                    <h5 class="section-title"><i class="fas fa-cut text-primary opacity-75"></i> Деталі візиту</h5>
+                    <div class="mb-3">
+                        <select name="service" class="input-modern" required>
+                            <option value="" disabled selected hidden>Оберіть послугу...</option>
+                            {s_opts}
+                        </select>
+                    </div>
+                    <div>
+                        <select name="master_id" class="input-modern">
+                            <option value="">Будь-який вільний майстер</option>
+                            {m_opts}
+                        </select>
+                    </div>
                 </div>
-                <input type="hidden" name="time" id="selectedTime" required>
-            </div>
+                
+                <div class="glass-card animate-up" style="animation-delay: 0.5s;">
+                    <h5 class="section-title"><i class="fas fa-calendar-alt text-primary opacity-75"></i> Оберіть дату</h5>
+                    <div id="dateCards" class="date-scroll"></div>
+                    <input type="hidden" name="date" id="selectedDate" required>
+                </div>
+                
+                <div class="glass-card animate-up" style="animation-delay: 0.6s;">
+                    <h5 class="section-title"><i class="fas fa-clock text-primary opacity-75"></i> Оберіть час</h5>
+                    <div id="timeSlots" class="time-grid">
+                        <div class="text-muted text-center w-100 py-3" style="grid-column: 1 / -1;">Спочатку оберіть дату</div>
+                    </div>
+                    <input type="hidden" name="time" id="selectedTime" required>
+                </div>
+                
+                <div class="glass-card animate-up" style="animation-delay: 0.7s;">
+                    <h5 class="section-title"><i class="fas fa-user text-primary opacity-75"></i> Ваші контакти</h5>
+                    <div class="mb-3"><input name="name" class="input-modern" required placeholder="Ім'я"></div>
+                    <div><input name="phone" type="tel" class="input-modern" required placeholder="+380..."></div>
+                </div>
+                
+                <div class="animate-up" style="animation-delay: 0.8s;">
+                    <button type="submit" class="btn-super"><i class="fas fa-check-circle me-2"></i>Підтвердити запис</button>
+                </div>
+            </form>
+        </div>
+        
+        <script>
+            window.addEventListener('load', () => {{
+                setTimeout(() => {{ document.getElementById('loader').classList.add('hidden'); }}, 200);
+            }});
 
-            <hr class="mb-4 text-muted">
-            <div class="mb-3"><label class="small text-muted fw-bold mb-1">Ваше ім'я</label><input name="name" class="form-control bg-light border-0 py-2" required placeholder="Ім'я"></div>
-            <div class="mb-4"><label class="small text-muted fw-bold mb-1">Ваш телефон</label><input name="phone" type="tel" class="form-control bg-light border-0 py-2" required placeholder="+380..."></div>
-            
-            <button type="submit" class="btn btn-primary w-100 fw-bold py-3 rounded-pill shadow-sm">Підтвердити запис</button>
-        </form></div>
-    </div>
-    <script>
         const dateCardsContainer = document.getElementById('dateCards');
         const timeSlotsContainer = document.getElementById('timeSlots');
         const selectedDateInput = document.getElementById('selectedDate');
@@ -2974,7 +3501,7 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
                 
                 let card = document.createElement('div');
                 card.className = 'date-card';
-                card.innerHTML = `<div class="small mb-1 text-uppercase" style="font-size: 0.70rem;">${{dayName}}</div><div class="fw-bold fs-5">${{dayNum}}</div>`;
+                card.innerHTML = `<div class="day-name">${{dayName}}</div><div class="day-num">${{dayNum}}</div>`;
                 card.onclick = () => selectDate(card, dateString);
                 dateCardsContainer.appendChild(card);
             }}
@@ -3011,19 +3538,28 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
             selectedTimeInput.value = timeStr;
         }}
 
+            function showToast(msg, isError = false) {{
+                const toast = document.getElementById('toastMsg');
+                toast.innerText = msg;
+                if(isError) toast.classList.add('error');
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show', 'error'), 4000);
+            }}
+
         generateDates();
 
         document.getElementById('bookingForm').addEventListener('submit', function(e) {{
             if(!selectedDateInput.value || !selectedTimeInput.value) {{
                 e.preventDefault();
-                alert('Будь ласка, оберіть дату та час візиту!');
+                    showToast('Будь ласка, оберіть дату та час візиту!', true);
             }}
         }});
 
         const urlParams = new URLSearchParams(window.location.search);
-        if(urlParams.get('msg') === 'success') alert('Ваш запис успішно створено! Чекаємо на вас.');
-        if(urlParams.get('msg') === 'taken') alert('На жаль, цей час вже зайнятий. Будь ласка, оберіть інший.');
-    </script></body></html>"""
+            if(urlParams.get('msg') === 'success') showToast('✅ Ваш запис успішно створено! Чекаємо на вас.');
+            if(urlParams.get('msg') === 'taken') showToast('⚠️ На жаль, цей час вже зайнятий. Оберіть інший.', true);
+        </script>
+    </body></html>"""
 
 @app.post("/widget/book/{business_id}")
 async def process_public_booking(business_id: int, phone: str = Form(...), name: str = Form(...), date: str = Form(...), time: str = Form(...), service: str = Form(...), master_id: str = Form(None), db: AsyncSession = Depends(get_db)):
@@ -3061,6 +3597,33 @@ async def process_public_booking(business_id: int, phone: str = Form(...), name:
     
     biz = await db.get(Business, business_id)
     await send_new_appointment_notifications(biz, app, db)
+    
+    if biz.integration_system == "beauty_pro" and biz.beauty_pro_token and biz.beauty_pro_location_id:
+        result = await push_to_beauty_pro({
+            "phone": phone, "name": name, "service": service, 
+            "datetime": dt.isoformat(), "cost": cost
+        }, biz.beauty_pro_token, biz.beauty_pro_location_id, biz.beauty_pro_api_url)
+        if result:
+            db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Beauty Pro)", details=f"Віджет: {result.get('msg', '')}"))
+            
+    if biz.integration_system == "cleverbox" and biz.cleverbox_token:
+        result = await push_to_cleverbox({
+            "phone": phone, "name": name, "service": service, 
+            "datetime": dt.isoformat(), "cost": cost
+        }, biz.cleverbox_token, biz.cleverbox_location_id, biz.cleverbox_api_url)
+        if result:
+            db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Cleverbox)", details=f"Віджет: {result.get('msg', '')}"))
+            
+    if biz.integration_system == "integrica" and biz.integrica_token:
+        result = await push_to_integrica({
+            "phone": phone, "name": name, "service": service, 
+            "datetime": dt.isoformat(), "cost": cost
+        }, biz.integrica_token, biz.integrica_location_id, biz.integrica_api_url)
+        if result:
+            db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Integrica)", details=f"Віджет: {result.get('msg', '')}"))
+            
+    await db.commit()
+    
     return RedirectResponse(f"/widget/{business_id}?msg=success", status_code=303)
 
 @app.post("/admin/api/voice-note/{customer_id}")
@@ -3120,6 +3683,8 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
         c_name = html.escape(c.name or '')
         c_phone = html.escape(c.phone_number)
         c_notes = (c.notes or '').replace("'", "\\'").replace("\n", "\\n")
+        c_photo_urls = (c.photo_urls or '').replace("'", "\\'")
+        c_discount = getattr(c, 'discount_percent', 0.0)
         
         contact_display = c.phone_number
         if c.phone_number.startswith("Telegram"):
@@ -3135,7 +3700,7 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
 
         rows += f"""<tr class='align-middle'><td><div class='avatar-circle bg-primary bg-opacity-10 text-primary fw-bold d-inline-flex align-items-center justify-content-center rounded-circle me-3' style='width:40px;height:40px'>{(c.name or '?')[0].upper()}</div>{c.name or 'Без імені'}</td><td>{contact_display}</td><td class='text-end'>
         <button class='btn btn-sm btn-outline-secondary me-1' onclick="loadHistory({c.id}, '{c_name.replace("'", "\\'")}')" title="Історія візитів"><i class='fas fa-history'></i></button>
-        <button class='btn btn-sm btn-light text-primary' onclick="editCustomer({c.id}, '{c_name.replace("'", "\\'")}', '{c_phone.replace("'", "\\'")}', '{c_notes}')" title="Редагувати та Нотатки"><i class='fas fa-edit'></i></button>
+        <button class='btn btn-sm btn-light text-primary' onclick="editCustomer({c.id}, '{c_name.replace("'", "\\'")}', '{c_phone.replace("'", "\\'")}', '{c_notes}', '{c_photo_urls}', {c_discount})" title="Редагувати та Нотатки"><i class='fas fa-edit'></i></button>
         </td></tr>"""
     
     content = f"""<div class="card p-4"><div class="d-flex justify-content-between mb-4"><h5 class="fw-bold">База Клієнтів</h5><a href="/admin/export-clients" class="btn btn-outline-primary btn-sm"><i class="fas fa-download me-2"></i>Експорт</a></div><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Клієнт</th><th>Зв'язок</th><th class="text-end">Дії</th></tr></thead><tbody>{rows}</tbody></table></div></div>
@@ -3145,7 +3710,10 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
         <form action="/admin/update-customer" method="post">
             <div class="modal-body">
                 <input type="hidden" name="id" id="customerId">
-                <div class="mb-3"><label class="small text-muted">Ім'я</label><input name="name" id="customerName" class="form-control bg-light border-0"></div>
+                <div class="row mb-3">
+                    <div class="col-md-8"><label class="small text-muted">Ім'я</label><input name="name" id="customerName" class="form-control bg-light border-0"></div>
+                    <div class="col-md-4"><label class="small text-muted">Знижка (%)</label><input name="discount" id="customerDiscount" type="number" step="0.1" min="0" max="100" class="form-control bg-light border-0" value="0"></div>
+                </div>
                 <div class="mb-3"><label class="small text-muted">Телефон</label><input name="phone" id="customerPhone" class="form-control bg-light border-0" required></div>
                 <div class="mb-3">
                     <label class="small text-muted fw-bold"><i class="fas fa-sticky-note me-1"></i>Внутрішні нотатки (бачить тільки персонал)</label>
@@ -3154,6 +3722,19 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
                         <button type="button" class="btn btn-sm btn-light text-primary py-0" onclick="recordVoiceNote()" id="btnVoiceNote" title="Надиктувати (Whisper AI)"><i class="fas fa-microphone"></i></button>
                     </div>
                     <textarea name="notes" id="customerNotes" class="form-control bg-light border-0" rows="4" placeholder="Напр: Алергія на фарбу, любить каву з цукром..."></textarea>
+                </div>
+                <div class="mb-3 border-top pt-3">
+                    <label class="small text-muted fw-bold mb-2"><i class="fas fa-camera me-1"></i>Фотографії (До / Після)</label>
+                    <div id="customerPhotosContainer" class="d-flex gap-2 flex-wrap mb-2"></div>
+                    <div class="input-group input-group-sm">
+                        <select id="photoTypeInput" class="form-select bg-light border-0" style="max-width: 90px;">
+                            <option value="До">До</option>
+                            <option value="Після">Після</option>
+                            <option value="">Інше</option>
+                        </select>
+                        <input type="file" id="customerPhotoInput" class="form-control bg-light border-0" accept="image/*" onchange="uploadPhoto()">
+                    </div>
+                    <div class="form-text small text-primary" id="uploadStatus"></div>
                 </div>
             </div>
             <div class="modal-footer border-0 d-flex gap-2">
@@ -3172,11 +3753,31 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
     """
     
     scripts = """<script>
-    function editCustomer(id, name, phone, notes) {
+    function editCustomer(id, name, phone, notes, photoUrls, discount) {
         document.getElementById('customerId').value = id;
         document.getElementById('customerName').value = name;
         document.getElementById('customerPhone').value = phone;
         document.getElementById('customerNotes').value = notes;
+        document.getElementById('customerDiscount').value = discount || 0;
+        
+        const container = document.getElementById('customerPhotosContainer');
+        container.innerHTML = '';
+        if (photoUrls) {
+            photoUrls.split(',').forEach(item => {
+                if (item) {
+                    let parts = item.split('|');
+                    let url = parts[0];
+                    let type = parts.length > 1 ? parts[1] : '';
+                    let badge = type ? `<span class="badge bg-dark position-absolute bottom-0 start-50 translate-middle-x mb-1" style="opacity: 0.8; font-size: 0.65rem;">${type}</span>` : '';
+                    container.innerHTML += `<div class="position-relative" style="width: 75px; height: 75px;">
+                        <a href="${url}" target="_blank"><img src="${url}" class="img-thumbnail w-100 h-100 object-fit-cover p-1"></a>
+                        ${badge}
+                        <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 p-0" style="width: 20px; height: 20px; line-height: 1; transform: translate(30%, -30%); border-radius: 50%;" onclick="deletePhoto('${item}', event)">×</button>
+                    </div>`;
+                }
+            });
+        }
+        
         new bootstrap.Modal(document.getElementById('customerModal')).show();
     }
     async function deleteCustomer() {
@@ -3227,18 +3828,97 @@ async def owner_clients(user: User = Depends(get_current_user), db: AsyncSession
             });
         } catch (e) { alert("Немає доступу до мікрофона"); }
     }
+    
+    async function uploadPhoto() {
+        const id = document.getElementById('customerId').value;
+        const input = document.getElementById('customerPhotoInput');
+        const pType = document.getElementById('photoTypeInput').value;
+        const status = document.getElementById('uploadStatus');
+        if (!input.files || input.files.length === 0) return;
+
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+        formData.append('photo_type', pType);
+
+        input.disabled = true;
+        status.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Завантаження...';
+        
+        try {
+            const res = await fetch(`/admin/api/upload-photo/${id}`, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.ok) window.location.reload();
+            else alert('Помилка завантаження фото: ' + (data.msg || ''));
+        } catch (e) {
+            alert('Помилка мережі');
+        } finally {
+            input.disabled = false;
+            input.value = '';
+            status.innerHTML = '';
+        }
+    }
+
+    async function deletePhoto(url, event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!confirm('Видалити це фото?')) return;
+        const id = document.getElementById('customerId').value;
+        const formData = new FormData();
+        formData.append('url', url);
+        await fetch(`/admin/api/delete-photo/${id}`, { method: 'POST', body: formData });
+        window.location.reload();
+    }
     </script>"""
     
     return get_layout(content, user, "kli", scripts)
 
 @app.post("/admin/update-customer")
-async def update_customer(id: int = Form(...), name: str = Form(...), phone: str = Form(...), notes: str = Form(None), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def update_customer(id: int = Form(...), name: str = Form(...), phone: str = Form(...), notes: str = Form(None), discount: float = Form(0.0), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return RedirectResponse("/", status_code=303)
     cust = await db.get(Customer, id)
     if cust and cust.business_id == user.business_id:
-        cust.name = name; cust.phone_number = phone; cust.notes = notes; await db.commit()
+        cust.name = name; cust.phone_number = phone; cust.notes = notes; cust.discount_percent = discount; await db.commit()
         await log_action(db, user.business_id, user.id, "Редагування клієнта", f"Оновлено дані клієнта {name}")
     return RedirectResponse("/admin/klienci?msg=saved", status_code=303)
+
+@app.post("/admin/api/upload-photo/{customer_id}")
+async def upload_customer_photo(customer_id: int, photo_type: str = Form(""), file: UploadFile = File(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user: return {"ok": False, "msg": "Не авторизовано"}
+    cust = await db.get(Customer, customer_id)
+    if not cust or cust.business_id != user.business_id: return {"ok": False, "msg": "Помилка доступу"}
+    
+    os.makedirs("static/uploads", exist_ok=True)
+    ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+    filename = f"cust_{customer_id}_{int(datetime.now().timestamp())}.{ext}"
+    filepath = f"static/uploads/{filename}"
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    current_urls = cust.photo_urls.split(",") if cust.photo_urls else []
+    current_urls.append(f"/{filepath}|{photo_type}" if photo_type else f"/{filepath}")
+    cust.photo_urls = ",".join(current_urls)
+    await db.commit()
+    return {"ok": True}
+
+@app.post("/admin/api/delete-photo/{customer_id}")
+async def delete_customer_photo(customer_id: int, url: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user: return {"ok": False}
+    cust = await db.get(Customer, customer_id)
+    if not cust or cust.business_id != user.business_id: return {"ok": False}
+    
+    current_urls = cust.photo_urls.split(",") if cust.photo_urls else []
+    if url in current_urls:
+        current_urls.remove(url)
+        cust.photo_urls = ",".join(current_urls)
+        await db.commit()
+        
+        filepath = url.split('|')[0]
+        if filepath.startswith("/static/uploads/"):
+            sys_filepath = filepath.lstrip("/")
+            if os.path.exists(sys_filepath):
+                os.remove(sys_filepath)
+                
+    return {"ok": True}
 
 @app.get("/admin/api/client-history/{id}")
 async def get_client_history(id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -3986,18 +4666,46 @@ async def reminder_loop():
             await asyncio.sleep(60)
             
 @app.get("/admin/logs", response_class=HTMLResponse)
-async def logs_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def logs_page(f: str = "all", user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role == "master": return RedirectResponse("/", status_code=303)
-    stmt = select(ActionLog).where(ActionLog.business_id == user.business_id).order_by(desc(ActionLog.created_at)).limit(100)
+    
+    stmt = select(ActionLog).where(ActionLog.business_id == user.business_id)
+    if f == "sync_errors":
+        stmt = stmt.where(and_(ActionLog.action.like("%Синхронізація%"), ActionLog.details.ilike("%Помилка%")))
+    elif f == "sync":
+        stmt = stmt.where(ActionLog.action.like("%Синхронізація%"))
+        
+    stmt = stmt.order_by(desc(ActionLog.created_at)).limit(100)
     logs = (await db.execute(stmt)).scalars().all()
     
     rows = ""
     for log in logs:
-        rows += f"<tr><td>{log.created_at.strftime('%d.%m.%Y %H:%M')}</td><td>{html.escape(log.action)}</td><td>{html.escape(log.details)}</td></tr>"
+        action_html = html.escape(log.action)
+        if "Синхронізація" in log.action:
+            if "помилка" in log.details.lower():
+                action_html = f"<span class='badge bg-danger bg-opacity-10 text-danger border border-danger'><i class='fas fa-exclamation-triangle me-1'></i>{action_html}</span>"
+            else:
+                action_html = f"<span class='badge bg-info bg-opacity-10 text-info border border-info'><i class='fas fa-sync me-1'></i>{action_html}</span>"
+        elif "Додано" in log.action or "створено" in log.action.lower() or "Новий" in log.action:
+            action_html = f"<span class='badge bg-success bg-opacity-10 text-success border border-success'>{action_html}</span>"
+        elif "Видалено" in log.action:
+            action_html = f"<span class='badge bg-danger bg-opacity-10 text-danger border border-danger'>{action_html}</span>"
+        else:
+            action_html = f"<span class='badge bg-secondary bg-opacity-10 text-secondary border border-secondary'>{action_html}</span>"
+
+        rows += f"<tr class='align-middle'><td><span class='text-muted small'>{log.created_at.strftime('%d.%m.%Y %H:%M')}</span></td><td>{action_html}</td><td class='small'>{html.escape(log.details)}</td></tr>"
         
-    content = f"""<div class='card p-4'><h5 class='fw-bold mb-4'><i class='fas fa-history me-2 text-primary'></i>Журнал дій (Аудит)</h5>
-    <div class='table-responsive'><table class='table table-hover'><thead><tr><th>Дата та Час</th><th>Дія</th><th>Деталі</th></tr></thead>
-    <tbody>{rows if rows else '<tr><td colspan="3" class="text-center text-muted">Немає записів</td></tr>'}</tbody></table></div></div>"""
+    content = f"""<div class='card p-4 shadow-sm border-0'>
+    <div class='d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3'>
+        <h5 class='fw-bold m-0'><i class='fas fa-history me-2 text-primary'></i>Журнал дій (Аудит)</h5>
+        <div class="btn-group">
+            <a href="?f=all" class="btn btn-sm {'btn-primary' if f == 'all' else 'btn-outline-secondary'}">Всі дії</a>
+            <a href="?f=sync" class="btn btn-sm {'btn-info' if f == 'sync' else 'btn-outline-info'}"><i class="fas fa-sync me-1"></i>Синхронізації</a>
+            <a href="?f=sync_errors" class="btn btn-sm {'btn-danger' if f == 'sync_errors' else 'btn-outline-danger'}"><i class="fas fa-exclamation-triangle me-1"></i>Помилки CRM</a>
+        </div>
+    </div>
+    <div class='table-responsive'><table class='table table-hover mb-0'><thead><tr><th>Дата та Час</th><th>Дія</th><th>Деталі</th></tr></thead>
+    <tbody>{rows if rows else '<tr><td colspan="3" class="text-center text-muted py-4">Немає записів</td></tr>'}</tbody></table></div></div>"""
     return get_layout(content, user, "logs")
 
 @app.get("/admin/finance", response_class=HTMLResponse)
@@ -4112,6 +4820,11 @@ async def startup():
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS mindbody_site_id TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS zoho_token TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS zoho_workspace_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS integrica_token TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS integrica_location_id TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS integrica_api_url TEXT"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'approved'"))
+        await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_url TEXT"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS integration_enabled BOOLEAN DEFAULT TRUE"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS working_hours TEXT DEFAULT 'Пн-Нд: 09:00 - 20:00'"))
         await conn.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS groq_api_key TEXT"))
@@ -4149,6 +4862,8 @@ async def startup():
         await conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS support_status TEXT DEFAULT 'none'"))
         await conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_ai_enabled BOOLEAN DEFAULT TRUE"))
         await conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT"))
+        await conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS photo_urls TEXT"))
+        await conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS discount_percent DOUBLE PRECISION DEFAULT 0"))
         await conn.execute(text("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual'"))
         await conn.execute(text("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE"))
         await conn.execute(text("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS followup_sent BOOLEAN DEFAULT FALSE"))

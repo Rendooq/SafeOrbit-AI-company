@@ -10,7 +10,7 @@ import urllib.parse
 
 import httpx
 import pandas as pd
-from fastapi import APIRouter, Depends, File, Form, Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy import and_, delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -987,13 +987,24 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
     
     rows = ""
     for c in customers:
+        badge = "<span class='badge bg-danger bg-opacity-10 text-danger'>Заблоковано</span>" if getattr(c, 'is_blocked', False) else "<span class='badge bg-success bg-opacity-10 text-success'>Активний</span>"
+        btn_icon = "fa-unlock text-success" if getattr(c, 'is_blocked', False) else "fa-ban text-danger"
+        btn_title = "Розблокувати клієнта" if getattr(c, 'is_blocked', False) else "Заблокувати клієнта (Чорний список)"
+        
         rows += f"""
         <tr>
             <td><span class="text-muted">#{c.id}</span></td>
             <td class="fw-bold">{html.escape(c.name or 'Гість')}</td>
             <td>{html.escape(c.phone_number)}</td>
             <td><span class="badge bg-primary bg-opacity-10 text-primary">{c.discount_percent}%</span></td>
+            <td>{badge}</td>
             <td><span class="small text-muted">{html.escape(c.notes or '-')}</span></td>
+            <td class="text-end">
+                <form action='/admin/toggle-client-block' method='post' style='display:inline' onsubmit="return confirm('Ви впевнені?');">
+                    <input type='hidden' name='id' value='{c.id}'>
+                    <button type='submit' class='btn btn-glass btn-sm' title='{btn_title}'><i class="fas {btn_icon}"></i></button>
+                </form>
+            </td>
         </tr>"""
         
     content = f"""
@@ -1001,13 +1012,27 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
         <h5 class="fw-800 text-white mb-4"><i class="fas fa-users text-primary me-2"></i>База клієнтів</h5>
         <div class="table-responsive">
             <table class="glass-table">
-                <thead><tr><th>ID</th><th>Ім'я</th><th>Телефон</th><th>Знижка</th><th>Нотатки</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="5" class="text-center py-5 text-muted">Клієнтів ще немає</td></tr>'}</tbody>
+                <thead><tr><th>ID</th><th>Ім'я</th><th>Телефон</th><th>Знижка</th><th>Статус</th><th>Нотатки</th><th class="text-end">Дії</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="7" class="text-center py-5 text-muted">Клієнтів ще немає</td></tr>'}</tbody>
             </table>
         </div>
     </div>
     """
     return get_layout(content, user, "kli")
+
+
+@router.post("/toggle-client-block")
+async def toggle_client_block(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role not in ["owner", "master"]: 
+        return RedirectResponse("/", status_code=303)
+    
+    customer = await db.get(Customer, id)
+    if customer and customer.business_id == user.business_id:
+        customer.is_blocked = not getattr(customer, 'is_blocked', False)
+        await db.commit()
+        status_text = "заблоковано" if customer.is_blocked else "розблоковано"
+        await log_action(db, user.business_id, user.id, "Статус клієнта", f"Клієнта '{customer.name or customer.phone_number}' {status_text}.")
+    return RedirectResponse("/admin/klienci?msg=saved", status_code=303)
 
 
 @router.get("/finance", response_class=HTMLResponse)
@@ -1028,8 +1053,11 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
             except:
                 variants_html = "<span class='small text-danger'>Помилка варіантів</span>"
 
+        img_tag = f"<img src='{p.image_url}' style='width: 48px; height: 48px; object-fit: cover; border-radius: 12px; border: 1px solid var(--glass-border);'>" if getattr(p, 'image_url', None) else "<div style='width: 48px; height: 48px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: center;'><i class='fas fa-image text-white-50'></i></div>"
+
         rows += f"""
         <tr>
+            <td>{img_tag}</td>
             <td><span class="text-muted">{html.escape(p.sku or '-')}</span></td>
             <td class="fw-bold">{html.escape(p.name)}</td>
             <td>{variants_html}</td>
@@ -1048,7 +1076,7 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
         <div class="col-lg-5">
             <div class="glass-card p-4">
                 <h5 class="fw-800 text-white mb-4"><i class="fas fa-plus-circle text-primary me-2"></i>Додати новий товар</h5>
-                <form action="/admin/add-product" method="post">
+                <form action="/admin/add-product" method="post" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label">Назва товару</label>
                         <input name="name" class="glass-input" placeholder="Напр. Шампунь 'Сила Вовка'" required>
@@ -1062,6 +1090,11 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
                             <label class="form-label">Ціна продажу (грн)</label>
                             <input name="unit_cost" type="number" step="0.01" class="glass-input" placeholder="0.00" required>
                         </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label">Фото товару</label>
+                        <input type="file" name="image" class="form-control" accept="image/*">
                     </div>
                     
                     <div class="p-3 rounded-4" style="background: rgba(255,255,255,0.02); border: 0.5px solid var(--glass-border);">
@@ -1083,8 +1116,8 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
                 <h5 class="fw-800 text-white mb-4"><i class="fas fa-boxes-stacked text-success me-2"></i>Склад та Товари</h5>
                 <div class="table-responsive">
                     <table class="glass-table">
-                        <thead><tr><th>Артикул</th><th>Назва</th><th>Варіанти</th><th>Загалом</th><th>Ціна</th><th class="text-end">Дії</th></tr></thead>
-                        <tbody>{rows if rows else '<tr><td colspan="6" class="text-center py-5 text-muted">Товарів ще немає</td></tr>'}</tbody>
+                        <thead><tr><th>Фото</th><th>Артикул</th><th>Назва</th><th>Варіанти</th><th>Загалом</th><th>Ціна</th><th class="text-end">Дії</th></tr></thead>
+                        <tbody>{rows if rows else '<tr><td colspan="7" class="text-center py-5 text-muted">Товарів ще немає</td></tr>'}</tbody>
                     </table>
                 </div>
             </div>
@@ -1146,6 +1179,7 @@ async def add_product(
     variant_color: List[str] = Form([]),
     variant_size: List[str] = Form([]),
     variant_stock: List[str] = Form([]),
+    image: Optional[UploadFile] = File(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -1166,13 +1200,23 @@ async def add_product(
         except (ValueError, IndexError):
             continue
     
+    image_url = None
+    if image and image.filename:
+        os.makedirs("static/uploads/products", exist_ok=True)
+        ext = image.filename.split('.')[-1] if '.' in image.filename else 'jpg'
+        filepath = f"static/uploads/products/prod_{int(datetime.now().timestamp())}.{ext}"
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+        image_url = f"/{filepath}"
+
     new_product = Product(
         business_id=user.business_id,
         name=name,
         sku=sku,
         unit_cost=unit_cost,
         stock=total_stock,
-        variants=json.dumps(variants) if variants else None
+        variants=json.dumps(variants) if variants else None,
+        image_url=image_url
     )
     db.add(new_product)
     await db.commit()

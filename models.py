@@ -143,6 +143,7 @@ class Customer(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text)
     photo_urls: Mapped[Optional[str]] = mapped_column(Text)
     discount_percent: Mapped[float] = mapped_column(Float, default=0.0)  # Default value included in model
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     last_reactivation_sent: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
 
@@ -176,6 +177,7 @@ class Product(Base):
     unit_cost: Mapped[float] = mapped_column(Float, default=0.0)
     discount: Mapped[float] = mapped_column(Float, default=0.0)
     variants: Mapped[Optional[str]] = mapped_column(Text)
+    image_url: Mapped[Optional[str]] = mapped_column(Text)
 
 
 class Service(Base):

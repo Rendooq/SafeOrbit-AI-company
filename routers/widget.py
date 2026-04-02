@@ -388,6 +388,7 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
         const urlParams = new URLSearchParams(window.location.search);
             if(urlParams.get('msg') === 'success') showToast('✅ Ваш запис успішно створено! Чекаємо на вас.');
             if(urlParams.get('msg') === 'taken') showToast('⚠️ На жаль, цей час вже зайнятий. Оберіть інший.', true); 
+        if(urlParams.get('msg') === 'blocked') showToast('⛔ Вибачте, бронювання для вашого номера тимчасово недоступне.', true); 
         </script>
     </body></html>"""
     return HTMLResponse(content=html_content)
@@ -432,6 +433,8 @@ async def process_public_booking(
     if not cust:
         cust = Customer(business_id=business_id, phone_number=phone, name=name)
         db.add(cust); await db.flush()
+    elif getattr(cust, 'is_blocked', False):
+        return RedirectResponse(f"/widget/{business_id}?msg=blocked", status_code=303)
     
     app = Appointment(business_id=business_id, customer_id=cust.id, appointment_time=dt, service_type=service, cost=cost, delivery_address=delivery_address, source="widget", master_id=int(master_id) if master_id else None)
     db.add(app)
@@ -548,6 +551,8 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
             db.add(customer)
             await db.commit()
             await db.refresh(customer)
+        elif getattr(customer, 'is_blocked', False):
+            return {"success": False, "error": "Вибачте, бронювання для вашого номера тимчасово недоступне."}
 
         # Get service and master
         service = await db.get(Service, service_id)

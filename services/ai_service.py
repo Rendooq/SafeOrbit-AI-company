@@ -75,6 +75,13 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
         await db.commit()
         return None, None # Return None for text and action
 
+    if customer and getattr(customer, 'is_blocked', False):
+        db.add(ChatLog(business_id=business_id, user_identifier=user_id, role="user", content=question))
+        msg = "Вибачте, ваш номер телефону було заблоковано адміністратором. Бронювання та консультації тимчасово недоступні."
+        db.add(ChatLog(business_id=business_id, user_identifier=user_id, role="assistant", content=msg))
+        await db.commit()
+        return msg, None
+
     admin_keywords = ["адмін", "адміністратор", "людина", "оператор", "жива людина", "позвіть адміна"]
     if any(keyword in question.lower() for keyword in admin_keywords):
         await send_admin_alert_notification(biz, user_id, question, user_name)

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -79,6 +79,20 @@ async def startup():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+                
+        # Автоматичне додавання нових колонок (кожна у власній транзакції)
+        migrations = [
+            "ALTER TABLE masters ADD COLUMN working_hours TEXT;",
+            "ALTER TABLE customers ADD COLUMN is_blocked BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE products ADD COLUMN image_url TEXT;",
+            "ALTER TABLE businesses ADD COLUMN transfer_phone_number TEXT;"
+        ]
+        for query in migrations:
+            try:
+                async with engine.begin() as m_conn:
+                    await m_conn.execute(text(query))
+            except Exception:
+                pass
         
         async with AsyncSessionLocal() as db:
             # Create superadmin if not exists

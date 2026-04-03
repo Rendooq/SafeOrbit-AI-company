@@ -18,11 +18,13 @@ from sqlalchemy.orm import joinedload
 
 from dependencies import get_current_user
 from models import (ActionLog, Appointment, Business, ChatLog, Customer,
-                    GlobalPaymentSettings, Master, MonthlyPaymentLog, 
-                    Product, Service, User)
+                    CustomerSegment, GlobalPaymentSettings, Master, MasterService,
+                    MonthlyPaymentLog, NPSReview, Product, Service, User,
+                    AppointmentConfirmation, SystemUpdate)
 from ui import get_layout
 from utils import hash_password, log_action, verify_password
 from database import get_db, AsyncSessionLocal
+from config import UA_TZ
 import httpx
 import logging
 
@@ -129,6 +131,14 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
             d_ctr = f"<a href='{b.contract_url}' target='_blank' class='text-decoration-none'><i class='fas fa-file-pdf text-success me-1'></i>Договір.pdf</a>" if b.contract_url else "<span class='text-muted'>-</span>"
             docs_rows += f"<tr class='align-middle'><td>#{b.id}</td><td class='fw-bold'>{html.escape(b.name)}</td><td>{d_nda}</td><td>{d_ctr}</td><td><span class='badge bg-success'>Підписано</span></td></tr>"
 
+    updates = (await db.execute(select(SystemUpdate).order_by(desc(SystemUpdate.created_at)))).scalars().all()
+    updates_rows = ""
+    for u in updates:
+        date_str = u.created_at.strftime('%d.%m.%Y %H:%M')
+        title_json = html.escape(json.dumps(u.title))
+        content_json = html.escape(json.dumps(u.content))
+        updates_rows += f"<tr class='align-middle'><td><span class='text-muted'>#{u.id}</span></td><td><div class='fw-bold text-white'>{html.escape(u.title)}</div><small class='text-muted'>{date_str}</small></td><td class='text-end'><button class='btn btn-sm btn-outline-info me-1' onclick='editUpdate({u.id}, {title_json}, {content_json})'><i class='fas fa-edit'></i></button><form action='/superadmin/delete-update' method='post' class='d-inline' onsubmit=\"return confirm('Видалити?');\"><input type='hidden' name='id' value='{u.id}'><button class='btn btn-sm btn-outline-danger'><i class='fas fa-trash'></i></button></form></td></tr>"
+
     pending_badge = f'<span class="badge bg-danger ms-2">{len(pending_bizs)}</span>' if pending_bizs else ''
     
     sort_date_desc = 'selected' if sort == 'date_desc' else ''
@@ -182,6 +192,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
             <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-docs"><i class="fas fa-folder-open me-2"></i>Документи</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-payments"><i class="fas fa-money-check-alt me-2"></i>Фінанси</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-broadcast"><i class="fas fa-bullhorn me-2"></i>Розсилка</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-updates"><i class="fas fa-newspaper me-2"></i>Оновлення</button></li>
         </ul>
         <div class="ms-auto d-flex gap-2 p-1">
             <a href="/superadmin/global-payment-settings" class="btn-glass px-4 py-2 rounded-pill text-decoration-none" style="font-size: 13px; background: rgba(175, 133, 255, 0.1); border-color: rgba(175, 133, 255, 0.2);"><i class="fas fa-globe me-2 text-primary"></i>Налаштувати тарифи</a>
@@ -322,6 +333,32 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
                 </form>
             </div>
         </div>
+        
+        <div class="tab-pane fade" id="sa-updates">
+            <div class="row g-4">
+                <div class="col-md-5">
+                    <div class="glass-card p-4">
+                        <h6 class="fw-800 text-white mb-4">Опублікувати новину</h6>
+                        <form action="/superadmin/add-update" method="post">
+                            <div class="mb-3"><label class="form-label">Заголовок</label><input name="title" class="glass-input" required></div>
+                            <div class="mb-4"><label class="form-label">Текст новини / Порада</label><textarea name="content" class="glass-input" rows="8" required></textarea></div>
+                            <button class="btn-primary-glow w-100 py-3">Опублікувати</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="glass-card p-4">
+                        <h6 class="fw-800 text-white mb-4">Історія оновлень</h6>
+                        <div class="table-responsive">
+                            <table class="glass-table">
+                                <thead><tr><th>ID</th><th>Заголовок та Дата</th><th class="text-end">Дії</th></tr></thead>
+                                <tbody>{updates_rows if updates_rows else '<tr><td colspan="3" class="text-center py-5 text-muted">Новин ще немає</td></tr>'}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Modals (iOS 26 Style) -->
@@ -384,6 +421,18 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
             <div class="modal-footer"><button class="btn-primary-glow w-100 py-3">Зберегти реквізити</button></div>
         </form>
     </div></div></div>
+
+    <div class="modal fade" id="editUpdateModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Редагувати новину</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+        <form action="/superadmin/edit-update" method="post">
+            <div class="modal-body">
+                <input type="hidden" name="id" id="editUpdId">
+                <div class="mb-3"><label class="form-label">Заголовок</label><input name="title" id="editUpdTitle" class="glass-input" required></div>
+                <div class="mb-0"><label class="form-label">Текст</label><textarea name="content" id="editUpdContent" class="glass-input" rows="8" required></textarea></div>
+            </div>
+            <div class="modal-footer"><button class="btn-primary-glow w-100 py-3">Зберегти зміни</button></div>
+        </form>
+    </div></div></div>
     """
 
     scripts = """
@@ -407,6 +456,12 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         document.getElementById('paymentBizId').value = id;
         document.getElementById('paymentBizName').innerText = name;
         new bootstrap.Modal(document.getElementById('paymentModal')).show();
+    }
+    function editUpdate(id, title, content) {
+        document.getElementById('editUpdId').value = id;
+        document.getElementById('editUpdTitle').value = title;
+        document.getElementById('editUpdContent').value = content;
+        new bootstrap.Modal(document.getElementById('editUpdateModal')).show();
     }
     </script>
     """
@@ -626,6 +681,16 @@ async def delete_business(business_id: int, user: User = Depends(get_current_use
 
     biz = await db.get(Business, business_id)
     if biz:
+        # Спочатку видаляємо всі вкладені зв'язки, щоб уникнути помилок Foreign Key
+        masters_subq = select(Master.id).where(Master.business_id == business_id)
+        await db.execute(delete(MasterService).where(MasterService.master_id.in_(masters_subq)))
+        
+        appts_subq = select(Appointment.id).where(Appointment.business_id == business_id)
+        await db.execute(delete(AppointmentConfirmation).where(AppointmentConfirmation.appointment_id.in_(appts_subq)))
+
+        await db.execute(delete(NPSReview).where(NPSReview.business_id == business_id))
+        await db.execute(delete(CustomerSegment).where(CustomerSegment.business_id == business_id))
+
         # Delete associated users
         await db.execute(delete(User).where(User.business_id == business_id))
         # Delete associated appointments
@@ -647,7 +712,9 @@ async def delete_business(business_id: int, user: User = Depends(get_current_use
 
         await db.delete(biz)
         await db.commit()
-        await log_action(db, business_id, user.id, "Видалено бізнес", f"Бізнес '{biz.name}' видалено супер-адміном.")
+        
+        # Логуємо видалення без прив'язки до business_id, оскільки бізнес вже видалено
+        await log_action(db, None, user.id, "Видалено бізнес", f"Бізнес '{biz.name}' видалено супер-адміном.")
 
     return RedirectResponse("/superadmin?msg=deleted", status_code=303)
 
@@ -818,3 +885,32 @@ async def export_payments(user: User = Depends(get_current_user), db: AsyncSessi
     response = StreamingResponse(iter([stream.getvalue().encode('utf-8-sig')]), media_type="text/csv")
     response.headers["Content-Disposition"] = "attachment; filename=payments_export.csv"
     return response
+
+@router.post("/add-update")
+async def add_update(title: str = Form(...), content: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "superadmin":
+        return RedirectResponse("/", status_code=303)
+    db.add(SystemUpdate(title=title, content=content, created_at=datetime.now(UA_TZ).replace(tzinfo=None)))
+    await db.commit()
+    return RedirectResponse("/superadmin?msg=saved", status_code=303)
+
+@router.post("/edit-update")
+async def edit_update(id: int = Form(...), title: str = Form(...), content: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "superadmin":
+        return RedirectResponse("/", status_code=303)
+    u = await db.get(SystemUpdate, id)
+    if u:
+        u.title = title
+        u.content = content
+        await db.commit()
+    return RedirectResponse("/superadmin?msg=saved", status_code=303)
+
+@router.post("/delete-update")
+async def delete_update(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "superadmin":
+        return RedirectResponse("/", status_code=303)
+    u = await db.get(SystemUpdate, id)
+    if u:
+        await db.delete(u)
+        await db.commit()
+    return RedirectResponse("/superadmin?msg=deleted", status_code=303)

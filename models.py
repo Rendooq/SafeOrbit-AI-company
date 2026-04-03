@@ -163,6 +163,7 @@ class Master(Base):
     telegram_chat_id: Mapped[Optional[str]] = mapped_column(Text)
     personal_bot_token: Mapped[Optional[str]] = mapped_column(Text)
     commission_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    working_hours: Mapped[Optional[str]] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     services = relationship("Service", secondary="master_services")
 
@@ -290,3 +291,10 @@ class GlobalPaymentSettings(Base):
     is_plan1_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_plan2_active: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
+
+class SystemUpdate(Base):
+    __tablename__ = "system_updates"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(Text)
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

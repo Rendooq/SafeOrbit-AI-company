@@ -19,8 +19,9 @@ from sqlalchemy.orm import joinedload
 from config import LABELS, UA_TZ
 from database import get_db
 from dependencies import get_current_user
-from models import (ActionLog, Appointment, Business, ChatLog, Customer, GlobalPaymentSettings,
-                    Master, MasterService, Product, Service, User)
+from models import (ActionLog, Appointment, AppointmentConfirmation, Business, ChatLog, Customer,
+                    CustomerSegment, GlobalPaymentSettings, Master, MasterService, 
+                    MonthlyPaymentLog, NPSReview, Product, Service, User, SystemUpdate)
 from ui import get_layout
 from utils import hash_password, log_action
 
@@ -107,7 +108,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
             acc_btn = f'<button type="button" class="btn btn-glass btn-sm ms-2" onclick="createMasterAccount({m.id}, \'{html.escape(m.name, quote=True)}\')" title="Створити акаунт"><i class="fas fa-user-plus text-primary"></i></button>'
             
         masters_html += f"""<li class='list-group-item bg-transparent border-0 d-flex justify-content-between align-items-center mb-3 glass-card p-3'>
-            <div><strong class="text-white">{html.escape(m.name)}</strong> <span class="badge bg-primary-glow ms-1" style="font-size: 0.7em;">{html.escape(m.role or 'Майстер')}</span>{acc_btn}<br><small class='text-muted'>{html.escape(', '.join([s.name for s in m.services]))}</small></div> 
+            <div><strong class="text-white">{html.escape(m.name)}</strong> <span class="badge bg-primary-glow ms-1" style="font-size: 0.7em;">{html.escape(m.role or 'Майстер')}</span>{acc_btn}<br><small class='text-muted'>{html.escape(', '.join([s.name for s in m.services]))}</small><br><small class="text-info opacity-75"><i class="fas fa-clock me-1"></i> {html.escape(m.working_hours or 'Загальний графік')}</small></div> 
             <form action='/admin/delete-master' method='post' style='display:inline'>
                 <input type='hidden' name='id' value='{m.id}'><button class='btn btn-glass btn-sm'><i class="fas fa-times text-danger"></i></button>
             </form>
@@ -249,6 +250,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
                                 <label class="form-label text-white">Роль / Посада</label>
                                 <select name="emp_role" class="form-select">{roles_html}</select>
                             </div>
+                            <div class="mb-3"><input name="working_hours" class="glass-input" placeholder="Графік (напр. Пн-Пт: 10:00-18:00)"></div>
                             <div class="mb-4">
                                 <label class="form-label text-white">Навички / Послуги</label>
                                 <div class="p-3 rounded-4" style="background: rgba(255,255,255,0.02); border: 0.5px solid var(--glass-border); max-height: 200px; overflow-y: auto;">
@@ -739,33 +741,38 @@ async def prompt_generator_page(user: User = Depends(get_current_user)):
 @router.post("/save-prompt")
 async def save_prompt(
     prompt: str = Form(...),
-    model: str = Form(...),
-    temp: float = Form(...),
-    tokens: int = Form(...),
-    working_hours: str = Form(...),
+    model: Optional[str] = Form(None),
+    temp: Optional[float] = Form(None),
+    tokens: Optional[int] = Form(None),
+    working_hours: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     if not user or user.role != "owner":
-        return {"success": False, "error": "Unauthorized"}
+        return {"success": False, "ok": False, "error": "Unauthorized", "msg": "Помилка авторизації"}
 
     biz = await db.get(Business, user.business_id)
     if biz:
         biz.system_prompt = prompt
-        biz.ai_model = model
-        biz.ai_temperature = temp
-        biz.ai_max_tokens = tokens
-        biz.working_hours = working_hours
+        if model is not None:
+            biz.ai_model = model
+        if temp is not None:
+            biz.ai_temperature = temp
+        if tokens is not None:
+            biz.ai_max_tokens = tokens
+        if working_hours is not None:
+            biz.working_hours = working_hours
         await db.commit()
         await log_action(db, user.business_id, user.id, "Оновлено Prompt", "Системний Prompt AI асистента оновлено.")
-        return {"success": True, "message": "Prompt успішно збережено!"}
-    return {"success": False, "error": "Business not found"}
+        return {"success": True, "ok": True, "message": "Prompt успішно збережено!", "msg": "Prompt успішно збережено!"}
+    return {"success": False, "ok": False, "error": "Business not found", "msg": "Бізнес не знайдено"}
 
 
 @router.post("/add-master")
 async def add_master(
     name: str = Form(...),
     emp_role: str = Form(...),
+    working_hours: Optional[str] = Form(None),
     services: List[int] = Form([]),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -773,7 +780,7 @@ async def add_master(
     if not user or user.role not in ["owner", "superadmin"]:
         return RedirectResponse("/", status_code=303)
 
-    new_master = Master(business_id=user.business_id, name=name, role=emp_role)
+    new_master = Master(business_id=user.business_id, name=name, role=emp_role, working_hours=working_hours)
     db.add(new_master)
     await db.flush()
     await db.refresh(new_master)
@@ -899,8 +906,24 @@ async def delete_branch(id: int = Form(...), user: User = Depends(get_current_us
 
     branch_to_delete = await db.get(Business, id)
     if branch_to_delete and branch_to_delete.parent_id == user.business_id:
-        # Also delete the owner user for this branch
-        await db.execute(delete(User).where(User.business_id == id).where(User.role == 'owner'))
+        masters_subq = select(Master.id).where(Master.business_id == id)
+        await db.execute(delete(MasterService).where(MasterService.master_id.in_(masters_subq)))
+        
+        appts_subq = select(Appointment.id).where(Appointment.business_id == id)
+        await db.execute(delete(AppointmentConfirmation).where(AppointmentConfirmation.appointment_id.in_(appts_subq)))
+
+        await db.execute(delete(NPSReview).where(NPSReview.business_id == id))
+        await db.execute(delete(CustomerSegment).where(CustomerSegment.business_id == id))
+        await db.execute(delete(User).where(User.business_id == id))
+        await db.execute(delete(Appointment).where(Appointment.business_id == id))
+        await db.execute(delete(Customer).where(Customer.business_id == id))
+        await db.execute(delete(Master).where(Master.business_id == id))
+        await db.execute(delete(Service).where(Service.business_id == id))
+        await db.execute(delete(Product).where(Product.business_id == id))
+        await db.execute(delete(MonthlyPaymentLog).where(MonthlyPaymentLog.business_id == id))
+        await db.execute(delete(ActionLog).where(ActionLog.business_id == id))
+        await db.execute(delete(ChatLog).where(ChatLog.business_id == id))
+        
         await db.delete(branch_to_delete)
         await db.commit()
         await log_action(db, user.business_id, user.id, "Видалено філію", f"Видалено філію '{branch_to_delete.name}'.")
@@ -990,6 +1013,7 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
         badge = "<span class='badge bg-danger bg-opacity-10 text-danger'>Заблоковано</span>" if getattr(c, 'is_blocked', False) else "<span class='badge bg-success bg-opacity-10 text-success'>Активний</span>"
         btn_icon = "fa-unlock text-success" if getattr(c, 'is_blocked', False) else "fa-ban text-danger"
         btn_title = "Розблокувати клієнта" if getattr(c, 'is_blocked', False) else "Заблокувати клієнта (Чорний список)"
+        btn_edit = f"<button type='button' class='btn btn-glass btn-sm me-1' onclick=\"editCustomer({c.id}, '{html.escape(c.name or '')}', '{html.escape(c.phone_number or '')}', {c.discount_percent}, '{html.escape(c.notes or '')}')\" title='Редагувати профіль'><i class='fas fa-edit text-info'></i></button>"
         
         rows += f"""
         <tr>
@@ -1000,6 +1024,7 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
             <td>{badge}</td>
             <td><span class="small text-muted">{html.escape(c.notes or '-')}</span></td>
             <td class="text-end">
+                {btn_edit}
                 <form action='/admin/toggle-client-block' method='post' style='display:inline' onsubmit="return confirm('Ви впевнені?');">
                     <input type='hidden' name='id' value='{c.id}'>
                     <button type='submit' class='btn btn-glass btn-sm' title='{btn_title}'><i class="fas {btn_icon}"></i></button>
@@ -1017,8 +1042,33 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
             </table>
         </div>
     </div>
+    <div class="modal fade" id="editCustomerModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title text-white">Редагування клієнта</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+        <form action="/admin/update-customer" method="post">
+            <div class="modal-body">
+                <input type="hidden" name="id" id="editCustId">
+                <div class="mb-3"><label class="form-label text-white">Ім'я</label><input name="name" id="editCustName" class="glass-input" required></div>
+                <div class="mb-3"><label class="form-label text-white">Телефон</label><input name="phone" id="editCustPhone" class="glass-input" required></div>
+                <div class="mb-3"><label class="form-label text-white">Знижка (%)</label><input name="discount_percent" type="number" step="0.1" id="editCustDiscount" class="glass-input"></div>
+                <div class="mb-0"><label class="form-label text-white">Нотатки</label><textarea name="notes" id="editCustNotes" class="glass-input" rows="3"></textarea></div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn-primary-glow w-100 py-3">Зберегти зміни</button></div>
+        </form>
+    </div></div></div>
     """
-    return get_layout(content, user, "kli")
+    scripts = """
+    <script>
+    function editCustomer(id, name, phone, discount, notes) {
+        document.getElementById('editCustId').value = id;
+        document.getElementById('editCustName').value = name;
+        document.getElementById('editCustPhone').value = phone;
+        document.getElementById('editCustDiscount').value = discount;
+        document.getElementById('editCustNotes').value = notes;
+        new bootstrap.Modal(document.getElementById('editCustomerModal')).show();
+    }
+    </script>
+    """
+    return get_layout(content, user, "kli", scripts=scripts)
 
 
 @router.post("/toggle-client-block")
@@ -1032,6 +1082,30 @@ async def toggle_client_block(id: int = Form(...), user: User = Depends(get_curr
         await db.commit()
         status_text = "заблоковано" if customer.is_blocked else "розблоковано"
         await log_action(db, user.business_id, user.id, "Статус клієнта", f"Клієнта '{customer.name or customer.phone_number}' {status_text}.")
+    return RedirectResponse("/admin/klienci?msg=saved", status_code=303)
+
+
+@router.post("/update-customer")
+async def update_customer(
+    id: int = Form(...),
+    name: str = Form(...),
+    phone: str = Form(...),
+    discount_percent: float = Form(0.0),
+    notes: Optional[str] = Form(None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not user or user.role not in ["owner", "master"]: 
+        return RedirectResponse("/", status_code=303)
+    
+    customer = await db.get(Customer, id)
+    if customer and customer.business_id == user.business_id:
+        customer.name = name
+        customer.phone_number = phone
+        customer.discount_percent = discount_percent
+        customer.notes = notes
+        await db.commit()
+        await log_action(db, user.business_id, user.id, "Оновлено клієнта", f"Профіль клієнта '{name}' оновлено.")
     return RedirectResponse("/admin/klienci?msg=saved", status_code=303)
 
 
@@ -1499,6 +1573,46 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
     if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
     biz = await db.get(Business, user.business_id)
     
+    biz_data = {
+        "altegio": {"token": biz.altegio_token or "", "id": biz.altegio_company_id or ""},
+        "beauty_pro": {"token": biz.beauty_pro_token or "", "id": biz.beauty_pro_location_id or ""},
+        "cleverbox": {"token": biz.cleverbox_token or "", "id": biz.cleverbox_location_id or ""},
+        "integrica": {"token": biz.integrica_token or "", "id": biz.integrica_location_id or ""},
+        "luckyfit": {"token": biz.luckyfit_token or "", "id": ""},
+        "uspacy": {"token": biz.uspacy_token or "", "id": biz.uspacy_workspace_id or ""},
+        "telegram": {"token": biz.telegram_token or "", "id": ""},
+        "instagram": {"token": biz.instagram_token or "", "id": ""},
+        "whatsapp": {"token": biz.whatsapp_token or "", "id": ""},
+        "viber": {"token": biz.viber_token or "", "id": ""},
+        "facebook": {"token": biz.facebook_token or "", "id": ""},
+        "turbosms": {"token": biz.sms_token or "", "id": biz.sms_sender_id or ""},
+        "binotel": {"token": biz.binotel_key or "", "id": biz.binotel_secret or ""},
+        "ringostat": {"token": biz.ringostat_token or "", "id": ""},
+        "twilio": {"token": biz.twilio_sid or "", "id": biz.twilio_token or ""},
+        "monobank": {"token": biz.monobank_token or "", "id": ""},
+        "wayforpay": {"token": biz.wayforpay_key or "", "id": ""},
+        "fondy": {"token": biz.fondy_merchant_id or "", "id": biz.fondy_secret_key or ""},
+        "stripe": {"token": biz.stripe_secret_key or "", "id": ""},
+        "groq": {"token": biz.groq_api_key or "", "id": ""},
+        "wins": {"token": biz.wins_token or "", "id": biz.wins_branch_id or ""},
+        "appointer": {"token": biz.appointer_token or "", "id": biz.appointer_location_id or ""},
+        "easyweek": {"token": biz.easyweek_token or "", "id": biz.easyweek_location_id or ""},
+        "trendis": {"token": biz.trendis_token or "", "id": biz.trendis_location_id or ""},
+        "miopane": {"token": biz.miopane_token or "", "id": biz.miopane_location_id or ""},
+        "clinica_web": {"token": biz.clinica_web_token or "", "id": biz.clinica_web_clinic_id or ""},
+        "doctor_eleks": {"token": biz.doctor_eleks_token or "", "id": biz.doctor_eleks_clinic_id or ""},
+        "openai": {"token": biz.openai_api_key or "", "id": ""},
+        "google_maps": {"token": biz.google_maps_api_key or "", "id": ""},
+        "phonet": {"token": "", "id": ""},
+        "esputnik": {"token": "", "id": ""},
+        "prom_ua": {"token": "", "id": ""},
+        "rozetka": {"token": "", "id": ""},
+        "olx": {"token": "", "id": ""},
+        "liqpay": {"token": "", "id": ""},
+    }
+    biz_data_json = json.dumps(biz_data)
+    active_ints_json = json.dumps([i.strip() for i in (biz.integration_system or "").split(",") if i.strip()])
+
     content = f"""
     <div class="glass-card p-4 p-md-5 mb-4">
         <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
@@ -1529,44 +1643,49 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
     """
     scripts = """
     <script>
+    const bizData = {biz_data_json};
+    const activeIntegrations = {active_ints_json};
+
     const integrations = [
-        {name: 'Altegio (Yclients)', cat: 'crm', icon: 'fa-calendar-check', color: '#ff5722'},
-        {name: 'BeautyPro', cat: 'crm', icon: 'fa-spa', color: '#e91e63'},
-        {name: 'Cleverbox', cat: 'crm', icon: 'fa-box', color: '#9c27b0'},
-        {name: 'EasyWeek', cat: 'crm', icon: 'fa-calendar-week', color: '#2196f3'},
-        {name: 'Integrica', cat: 'crm', icon: 'fa-network-wired', color: '#00bcd4'},
-        {name: 'WINS', cat: 'crm', icon: 'fa-trophy', color: '#009688'},
-        {name: 'Appointer', cat: 'crm', icon: 'fa-hand-pointer', color: '#4caf50'},
-        {name: 'Trendis', cat: 'crm', icon: 'fa-chart-line', color: '#8bc34a'},
-        {name: 'MioPane', cat: 'crm', icon: 'fa-bread-slice', color: '#ff9800'},
-        {name: 'Clinica Web', cat: 'crm', icon: 'fa-clinic-medical', color: '#00bcd4'},
+        {id: 'altegio', name: 'Altegio (Yclients)', cat: 'crm', icon: 'fa-calendar-check', color: '#ff5722'},
+        {id: 'beauty_pro', name: 'BeautyPro', cat: 'crm', icon: 'fa-spa', color: '#e91e63'},
+        {id: 'cleverbox', name: 'Cleverbox', cat: 'crm', icon: 'fa-box', color: '#9c27b0'},
+        {id: 'easyweek', name: 'EasyWeek', cat: 'crm', icon: 'fa-calendar-week', color: '#2196f3'},
+        {id: 'integrica', name: 'Integrica', cat: 'crm', icon: 'fa-network-wired', color: '#00bcd4'},
+        {id: 'wins', name: 'WINS', cat: 'crm', icon: 'fa-trophy', color: '#009688'},
+        {id: 'appointer', name: 'Appointer', cat: 'crm', icon: 'fa-hand-pointer', color: '#4caf50'},
+        {id: 'trendis', name: 'Trendis', cat: 'crm', icon: 'fa-chart-line', color: '#8bc34a'},
+        {id: 'miopane', name: 'MioPane', cat: 'crm', icon: 'fa-bread-slice', color: '#ff9800'},
+        {id: 'clinica_web', name: 'Clinica Web', cat: 'crm', icon: 'fa-clinic-medical', color: '#00bcd4'},
+        {id: 'doctor_eleks', name: 'Doctor Eleks', cat: 'crm', icon: 'fa-user-md', color: '#3f51b5'},
+        {id: 'uspacy', name: 'uSpacy', cat: 'crm', icon: 'fa-layer-group', color: '#00bcd4'},
 
-        {name: 'Telegram (Bot API)', cat: 'msg', icon: 'fa-telegram', color: '#0088cc'},
-        {name: 'Instagram Direct', cat: 'msg', icon: 'fa-instagram', color: '#e1306c'},
-        {name: 'WhatsApp Business API', cat: 'msg', icon: 'fa-whatsapp', color: '#25d366'},
-        {name: 'Facebook Messenger', cat: 'msg', icon: 'fa-facebook-messenger', color: '#0084ff'},
-        {name: 'Viber Chatbots', cat: 'msg', icon: 'fa-viber', color: '#665cac'},
+        {id: 'telegram', name: 'Telegram (Bot API)', cat: 'msg', icon: 'fa-telegram', color: '#0088cc'},
+        {id: 'instagram', name: 'Instagram Direct', cat: 'msg', icon: 'fa-instagram', color: '#e1306c'},
+        {id: 'whatsapp', name: 'WhatsApp Business API', cat: 'msg', icon: 'fa-whatsapp', color: '#25d366'},
+        {id: 'facebook', name: 'Facebook Messenger', cat: 'msg', icon: 'fa-facebook-messenger', color: '#0084ff'},
+        {id: 'viber', name: 'Viber Chatbots', cat: 'msg', icon: 'fa-viber', color: '#665cac'},
 
-        {name: 'Prom.ua', cat: 'ecom', icon: 'fa-shopping-cart', color: '#9c27b0'},
-        {name: 'Rozetka (Seller API)', cat: 'ecom', icon: 'fa-store', color: '#4caf50'},
-        {name: 'OLX Business', cat: 'ecom', icon: 'fa-tags', color: '#00bcd4'},
+        {id: 'prom_ua', name: 'Prom.ua', cat: 'ecom', icon: 'fa-shopping-cart', color: '#9c27b0'},
+        {id: 'rozetka', name: 'Rozetka (Seller API)', cat: 'ecom', icon: 'fa-store', color: '#4caf50'},
+        {id: 'olx', name: 'OLX Business', cat: 'ecom', icon: 'fa-tags', color: '#00bcd4'},
 
-        {name: 'TurboSMS', cat: 'sms', icon: 'fa-comment-sms', color: '#f44336'},
-        {name: 'Binotel', cat: 'sms', icon: 'fa-phone-alt', color: '#2196f3'},
-        {name: 'Ringostat', cat: 'sms', icon: 'fa-headset', color: '#4caf50'},
-        {name: 'Phonet', cat: 'sms', icon: 'fa-phone-volume', color: '#ff9800'},
-        {name: 'Twilio', cat: 'sms', icon: 'fa-sms', color: '#f44336'},
-        {name: 'eSputnik', cat: 'sms', icon: 'fa-paper-plane', color: '#673ab7'},
+        {id: 'turbosms', name: 'TurboSMS', cat: 'sms', icon: 'fa-comment-sms', color: '#f44336'},
+        {id: 'binotel', name: 'Binotel', cat: 'sms', icon: 'fa-phone-alt', color: '#2196f3'},
+        {id: 'ringostat', name: 'Ringostat', cat: 'sms', icon: 'fa-headset', color: '#4caf50'},
+        {id: 'phonet', name: 'Phonet', cat: 'sms', icon: 'fa-phone-volume', color: '#ff9800'},
+        {id: 'twilio', name: 'Twilio', cat: 'sms', icon: 'fa-sms', color: '#f44336'},
+        {id: 'esputnik', name: 'eSputnik', cat: 'sms', icon: 'fa-paper-plane', color: '#673ab7'},
 
-        {name: 'Monobank', cat: 'pay', icon: 'fa-credit-card', color: '#000000'},
-        {name: 'LiqPay', cat: 'pay', icon: 'fa-money-bill-wave', color: '#7cb342'},
-        {name: 'WayForPay', cat: 'pay', icon: 'fa-wallet', color: '#2196f3'},
-        {name: 'Fondy', cat: 'pay', icon: 'fa-file-invoice-dollar', color: '#e91e63'},
-        {name: 'Stripe', cat: 'pay', icon: 'fa-cc-stripe', color: '#6772e5'},
+        {id: 'monobank', name: 'Monobank', cat: 'pay', icon: 'fa-credit-card', color: '#000000'},
+        {id: 'liqpay', name: 'LiqPay', cat: 'pay', icon: 'fa-money-bill-wave', color: '#7cb342'},
+        {id: 'wayforpay', name: 'WayForPay', cat: 'pay', icon: 'fa-wallet', color: '#2196f3'},
+        {id: 'fondy', name: 'Fondy', cat: 'pay', icon: 'fa-file-invoice-dollar', color: '#e91e63'},
+        {id: 'stripe', name: 'Stripe', cat: 'pay', icon: 'fa-cc-stripe', color: '#6772e5'},
 
-        {name: 'Groq API (Llama)', cat: 'ai', icon: 'fa-microchip', color: '#ff5722'},
-        {name: 'OpenAI (GPT)', cat: 'ai', icon: 'fa-robot', color: '#10a37f'},
-        {name: 'Google Maps (Відгуки)', cat: 'ai', icon: 'fa-map-marked-alt', color: '#ea4335'}
+        {id: 'groq', name: 'Groq API (Llama)', cat: 'ai', icon: 'fa-microchip', color: '#ff5722'},
+        {id: 'openai', name: 'OpenAI (GPT)', cat: 'ai', icon: 'fa-robot', color: '#10a37f'},
+        {id: 'google_maps', name: 'Google Maps (Відгуки)', cat: 'ai', icon: 'fa-map-marked-alt', color: '#ea4335'}
     ];
     
     let currentCat = 'all';
@@ -1589,16 +1708,20 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
                 case 'ai': catLabel = 'ШІ та Інше'; break;
             }
             
-            let iconClass = int.icon.startsWith('fa-') ? (['fa-calendar-check', 'fa-spa', 'fa-box', 'fa-calendar-alt', 'fa-book', 'fa-calendar-week', 'fa-database', 'fa-network-wired', 'fa-trophy', 'fa-hand-pointer', 'fa-chart-line', 'fa-leaf', 'fa-heart', 'fa-calendar-plus', 'fa-bread-slice', 'fa-clinic-medical', 'fa-cut', 'fa-om', 'fa-calendar', 'fa-clock', 'fa-shopping-cart', 'fa-store', 'fa-tags', 'fa-shopping-bag', 'fa-shopping-basket', 'fa-comment-sms', 'fa-phone-alt', 'fa-headset', 'fa-phone-volume', 'fa-sms', 'fa-paper-plane', 'fa-credit-card', 'fa-money-bill-wave', 'fa-wallet', 'fa-file-invoice-dollar', 'fa-microchip', 'fa-robot', 'fa-map-marked-alt'].includes(int.icon) ? 'fas ' + int.icon : 'fab ' + int.icon) : int.icon;
+            let iconClass = int.icon.startsWith('fa-') ? (['fa-calendar-check', 'fa-spa', 'fa-box', 'fa-calendar-alt', 'fa-book', 'fa-calendar-week', 'fa-database', 'fa-network-wired', 'fa-trophy', 'fa-hand-pointer', 'fa-chart-line', 'fa-leaf', 'fa-heart', 'fa-calendar-plus', 'fa-bread-slice', 'fa-clinic-medical', 'fa-cut', 'fa-om', 'fa-calendar', 'fa-clock', 'fa-shopping-cart', 'fa-store', 'fa-tags', 'fa-shopping-bag', 'fa-shopping-basket', 'fa-comment-sms', 'fa-phone-alt', 'fa-headset', 'fa-phone-volume', 'fa-sms', 'fa-paper-plane', 'fa-credit-card', 'fa-money-bill-wave', 'fa-wallet', 'fa-file-invoice-dollar', 'fa-microchip', 'fa-robot', 'fa-map-marked-alt', 'fa-user-md', 'fa-layer-group'].includes(int.icon) ? 'fas ' + int.icon : 'fab ' + int.icon) : int.icon;
+            
+            const isActive = activeIntegrations.includes(int.id);
+            const activeBadge = isActive ? `<span class="badge bg-success ms-2" style="font-size: 9px; padding: 3px 6px !important;">Увімк</span>` : '';
+            const borderStyle = isActive ? `border: 1px solid rgba(52,211,153,0.3); background: rgba(255,255,255,0.04);` : `border: 1px solid var(--glass-border);`;
             
             grid.innerHTML += `
                 <div class="col-xl-4 col-lg-6 col-md-6 col-sm-12">
-                    <div class="glass-card p-3 d-flex align-items-center gap-3" style="cursor: pointer; border-radius: 16px;" onclick="openConfig('${int.name}')">
+                    <div class="glass-card p-3 d-flex align-items-center gap-3" style="cursor: pointer; border-radius: 16px; ${borderStyle}" onclick="openConfig('${int.id}', '${int.name}')">
                         <div style="width: 48px; height: 48px; border-radius: 12px; background: ${int.color}20; color: ${int.color}; display: flex; align-items: center; justify-content: center; font-size: 20px;">
                             <i class="${iconClass}"></i>
                         </div>
                         <div class="min-w-0 flex-grow-1">
-                            <h6 class="mb-1 text-white fw-bold text-truncate">${int.name}</h6>
+                            <h6 class="mb-1 text-white fw-bold text-truncate">${int.name}${activeBadge}</h6>
                             <div class="small opacity-50 text-truncate" style="font-size: 11px;">${catLabel}</div>
                         </div>
                         <i class="fas fa-chevron-right opacity-25 ms-2"></i>
@@ -1619,48 +1742,122 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
         renderIntegrations(document.getElementById('intSearch').value);
     }
     
-    function openConfig(name) {
+    function openConfig(id, name) {
+        const data = bizData[id] || {token: '', id: ''};
+        const isActive = activeIntegrations.includes(id) ? 'checked' : '';
+
         Swal.fire({
             title: `Налаштування ${name}`,
             html: `
-                <div class="text-start mt-3">
-                    <label class="form-label text-white-50">API Token / API Key</label>
-                    <input type="text" class="glass-input mb-3" placeholder="Введіть ключ...">
-                    <label class="form-label text-white-50">Додаткові дані (ID Компанії)</label>
-                    <input type="text" class="glass-input" placeholder="Введіть ID...">
-                </div>
+                <form id="integrationForm" action="/admin/save-integration" method="post" class="text-start mt-3">
+                    <input type="hidden" name="integration_id" value="${id}">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="intActive" value="true" ${isActive}>
+                        <label class="form-check-label text-white" for="intActive">Активувати цю інтеграцію</label>
+                    </div>
+                    <label class="form-label text-white-50">API Token / API Key / Secret</label>
+                    <input type="text" name="token" class="glass-input mb-3" placeholder="Введіть ключ..." value="${data.token || ''}">
+                    <label class="form-label text-white-50">Додаткові дані (ID Компанії / Секрет / Sender ID)</label>
+                    <input type="text" name="ext_id" class="glass-input" placeholder="Введіть ID..." value="${data.id || ''}">
+                </form>
             `,
             background: 'rgba(20, 20, 25, 0.95)',
             color: '#fff',
             customClass: { popup: 'glass-card' },
             showCancelButton: true,
             confirmButtonText: 'Зберегти',
-            cancelButtonText: 'Скасувати'
-        }).then((res) => {
-            if(res.isConfirmed) showToast('Налаштування інтеграції збережено!');
+            cancelButtonText: 'Скасувати',
+            preConfirm: () => {
+                document.getElementById('integrationForm').submit();
+            }
         });
     }
     
     document.addEventListener('DOMContentLoaded', () => renderIntegrations());
     </script>
     """
+    scripts = scripts.replace("{biz_data_json}", biz_data_json).replace("{active_ints_json}", active_ints_json)
     return get_layout(content, user, "bot", scripts=scripts)
 
 
-@router.post("/save-bot-settings")
-async def save_bot_settings(
-    tg_token: Optional[str] = Form(None),
-    tg_enabled: bool = Form(False),
+@router.post("/save-integration")
+async def save_integration(
+    request: Request,
+    integration_id: str = Form(...),
+    is_active: bool = Form(False),
+    token: Optional[str] = Form(None),
+    ext_id: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
     biz = await db.get(Business, user.business_id)
-    if biz:
-        biz.telegram_token = tg_token
-        biz.telegram_enabled = tg_enabled
-        await db.commit()
-        await log_action(db, user.business_id, user.id, "Налаштування бота", "Оновлено токен та статус Telegram бота.")
+    if not biz: return RedirectResponse("/admin/bot-integration", status_code=303)
+    
+    mapping = {
+        "altegio": ("altegio_token", "altegio_company_id"),
+        "beauty_pro": ("beauty_pro_token", "beauty_pro_location_id"),
+        "cleverbox": ("cleverbox_token", "cleverbox_location_id"),
+        "integrica": ("integrica_token", "integrica_location_id"),
+        "luckyfit": ("luckyfit_token", None),
+        "uspacy": ("uspacy_token", "uspacy_workspace_id"),
+        "telegram": ("telegram_token", None),
+        "instagram": ("instagram_token", None),
+        "whatsapp": ("whatsapp_token", None),
+        "viber": ("viber_token", None),
+        "facebook": ("facebook_token", None),
+        "turbosms": ("sms_token", "sms_sender_id"),
+        "binotel": ("binotel_key", "binotel_secret"),
+        "ringostat": ("ringostat_token", None),
+        "twilio": ("twilio_sid", "twilio_token"),
+        "monobank": ("monobank_token", None),
+        "wayforpay": ("wayforpay_key", None),
+        "fondy": ("fondy_merchant_id", "fondy_secret_key"),
+        "stripe": ("stripe_secret_key", None),
+        "groq": ("groq_api_key", None),
+        "wins": ("wins_token", "wins_branch_id"),
+        "appointer": ("appointer_token", "appointer_location_id"),
+        "easyweek": ("easyweek_token", "easyweek_location_id"),
+        "trendis": ("trendis_token", "trendis_location_id"),
+        "miopane": ("miopane_token", "miopane_location_id"),
+        "clinica_web": ("clinica_web_token", "clinica_web_clinic_id"),
+        "doctor_eleks": ("doctor_eleks_token", "doctor_eleks_clinic_id"),
+        "openai": ("openai_api_key", None),
+        "google_maps": ("google_maps_api_key", None),
+    }
+
+    if integration_id in mapping:
+        t_field, id_field = mapping[integration_id]
+        if t_field: setattr(biz, t_field, token)
+        if id_field: setattr(biz, id_field, ext_id)
+
+    active_ints = set(i.strip() for i in (biz.integration_system or "").split(",") if i.strip())
+    if is_active:
+        active_ints.add(integration_id)
+    else:
+        active_ints.discard(integration_id)
+        
+    biz.integration_system = ",".join(filter(None, active_ints))
+    
+    if integration_id == "telegram":
+        biz.telegram_enabled = is_active
+        if is_active and token:
+            base_url = str(request.base_url).rstrip('/')
+            if base_url.startswith("http://"): base_url = base_url.replace("http://", "https://")
+            webhook_url = f"{base_url}/webhook/telegram/{biz.id}"
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.post(f"https://api.telegram.org/bot{token}/setWebhook", json={"url": webhook_url})
+            except Exception: pass
+        elif not is_active and biz.telegram_token:
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.post(f"https://api.telegram.org/bot{biz.telegram_token}/deleteWebhook")
+            except Exception: pass
+        
+    await db.commit()
+    await log_action(db, user.business_id, user.id, "Оновлено інтеграцію", f"Інтеграцію '{integration_id}' оновлено.")
+    
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
 
 
@@ -2009,3 +2206,43 @@ async def help_page(user: User = Depends(get_current_user)):
     </script>
     """
     return get_layout(content, user, "help", scripts=scripts)
+
+@router.get("/updates", response_class=HTMLResponse)
+async def updates_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user: return RedirectResponse("/", status_code=303)
+    
+    updates = (await db.execute(select(SystemUpdate).order_by(desc(SystemUpdate.created_at)))).scalars().all()
+    
+    updates_html = ""
+    for u in updates:
+        date_str = u.created_at.strftime('%d.%m.%Y %H:%M')
+        content_html = html.escape(u.content).replace('\n', '<br>')
+        updates_html += f"""
+        <div class="glass-card p-4 p-md-5 mb-4 position-relative overflow-hidden">
+            <div class="position-absolute top-0 end-0 p-4 opacity-10">
+                <i class="fas fa-bullhorn fa-4x text-primary"></i>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-4 position-relative">
+                <h5 class="fw-800 text-white m-0" style="font-size: 22px;">{html.escape(u.title)}</h5>
+                <span class="badge bg-primary bg-opacity-20 text-primary border border-primary border-opacity-25 px-3 py-2">{date_str}</span>
+            </div>
+            <div class="text-white-50 position-relative" style="line-height: 1.7; font-size: 15px;">
+                {content_html}
+            </div>
+        </div>
+        """
+        
+    if not updates_html:
+        updates_html = '<div class="text-center p-5 text-muted glass-card">Оновлень ще немає.</div>'
+        
+    content = f"""
+    <div class="mx-auto" style="max-width: 800px;">
+        <div class="text-center mb-5 mt-4">
+            <div class="logo-icon mb-4" style="width: 72px; height: 72px; margin: 0 auto; background: rgba(52, 211, 153, 0.1); color: var(--success); font-size: 28px; border-radius: 20px;"><i class="fas fa-newspaper"></i></div>
+            <h4 class="fw-800 text-white" style="font-size: 32px; letter-spacing: -1px;">Оновлення та Поради</h4>
+            <p class="text-muted fw-500">Офіційні новини платформи, поради щодо роботи та інструкції</p>
+        </div>
+        {updates_html}
+    </div>
+    """
+    return get_layout(content, user, "upd")

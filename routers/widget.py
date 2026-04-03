@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import LABELS
+from config import LABELS, UA_TZ
 from database import get_db
 from models import ActionLog, Appointment, Business, Customer, Master, Service
 from services.integrations import (push_to_beauty_pro, push_to_cleverbox,
@@ -349,9 +349,17 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
             selectedTimeInput.value = '';
             const startHour = 9;
             const endHour = 19; 
+
+        const now = new Date();
+        const todayStr = `${{now.getFullYear()}}-${{String(now.getMonth()+1).padStart(2,'0')}}-${{String(now.getDate()).padStart(2,'0')}}`;
+        const isToday = selectedDateInput.value === todayStr;
+        const currentHour = now.getHours();
+        const currentMin = now.getMinutes();
+
             
             for(let h = startHour; h <= endHour; h++) {{
                 for(let m of ['00', '30']) {{
+                if (isToday && (h < currentHour || (h === currentHour && parseInt(m) <= currentMin))) continue;
                     let timeStr = `${{String(h).padStart(2, '0')}}:${{m}}`;
                     let btn = document.createElement('div');
                     btn.className = 'time-slot';
@@ -388,6 +396,7 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
         const urlParams = new URLSearchParams(window.location.search);
             if(urlParams.get('msg') === 'success') showToast('✅ Ваш запис успішно створено! Чекаємо на вас.');
             if(urlParams.get('msg') === 'taken') showToast('⚠️ На жаль, цей час вже зайнятий. Оберіть інший.', true); 
+        if(urlParams.get('msg') === 'past_time') showToast('⚠️ Цей час вже минув. Оберіть інший.', true); 
         if(urlParams.get('msg') === 'blocked') showToast('⛔ Вибачте, бронювання для вашого номера тимчасово недоступне.', true); 
         </script>
     </body></html>"""
@@ -407,6 +416,9 @@ async def process_public_booking(
     db: AsyncSession = Depends(get_db)
 ):
     dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    if dt < datetime.now(UA_TZ).replace(tzinfo=None):
+        return RedirectResponse(f"/widget/{business_id}?msg=past_time", status_code=303)
+
     day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start + timedelta(days=1)
     
@@ -566,6 +578,9 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
 
         # Parse date and create appointment
         appt_time = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=14, minute=0)
+        
+        if appt_time < datetime.now(UA_TZ).replace(tzinfo=None):
+            return {"success": False, "error": "Цей час вже минув."}
 
         appt = Appointment(
             business_id=business_id,

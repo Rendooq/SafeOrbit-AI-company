@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
+import httpx
 from groq import AsyncGroq
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,49 +18,75 @@ from services.integrations import push_to_beauty_pro, push_to_cleverbox, push_to
 logger = logging.getLogger(__name__)
 
 async def get_altegio_free_slots(biz: Business, service_name: str, master_id: Optional[int], desired_datetime: datetime) -> List[datetime]:
-    """
-    Mocks fetching free slots from Altegio API.
-    In a real scenario, this would make an actual API call to Altegio's availability endpoint.
-    """
+
     if not biz.altegio_token or not biz.altegio_company_id:
         logger.warning(f"Altegio token or company ID missing for business {biz.id}")
         return []
 
-    logger.info(f"MOCK Altegio: Checking slots for service '{service_name}', master '{master_id}', around {desired_datetime.strftime('%Y-%m-%d %H:%M')}")
-    
-    available_slots = []
-    # Simulate finding 3 slots after the desired time, within working hours
-    base_time = desired_datetime.replace(minute=0, second=0, microsecond=0)
-    
-    for i in range(3):
-        slot = base_time + timedelta(hours=i)
-        # Ensure slot is in the future and within typical working hours (9 AM - 8 PM)
-        if slot > datetime.now() and slot.hour >= 9 and slot.hour <= 20:
-            available_slots.append(slot)
+    try:
+        date_str = desired_datetime.strftime('%Y-%m-%d')
+        staff_id = master_id if master_id else 0 
+        
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Authorization": f"Bearer {biz.altegio_token}",
+                "Accept": "application/vnd.yclients.v2+json",
+                "Content-Type": "application/json"
+            }
+            url = f"https://api.alteg.io/api/v1/book_times/{biz.altegio_company_id}/{staff_id}/{date_str}"
+            if biz.altegio_service_id:
+                url += f"?service_ids[]={biz.altegio_service_id}"
             
-    return available_slots
+            resp = await client.get(url, headers=headers, timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                slots = []
+                for time_slot in data.get('data', []):
+                    time_str = time_slot.get('time')
+                    if time_str:
+                        slot_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                        if slot_dt > datetime.now(UA_TZ).replace(tzinfo=None):
+                            slots.append(slot_dt)
+                return slots
+    except Exception as e:
+        logger.error(f"Altegio request failed: {e}")
+    return []
 
 async def get_beauty_pro_free_slots(biz: Business, service_name: str, master_id: Optional[int], desired_datetime: datetime) -> List[datetime]:
     """
-    Mocks fetching free slots from Beauty Pro API.
-    In a real scenario, this would make an actual API call to Beauty Pro's availability endpoint.
+    Fetches actual free slots from Beauty Pro API.
     """
     if not biz.beauty_pro_token or not biz.beauty_pro_location_id:
         logger.warning(f"Beauty Pro token or location ID missing for business {biz.id}")
         return []
 
-    logger.info(f"MOCK Beauty Pro: Checking slots for service '{service_name}', master '{master_id}', around {desired_datetime.strftime('%Y-%m-%d %H:%M')}")
-
-    available_slots = []
-    # Simulate finding 2 slots after the desired time, with a different offset
-    base_time = desired_datetime.replace(minute=0, second=0, microsecond=0)
-    
-    for i in range(2):
-        slot = base_time + timedelta(hours=i + 1) # Different offset than Altegio mock
-        if slot > datetime.now() and slot.hour >= 9 and slot.hour <= 20:
-            available_slots.append(slot)
-
-    return available_slots
+    try:
+        date_str = desired_datetime.strftime('%Y-%m-%d')
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Authorization": f"Bearer {biz.beauty_pro_token}",
+                "Content-Type": "application/json"
+            }
+            api_url = biz.beauty_pro_api_url or "https://api.beautyprosoftware.com/v1"
+            url = f"{api_url}/availability"
+            params = {
+                "location_id": biz.beauty_pro_location_id,
+                "date": date_str
+            }
+            resp = await client.get(url, headers=headers, params=params, timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                slots = []
+                for item in data.get('data', []):
+                    time_str = item.get('time')
+                    if time_str:
+                        slot_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                        if slot_dt > datetime.now(UA_TZ).replace(tzinfo=None):
+                            slots.append(slot_dt)
+                return slots
+    except Exception as e:
+        logger.error(f"BeautyPro request failed: {e}")
+    return []
 
 async def process_ai_request(business_id: int, question: str, db: AsyncSession, user_id: str = "default", user_name: str = None) -> tuple:
     biz: Business = await db.get(Business, business_id)
@@ -133,7 +160,8 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
     for m in masters:
         srvs = [s.name for s in m.services]
         srv_str = f"({', '.join(srvs)})" if srvs else ""
-        masters_list.append(f"{m.name} {srv_str}")
+        wh_str = f" [Графік: {m.working_hours}]" if getattr(m, 'working_hours', None) else ""
+        masters_list.append(f"{m.name} {srv_str}{wh_str}")
     masters_str = ", ".join(masters_list) if masters_list else "Будь-який"
 
     services = (await db.execute(select(Service).where(Service.business_id == business_id))).scalars().all()
@@ -264,6 +292,9 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
                     
                     dt = datetime.strptime(f"{data['date']} {data['time']}", "%Y-%m-%d %H:%M")
                     
+                    if dt < datetime.now(UA_TZ).replace(tzinfo=None):
+                        return "⚠️ На жаль, цей час вже минув. Будь ласка, оберіть інший час.", None
+                    
                     duration = 90
                     service_name = data.get('service')
                     if service_name:
@@ -351,7 +382,33 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
                                 sync_msg = f"\n\n({result.get('msg')})"
 
                     if "altegio" in active_ints and biz.altegio_token:
-                        pass
+                        if biz.altegio_company_id:
+                            try:
+                                async with httpx.AsyncClient() as client:
+                                    headers = {
+                                        "Authorization": f"Bearer {biz.altegio_token}",
+                                        "Accept": "application/vnd.yclients.v2+json",
+                                        "Content-Type": "application/json"
+                                    }
+                                    url = f"https://api.alteg.io/api/v1/book_record/{biz.altegio_company_id}"
+                                    payload = {
+                                        "phone": phone,
+                                        "fullname": name,
+                                        "appointments": [{
+                                            "id": 1,
+                                            "services": [int(biz.altegio_service_id)] if biz.altegio_service_id and biz.altegio_service_id.isdigit() else [],
+                                            "staff_id": int(biz.altegio_master_id) if biz.altegio_master_id and biz.altegio_master_id.isdigit() else 0,
+                                            "datetime": dt.isoformat()
+                                        }]
+                                    }
+                                    resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
+                                    if resp.status_code in (200, 201):
+                                        db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Altegio)", details="Успішно створено запис"))
+                                        sync_msg += "\n\n(Синхронізовано з Altegio)"
+                                    else:
+                                        db.add(ActionLog(business_id=business_id, user_id=None, action="Синхронізація CRM (Altegio)", details=f"Помилка: {resp.text[:100]}"))
+                            except Exception as e:
+                                logger.error(f"Altegio Push Error: {e}")
                     
                     await db.commit()
 

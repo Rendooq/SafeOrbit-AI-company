@@ -24,6 +24,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         menu_items.append(("/admin/chats", "chats", "fa-comments", "Комунікації"))
         if user.business and user.business.has_ai_bot:
             menu_items.append(("/admin/bot-integration", "bot", "fa-robot", "AI Асистенти"))
+        menu_items.append(("/admin/updates", "upd", "fa-bullhorn", "Оновлення"))
         menu_items.append(("/admin/help", "help", "fa-circle-question", "Підтримка"))
     
     # Generate menu HTML

@@ -128,6 +128,7 @@ class User(Base):
     master_id: Mapped[Optional[int]] = mapped_column(ForeignKey("masters.id"))
     tg_bot_token: Mapped[Optional[str]] = mapped_column(Text)
     tg_chat_id: Mapped[Optional[str]] = mapped_column(Text)
+    last_updates_view_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     business = relationship("Business")
 
 
@@ -297,4 +298,16 @@ class SystemUpdate(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(Text)
     content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+class Integration(Base):
+    __tablename__ = "integrations"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    provider: Mapped[str] = mapped_column(Text)
+    name: Mapped[str] = mapped_column(Text)
+    token: Mapped[Optional[str]] = mapped_column(Text)
+    ext_id: Mapped[Optional[str]] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

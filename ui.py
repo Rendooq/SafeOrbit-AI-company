@@ -31,7 +31,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     menu_html = ""
     for href, key, icon, label in menu_items:
         is_active = 'active' if active == key else ''
-        menu_html += f'<a href="{href}" class="nav-link {is_active}"><i class="fas {icon}"></i><span>{label}</span></a>'
+        menu_html += f'<a href="{href}" id="menu-{key}" class="nav-link {is_active}"><i class="fas {icon}"></i><span>{label}</span></a>'
     
     # User pill
     user_dropdown = f"""
@@ -1454,5 +1454,18 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             }}
             searchResults.classList.remove('active');
         }}
+        
+        document.addEventListener("DOMContentLoaded", async () => {{
+            try {{
+                const res = await fetch('/admin/api/unread-updates');
+                const data = await res.json();
+                if(data.count > 0) {{
+                    const updLink = document.getElementById('menu-upd');
+                    if(updLink) {{
+                        updLink.innerHTML += `<span class="badge bg-danger rounded-pill ms-auto" style="font-size:10px; padding: 4px 8px;">${{data.count}}</span>`;
+                    }}
+                }}
+            }} catch(e) {{}}
+        }});
     </script>
     {scripts}</body></html>"""

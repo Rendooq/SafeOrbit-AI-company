@@ -144,6 +144,11 @@ async def register_page(db: AsyncSession = Depends(get_db)):
         transform: translateY(-2px);
     }}
 
+    select option {{
+        background: #0b0b0f !important;
+        color: #ffffff !important;
+    }}
+
     .plan-card {{
         background: rgba(255, 255, 255, 0.015);
         border: 0.5px solid var(--glass-border);

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import LABELS, UA_TZ
 from database import get_db
-from models import ActionLog, Appointment, Business, Customer, Master, Service
+from models import ActionLog, Appointment, Business, Customer, Master, Service, Integration
 from services.integrations import (push_to_beauty_pro, push_to_cleverbox,
                                     push_to_integrica, push_to_luckyfit,
                                     push_to_uspacy)
@@ -455,47 +455,48 @@ async def process_public_booking(
     biz = await db.get(Business, business_id)
     await send_new_appointment_notifications(biz, app, db)
     
-    active_ints = biz.integration_system.split(',') if biz.integration_system else []
+    active_integrations = (await db.execute(select(Integration).where(and_(Integration.business_id == business_id, Integration.is_active == True)))).scalars().all()
     
-    if "beauty_pro" in active_ints and biz.beauty_pro_token and biz.beauty_pro_location_id:
-        result = await push_to_beauty_pro({
-            "phone": phone, "name": name, "service": service, 
-            "datetime": dt.isoformat(), "cost": cost
-        }, biz.beauty_pro_token, biz.beauty_pro_location_id, biz.beauty_pro_api_url)
-        if result:
-            await log_action(db, business_id, None, "Синхронізація CRM (Beauty Pro)", f"Віджет: {result.get('msg', '')}")
-            
-    if "cleverbox" in active_ints and biz.cleverbox_token:
-        result = await push_to_cleverbox({
-            "phone": phone, "name": name, "service": service, 
-            "datetime": dt.isoformat(), "cost": cost
-        }, biz.cleverbox_token, biz.cleverbox_location_id, biz.cleverbox_api_url)
-        if result:
-            await log_action(db, business_id, None, "Синхронізація CRM (Cleverbox)", f"Віджет: {result.get('msg', '')}")
-            
-    if "integrica" in active_ints and biz.integrica_token:
-        result = await push_to_integrica({
-            "phone": phone, "name": name, "service": service, 
-            "datetime": dt.isoformat(), "cost": cost
-        }, biz.integrica_token, biz.integrica_location_id, biz.integrica_api_url)
-        if result:
-            await log_action(db, business_id, None, "Синхронізація CRM (Integrica)", f"Віджет: {result.get('msg', '')}")
-            
-    if "luckyfit" in active_ints and biz.luckyfit_token:
-        result = await push_to_luckyfit({
-            "phone": phone, "name": name, "service": service, 
-            "datetime": dt.isoformat(), "cost": cost
-        }, biz.luckyfit_token)
-        if result:
-            await log_action(db, business_id, None, "Синхронізація CRM (LuckyFit)", f"Віджет: {result.get('msg', '')}")
+    for integ in active_integrations:
+        if integ.provider == "beauty_pro" and integ.token and integ.ext_id:
+            result = await push_to_beauty_pro({
+                "phone": phone, "name": name, "service": service, 
+                "datetime": dt.isoformat(), "cost": cost
+            }, integ.token, integ.ext_id, "https://api.beautyprosoftware.com/v1")
+            if result:
+                await log_action(db, business_id, None, "Синхронізація CRM", f"Віджет ({integ.name}): {result.get('msg', '')}")
+                
+        elif integ.provider == "cleverbox" and integ.token:
+            result = await push_to_cleverbox({
+                "phone": phone, "name": name, "service": service, 
+                "datetime": dt.isoformat(), "cost": cost
+            }, integ.token, integ.ext_id, "")
+            if result:
+                await log_action(db, business_id, None, "Синхронізація CRM", f"Віджет ({integ.name}): {result.get('msg', '')}")
+                
+        elif integ.provider == "integrica" and integ.token:
+            result = await push_to_integrica({
+                "phone": phone, "name": name, "service": service, 
+                "datetime": dt.isoformat(), "cost": cost
+            }, integ.token, integ.ext_id, "")
+            if result:
+                await log_action(db, business_id, None, "Синхронізація CRM", f"Віджет ({integ.name}): {result.get('msg', '')}")
+                
+        elif integ.provider == "luckyfit" and integ.token:
+            result = await push_to_luckyfit({
+                "phone": phone, "name": name, "service": service, 
+                "datetime": dt.isoformat(), "cost": cost
+            }, integ.token)
+            if result:
+                await log_action(db, business_id, None, "Синхронізація CRM", f"Віджет ({integ.name}): {result.get('msg', '')}")
 
-    if "uspacy" in active_ints and biz.uspacy_token and biz.uspacy_workspace_id:
-        result = await push_to_uspacy({
-            "phone": phone, "name": name, "service": service, 
-            "datetime": dt.isoformat(), "cost": cost
-        }, biz.uspacy_token, biz.uspacy_workspace_id)
-        if result:
-            await log_action(db, business_id, None, "Синхронізація CRM (uSpacy)", f"Віджет: {result.get('msg', '')}")
+        elif integ.provider == "uspacy" and integ.token and integ.ext_id:
+            result = await push_to_uspacy({
+                "phone": phone, "name": name, "service": service, 
+                "datetime": dt.isoformat(), "cost": cost
+            }, integ.token, integ.ext_id)
+            if result:
+                await log_action(db, business_id, None, "Синхронізація CRM", f"Віджет ({integ.name}): {result.get('msg', '')}")
 
     await db.commit()
     

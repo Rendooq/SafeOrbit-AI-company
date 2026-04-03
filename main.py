@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 from config import (
     SECRET_KEY,
@@ -40,6 +41,26 @@ if not GROQ_API_KEY:
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=False, same_site="lax")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Content-Security-Policy"] = "upgrade-insecure-requests"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(superadmin.router)
@@ -85,7 +106,8 @@ async def startup():
             "ALTER TABLE masters ADD COLUMN working_hours TEXT;",
             "ALTER TABLE customers ADD COLUMN is_blocked BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE products ADD COLUMN image_url TEXT;",
-            "ALTER TABLE businesses ADD COLUMN transfer_phone_number TEXT;"
+            "ALTER TABLE businesses ADD COLUMN transfer_phone_number TEXT;",
+            "ALTER TABLE users ADD COLUMN last_updates_view_at TIMESTAMP;"
         ]
         for query in migrations:
             try:

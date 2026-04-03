@@ -631,7 +631,61 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     """
     return get_layout(content, user, "dash", scripts=scripts)
 
-@router.post("/api/update-appointment-time")
+@router.post("/admin/add-appointment")
+async def add_appointment(
+    phone: str = Form(...),
+    name: Optional[str] = Form(""),
+    date: str = Form(...),
+    time: str = Form(...),
+    service: str = Form(...),
+    custom_service: Optional[str] = Form(""),
+    cost: Optional[str] = Form("0.0"),
+    master_id: Optional[str] = Form(None),
+    delivery_address: Optional[str] = Form(None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not user: return RedirectResponse("/", status_code=303)
+    
+    actual_service = custom_service if service == "custom" else service
+    dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    
+    customer = await db.scalar(select(Customer).where(and_(Customer.business_id == user.business_id, Customer.phone_number == phone)))
+    if not customer:
+        customer = Customer(business_id=user.business_id, phone_number=phone, name=name)
+        db.add(customer)
+        await db.flush()
+    elif name and customer.name != name:
+        customer.name = name
+        
+    try:
+        parsed_cost = float(cost) if cost and str(cost).strip() else 0.0
+    except ValueError:
+        parsed_cost = 0.0
+        
+    parsed_master_id = None
+    if master_id and str(master_id).strip() and str(master_id) != 'None':
+        try: parsed_master_id = int(master_id)
+        except ValueError: pass
+
+    app = Appointment(
+        business_id=user.business_id,
+        customer_id=customer.id,
+        master_id=parsed_master_id,
+        appointment_time=dt,
+        service_type=actual_service,
+        cost=parsed_cost,
+        delivery_address=delivery_address,
+        source="manual",
+        status="confirmed"
+    )
+    db.add(app)
+    await db.commit()
+    await log_action(db, user.business_id, user.id, "Додано запис", f"Запис для {name or phone} на {date} {time}")
+    
+    return RedirectResponse("/admin?msg=added", status_code=303)
+
+@router.post("/admin/api/update-appointment-time")
 async def api_update_appt_time(id: int = Form(...), date: str = Form(...), time: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return {"ok": False}
     res = await db.execute(select(Appointment).where(and_(Appointment.id == id, Appointment.business_id == user.business_id)))
@@ -644,7 +698,42 @@ async def api_update_appt_time(id: int = Form(...), date: str = Form(...), time:
         except ValueError: pass
     return RedirectResponse("/admin?msg=saved", status_code=303)
 
-@router.post("/delete-appointment")
+@router.post("/admin/update-appointment")
+async def update_appointment(
+    id: int = Form(...),
+    date: str = Form(...),
+    time: str = Form(...),
+    cost: Optional[str] = Form("0.0"),
+    master_id: Optional[str] = Form(None),
+    delivery_address: Optional[str] = Form(None),
+    ttn: Optional[str] = Form(None),
+    delivery_status: Optional[str] = Form(None),
+    status: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not user: return RedirectResponse("/", status_code=303)
+    app = await db.get(Appointment, id)
+    if app and app.business_id == user.business_id:
+        try:
+            parsed_cost = float(cost) if cost and str(cost).strip() else 0.0
+        except ValueError:
+            parsed_cost = 0.0
+            
+        parsed_master_id = None
+        if master_id and str(master_id).strip() and str(master_id) != 'None':
+            try: parsed_master_id = int(master_id)
+            except ValueError: pass
+
+        app.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        app.cost, app.master_id, app.delivery_address = parsed_cost, parsed_master_id, delivery_address
+        app.ttn, app.delivery_status, app.status = ttn, delivery_status, status
+        await db.commit()
+        await log_action(db, user.business_id, user.id, "Оновлено запис", f"Запис #{id} оновлено")
+    return RedirectResponse("/admin?msg=saved", status_code=303)
+
+@router.post("/admin/delete-appointment")
+
 async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return RedirectResponse("/", status_code=303)
     
@@ -657,7 +746,7 @@ async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user
 
     return RedirectResponse("/admin?msg=deleted", status_code=303)
 
-@router.get("/receipt/{id}", response_class=HTMLResponse)
+@router.get("/admin/receipt/{id}", response_class=HTMLResponse)
 async def generate_receipt(id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return RedirectResponse("/", status_code=303)
     appt = await db.get(Appointment, id)
@@ -713,7 +802,7 @@ async def generate_receipt(id: int, user: User = Depends(get_current_user), db: 
     </body>
     </html>"""
 
-@router.post("/send-sms")
+@router.post("/admin/send-sms")
 async def send_sms_endpoint(phone: str = Form(...), message: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return {"ok": False, "msg": "Потрібна авторизація"}
     
@@ -749,7 +838,7 @@ async def send_sms_endpoint(phone: str = Form(...), message: str = Form(...), us
             logger.error(f"SMS Error: {e}")
             return {"ok": False, "msg": f"Помилка мережі: {str(e)}"}
 
-@router.get("/api/calendar-events")
+@router.get("/admin/api/calendar-events")
 async def get_calendar_events(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return []
     
@@ -794,7 +883,7 @@ async def get_calendar_events(user: User = Depends(get_current_user), db: AsyncS
     
     return events
 
-@router.post("/ask-ai")
+@router.post("/admin/ask-ai")
 async def ask_ai(question: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return {"answer": "Помилка доступу"}
     answer, _ = await process_ai_request(user.business_id, question, db, f"web_{user.id}")
@@ -815,7 +904,31 @@ async def api_update_appt_time(id: int = Form(...), date: str = Form(...), time:
         except ValueError: pass
     return RedirectResponse("/admin?msg=saved", status_code=303)
 
-@router.post("/delete-appointment")
+@router.post("/admin/update-appointment")
+async def update_appointment(
+    id: int = Form(...),
+    date: str = Form(...),
+    time: str = Form(...),
+    cost: float = Form(0.0),
+    master_id: Optional[int] = Form(None),
+    delivery_address: Optional[str] = Form(None),
+    ttn: Optional[str] = Form(None),
+    delivery_status: Optional[str] = Form(None),
+    status: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not user: return RedirectResponse("/", status_code=303)
+    app = await db.get(Appointment, id)
+    if app and app.business_id == user.business_id:
+        app.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        app.cost, app.master_id, app.delivery_address = cost, master_id, delivery_address
+        app.ttn, app.delivery_status, app.status = ttn, delivery_status, status
+        await db.commit()
+        await log_action(db, user.business_id, user.id, "Оновлено запис", f"Запис #{id} оновлено")
+    return RedirectResponse("/admin?msg=saved", status_code=303)
+
+@router.post("/admin/delete-appointment")
 async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return RedirectResponse("/", status_code=303)
     
@@ -828,7 +941,7 @@ async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user
 
     return RedirectResponse("/admin?msg=deleted", status_code=303)
 
-@router.get("/receipt/{id}", response_class=HTMLResponse)
+@router.get("/admin/receipt/{id}", response_class=HTMLResponse)
 async def generate_receipt(id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return RedirectResponse("/", status_code=303)
     appt = await db.get(Appointment, id)
@@ -884,7 +997,7 @@ async def generate_receipt(id: int, user: User = Depends(get_current_user), db: 
     </body>
     </html>"""
 
-@router.post("/send-sms")
+@router.post("/admin/send-sms")
 async def send_sms_endpoint(phone: str = Form(...), message: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return {"ok": False, "msg": "Потрібна авторизація"}
     
@@ -920,7 +1033,7 @@ async def send_sms_endpoint(phone: str = Form(...), message: str = Form(...), us
             logger.error(f"SMS Error: {e}")
             return {"ok": False, "msg": f"Помилка мережі: {str(e)}"}
 
-@router.get("/api/calendar-events")
+@router.get("/admin/api/calendar-events")
 async def get_calendar_events(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return []
     
@@ -965,7 +1078,7 @@ async def get_calendar_events(user: User = Depends(get_current_user), db: AsyncS
     
     return events
 
-@router.post("/ask-ai")
+@router.post("/admin/ask-ai")
 async def ask_ai(question: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return {"answer": "Помилка доступу"}
     answer, _ = await process_ai_request(user.business_id, question, db, f"web_{user.id}")

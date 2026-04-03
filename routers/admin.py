@@ -21,7 +21,7 @@ from database import get_db
 from dependencies import get_current_user
 from models import (ActionLog, Appointment, AppointmentConfirmation, Business, ChatLog, Customer,
                     CustomerSegment, GlobalPaymentSettings, Master, MasterService, 
-                    MonthlyPaymentLog, NPSReview, Product, Service, User, SystemUpdate)
+                    MonthlyPaymentLog, NPSReview, Product, Service, User, SystemUpdate, Integration)
 from ui import get_layout
 from utils import hash_password, log_action
 
@@ -1571,47 +1571,18 @@ async def get_day_details(date: str, user: User = Depends(get_current_user), db:
 @router.get("/bot-integration", response_class=HTMLResponse)
 async def bot_integration_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
-    biz = await db.get(Business, user.business_id)
-    
-    biz_data = {
-        "altegio": {"token": biz.altegio_token or "", "id": biz.altegio_company_id or ""},
-        "beauty_pro": {"token": biz.beauty_pro_token or "", "id": biz.beauty_pro_location_id or ""},
-        "cleverbox": {"token": biz.cleverbox_token or "", "id": biz.cleverbox_location_id or ""},
-        "integrica": {"token": biz.integrica_token or "", "id": biz.integrica_location_id or ""},
-        "luckyfit": {"token": biz.luckyfit_token or "", "id": ""},
-        "uspacy": {"token": biz.uspacy_token or "", "id": biz.uspacy_workspace_id or ""},
-        "telegram": {"token": biz.telegram_token or "", "id": ""},
-        "instagram": {"token": biz.instagram_token or "", "id": ""},
-        "whatsapp": {"token": biz.whatsapp_token or "", "id": ""},
-        "viber": {"token": biz.viber_token or "", "id": ""},
-        "facebook": {"token": biz.facebook_token or "", "id": ""},
-        "turbosms": {"token": biz.sms_token or "", "id": biz.sms_sender_id or ""},
-        "binotel": {"token": biz.binotel_key or "", "id": biz.binotel_secret or ""},
-        "ringostat": {"token": biz.ringostat_token or "", "id": ""},
-        "twilio": {"token": biz.twilio_sid or "", "id": biz.twilio_token or ""},
-        "monobank": {"token": biz.monobank_token or "", "id": ""},
-        "wayforpay": {"token": biz.wayforpay_key or "", "id": ""},
-        "fondy": {"token": biz.fondy_merchant_id or "", "id": biz.fondy_secret_key or ""},
-        "stripe": {"token": biz.stripe_secret_key or "", "id": ""},
-        "groq": {"token": biz.groq_api_key or "", "id": ""},
-        "wins": {"token": biz.wins_token or "", "id": biz.wins_branch_id or ""},
-        "appointer": {"token": biz.appointer_token or "", "id": biz.appointer_location_id or ""},
-        "easyweek": {"token": biz.easyweek_token or "", "id": biz.easyweek_location_id or ""},
-        "trendis": {"token": biz.trendis_token or "", "id": biz.trendis_location_id or ""},
-        "miopane": {"token": biz.miopane_token or "", "id": biz.miopane_location_id or ""},
-        "clinica_web": {"token": biz.clinica_web_token or "", "id": biz.clinica_web_clinic_id or ""},
-        "doctor_eleks": {"token": biz.doctor_eleks_token or "", "id": biz.doctor_eleks_clinic_id or ""},
-        "openai": {"token": biz.openai_api_key or "", "id": ""},
-        "google_maps": {"token": biz.google_maps_api_key or "", "id": ""},
-        "phonet": {"token": "", "id": ""},
-        "esputnik": {"token": "", "id": ""},
-        "prom_ua": {"token": "", "id": ""},
-        "rozetka": {"token": "", "id": ""},
-        "olx": {"token": "", "id": ""},
-        "liqpay": {"token": "", "id": ""},
-    }
-    biz_data_json = json.dumps(biz_data)
-    active_ints_json = json.dumps([i.strip() for i in (biz.integration_system or "").split(",") if i.strip()])
+    ints = (await db.execute(select(Integration).where(Integration.business_id == user.business_id).order_by(desc(Integration.id)))).scalars().all()
+    my_ints = []
+    for i in ints:
+        my_ints.append({
+            "id": i.id,
+            "provider": i.provider,
+            "name": i.name,
+            "token": i.token or "",
+            "ext_id": i.ext_id or "",
+            "is_active": i.is_active
+        })
+    my_ints_json = json.dumps(my_ints)
 
     content = f"""
     <div class="glass-card p-4 p-md-5 mb-4">
@@ -1626,27 +1597,33 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
             </div>
         </div>
         
-        <div class="d-flex gap-2 mb-4 overflow-auto pb-2" style="scrollbar-width: none;" id="int-categories">
-            <button class="btn-glass active category-btn" data-cat="all" onclick="filterIntegrationsCat('all')">Усі сервіси</button>
-            <button class="btn-glass category-btn" data-cat="crm" onclick="filterIntegrationsCat('crm')">CRM та Запис</button>
-            <button class="btn-glass category-btn" data-cat="msg" onclick="filterIntegrationsCat('msg')">Месенджери</button>
-            <button class="btn-glass category-btn" data-cat="ecom" onclick="filterIntegrationsCat('ecom')">E-commerce</button>
-            <button class="btn-glass category-btn" data-cat="sms" onclick="filterIntegrationsCat('sms')">Телефонія та SMS</button>
-            <button class="btn-glass category-btn" data-cat="pay" onclick="filterIntegrationsCat('pay')">Платежі</button>
-            <button class="btn-glass category-btn" data-cat="ai" onclick="filterIntegrationsCat('ai')">ШІ та Інше</button>
-        </div>
-        
-        <div class="row g-3" id="integrations-grid">
-            <!-- JS will populate this -->
+        <ul class="nav nav-pills mb-4" id="intTabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-my-ints">Мої підключення</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-catalog">Каталог сервісів</button></li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="tab-my-ints">
+                <div class="row g-3" id="my-integrations-grid"></div>
+            </div>
+            <div class="tab-pane fade" id="tab-catalog">
+                <div class="d-flex gap-2 mb-4 overflow-auto pb-2" style="scrollbar-width: none;">
+                    <button class="btn-glass active category-btn" data-cat="all" onclick="filterIntegrationsCat('all')">Усі сервіси</button>
+                    <button class="btn-glass category-btn" data-cat="crm" onclick="filterIntegrationsCat('crm')">CRM</button>
+                    <button class="btn-glass category-btn" data-cat="msg" onclick="filterIntegrationsCat('msg')">Месенджери</button>
+                    <button class="btn-glass category-btn" data-cat="pay" onclick="filterIntegrationsCat('pay')">Платежі</button>
+                </div>
+                <div class="row g-3" id="integrations-grid"></div>
+            </div>
         </div>
     </div>
     """
     scripts = """
     <script>
-    const bizData = {biz_data_json};
-    const activeIntegrations = {active_ints_json};
+    const myIntegrations = {my_ints_json};
 
-    const integrations = [
+
+    const catalog = [
         {id: 'altegio', name: 'Altegio (Yclients)', cat: 'crm', icon: 'fa-calendar-check', color: '#ff5722'},
         {id: 'beauty_pro', name: 'BeautyPro', cat: 'crm', icon: 'fa-spa', color: '#e91e63'},
         {id: 'cleverbox', name: 'Cleverbox', cat: 'crm', icon: 'fa-box', color: '#9c27b0'},
@@ -1665,10 +1642,6 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
         {id: 'whatsapp', name: 'WhatsApp Business API', cat: 'msg', icon: 'fa-whatsapp', color: '#25d366'},
         {id: 'facebook', name: 'Facebook Messenger', cat: 'msg', icon: 'fa-facebook-messenger', color: '#0084ff'},
         {id: 'viber', name: 'Viber Chatbots', cat: 'msg', icon: 'fa-viber', color: '#665cac'},
-
-        {id: 'prom_ua', name: 'Prom.ua', cat: 'ecom', icon: 'fa-shopping-cart', color: '#9c27b0'},
-        {id: 'rozetka', name: 'Rozetka (Seller API)', cat: 'ecom', icon: 'fa-store', color: '#4caf50'},
-        {id: 'olx', name: 'OLX Business', cat: 'ecom', icon: 'fa-tags', color: '#00bcd4'},
 
         {id: 'turbosms', name: 'TurboSMS', cat: 'sms', icon: 'fa-comment-sms', color: '#f44336'},
         {id: 'binotel', name: 'Binotel', cat: 'sms', icon: 'fa-phone-alt', color: '#2196f3'},
@@ -1690,75 +1663,145 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
     
     let currentCat = 'all';
     
-    function renderIntegrations(searchQuery = '') {
+    function renderMyIntegrations() {
+        const grid = document.getElementById('my-integrations-grid');
+        grid.innerHTML = '';
+                if (myIntegrations.length === 0) {
+            grid.innerHTML = '<div class="col-12 text-center py-5 text-muted">У вас ще немає підключених інтеграцій. Перейдіть до каталогу.</div>';
+            return;
+        }
+            myIntegrations.forEach(int => {
+            const meta = catalog.find(c => c.id === int.provider) || {name: int.provider, icon: 'fa-plug', color: '#fff'};
+            const iconClass = meta.icon.startsWith('fa-') ? (['fa-telegram', 'fa-instagram', 'fa-whatsapp', 'fa-viber'].includes(meta.icon) ? 'fab ' + meta.icon : 'fas ' + meta.icon) : meta.icon;
+            const activeBadge = int.is_active ? `<span class="badge bg-success ms-2" style="font-size: 9px;">Увімк</span>` : `<span class="badge bg-secondary ms-2" style="font-size: 9px;">Вимк</span>`;
+            const borderStyle = int.is_active ? `border: 1px solid rgba(52,211,153,0.3); background: rgba(255,255,255,0.04);` : `border: 1px solid var(--glass-border);`;
+            
+
+            grid.innerHTML += `
+                <div class="col-xl-4 col-lg-6 col-md-6 col-sm-12">
+                    <div class="glass-card p-3 d-flex align-items-center gap-3" style="border-radius: 16px; ${borderStyle}">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: ${meta.color}20; color: ${meta.color}; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                            <i class="${iconClass}"></i>
+                        </div>
+                        <div class="min-w-0 flex-grow-1" style="cursor: pointer;" onclick="openConfig('${int.id}')">
+                            <h6 class="mb-1 text-white fw-bold text-truncate">${int.name}${activeBadge}</h6>
+                            <div class="small opacity-50 text-truncate" style="font-size: 11px;">${meta.name}</div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-glass btn-sm px-2 py-1" onclick="openConfig('${int.id}')"><i class="fas fa-edit text-info"></i></button>
+                            <form action="/admin/delete-integration" method="post" style="display:inline" onsubmit="return confirm('Видалити інтеграцію?');">
+                                <input type="hidden" name="id" value="${int.id}">
+                                <button class="btn btn-glass btn-sm px-2 py-1"><i class="fas fa-trash text-danger"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+        function renderCatalog(searchQuery = '') {
         const grid = document.getElementById('integrations-grid');
         grid.innerHTML = '';
         
-        integrations.forEach(int => {
+        catalog.forEach(int => {
             if(currentCat !== 'all' && int.cat !== currentCat) return;
             if(searchQuery && !int.name.toLowerCase().includes(searchQuery.toLowerCase())) return;
             
-            let catLabel = '';
-            switch(int.cat) {
-                case 'crm': catLabel = 'CRM та Запис'; break;
-                case 'msg': catLabel = 'Месенджери'; break;
-                case 'ecom': catLabel = 'E-commerce'; break;
-                case 'sms': catLabel = 'Телефонія та SMS'; break;
-                case 'pay': catLabel = 'Платежі'; break;
-                case 'ai': catLabel = 'ШІ та Інше'; break;
-            }
-            
-            let iconClass = int.icon.startsWith('fa-') ? (['fa-calendar-check', 'fa-spa', 'fa-box', 'fa-calendar-alt', 'fa-book', 'fa-calendar-week', 'fa-database', 'fa-network-wired', 'fa-trophy', 'fa-hand-pointer', 'fa-chart-line', 'fa-leaf', 'fa-heart', 'fa-calendar-plus', 'fa-bread-slice', 'fa-clinic-medical', 'fa-cut', 'fa-om', 'fa-calendar', 'fa-clock', 'fa-shopping-cart', 'fa-store', 'fa-tags', 'fa-shopping-bag', 'fa-shopping-basket', 'fa-comment-sms', 'fa-phone-alt', 'fa-headset', 'fa-phone-volume', 'fa-sms', 'fa-paper-plane', 'fa-credit-card', 'fa-money-bill-wave', 'fa-wallet', 'fa-file-invoice-dollar', 'fa-microchip', 'fa-robot', 'fa-map-marked-alt', 'fa-user-md', 'fa-layer-group'].includes(int.icon) ? 'fas ' + int.icon : 'fab ' + int.icon) : int.icon;
-            
-            const isActive = activeIntegrations.includes(int.id);
-            const activeBadge = isActive ? `<span class="badge bg-success ms-2" style="font-size: 9px; padding: 3px 6px !important;">Увімк</span>` : '';
-            const borderStyle = isActive ? `border: 1px solid rgba(52,211,153,0.3); background: rgba(255,255,255,0.04);` : `border: 1px solid var(--glass-border);`;
+            let iconClass = int.icon.startsWith('fa-') ? (['fa-telegram', 'fa-instagram', 'fa-whatsapp', 'fa-viber'].includes(int.icon) ? 'fab ' + int.icon : 'fas ' + int.icon) : int.icon;
             
             grid.innerHTML += `
                 <div class="col-xl-4 col-lg-6 col-md-6 col-sm-12">
-                    <div class="glass-card p-3 d-flex align-items-center gap-3" style="cursor: pointer; border-radius: 16px; ${borderStyle}" onclick="openConfig('${int.id}', '${int.name}')">
+                    <div class="glass-card p-3 d-flex align-items-center gap-3" style="cursor: pointer; border-radius: 16px; border: 1px solid var(--glass-border);" onclick="openNewConfig('${int.id}', '${int.name}')">
                         <div style="width: 48px; height: 48px; border-radius: 12px; background: ${int.color}20; color: ${int.color}; display: flex; align-items: center; justify-content: center; font-size: 20px;">
                             <i class="${iconClass}"></i>
                         </div>
                         <div class="min-w-0 flex-grow-1">
-                            <h6 class="mb-1 text-white fw-bold text-truncate">${int.name}${activeBadge}</h6>
-                            <div class="small opacity-50 text-truncate" style="font-size: 11px;">${catLabel}</div>
+                            <h6 class="mb-1 text-white fw-bold text-truncate">${int.name}</h6>
+                            <div class="small opacity-50 text-truncate" style="font-size: 11px;">Натисніть щоб додати</div>
                         </div>
-                        <i class="fas fa-chevron-right opacity-25 ms-2"></i>
+                        <i class="fas fa-plus opacity-50 ms-2 text-primary"></i>
                     </div>
                 </div>
             `;
         });
     }
     
+    
     function filterIntegrationsCat(cat) {
         currentCat = cat;
         document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
         document.querySelector(`.category-btn[data-cat="${cat}"]`).classList.add('active');
-        renderIntegrations(document.getElementById('intSearch').value);
+        renderCatalog(document.getElementById('intSearch').value);
     }
     
     function filterIntegrations() {
-        renderIntegrations(document.getElementById('intSearch').value);
+        const q = document.getElementById('intSearch').value;
+        renderCatalog(q);
     }
     
-    function openConfig(id, name) {
-        const data = bizData[id] || {token: '', id: ''};
-        const isActive = activeIntegrations.includes(id) ? 'checked' : '';
+    function openNewConfig(providerId, providerName) {
+
 
         Swal.fire({
-            title: `Налаштування ${name}`,
+            title: `Нове підключення: ${providerName}`,
             html: `
                 <form id="integrationForm" action="/admin/save-integration" method="post" class="text-start mt-3">
-                    <input type="hidden" name="integration_id" value="${id}">
+                    <input type="hidden" name="integration_id" value="">
+                    <input type="hidden" name="provider" value="${providerId}">
+                    
+                    <label class="form-label text-white-50">Назва (для себе)</label>
+                    <input type="text" name="name" class="glass-input mb-3" placeholder="Мій ${providerName}" value="${providerName} 1" required>
+
                     <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" name="is_active" id="intActive" value="true" ${isActive}>
+                        <input class="form-check-input" type="checkbox" name="is_active" id="intActive" value="true" checked>
                         <label class="form-check-label text-white" for="intActive">Активувати цю інтеграцію</label>
                     </div>
-                    <label class="form-label text-white-50">API Token / API Key / Secret</label>
-                    <input type="text" name="token" class="glass-input mb-3" placeholder="Введіть ключ..." value="${data.token || ''}">
-                    <label class="form-label text-white-50">Додаткові дані (ID Компанії / Секрет / Sender ID)</label>
-                    <input type="text" name="ext_id" class="glass-input" placeholder="Введіть ID..." value="${data.id || ''}">
+                    <label class="form-label text-white-50">API Token / Secret Key</label>
+                    <input type="text" name="token" class="glass-input mb-3" placeholder="Введіть токен...">
+                    
+                    <label class="form-label text-white-50">Додатковий ID (Company / Location ID)</label>
+                    <input type="text" name="ext_id" class="glass-input" placeholder="Введіть ID...">
+                </form>
+            `,
+            background: 'rgba(20, 20, 25, 0.95)',
+            color: '#fff',
+            customClass: { popup: 'glass-card' },
+            showCancelButton: true,
+            confirmButtonText: 'Додати',
+            cancelButtonText: 'Скасувати',
+            preConfirm: () => {
+                document.getElementById('integrationForm').submit();
+            }
+        });
+    }
+    
+
+    function openConfig(id) {
+        const data = myIntegrations.find(i => i.id == id);
+        if(!data) return;
+        const meta = catalog.find(c => c.id === data.provider) || {name: data.provider};
+        
+        Swal.fire({
+            title: `Редагування: ${data.name}`,
+            html: `
+                <form id="integrationForm" action="/admin/save-integration" method="post" class="text-start mt-3">
+                    <input type="hidden" name="integration_id" value="${data.id}">
+                    <input type="hidden" name="provider" value="${data.provider}">
+                    
+                    <label class="form-label text-white-50">Назва (для себе)</label>
+                    <input type="text" name="name" class="glass-input mb-3" value="${data.name}" required>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="intActive" value="true" ${data.is_active ? 'checked' : ''}>
+                        <label class="form-check-label text-white" for="intActive">Активувати</label>
+                    </div>
+                    
+                    <label class="form-label text-white-50">API Token / Secret Key</label>
+                    <input type="text" name="token" class="glass-input mb-3" value="${data.token}">
+                    
+                    <label class="form-label text-white-50">Додатковий ID (Company / Location ID)</label>
+                    <input type="text" name="ext_id" class="glass-input" value="${data.ext_id}">
                 </form>
             `,
             background: 'rgba(20, 20, 25, 0.95)',
@@ -1772,93 +1815,109 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
             }
         });
     }
-    
-    document.addEventListener('DOMContentLoaded', () => renderIntegrations());
+
+    document.addEventListener('DOMContentLoaded', () => {
+        renderMyIntegrations();
+        renderCatalog();
+    });
     </script>
     """
-    scripts = scripts.replace("{biz_data_json}", biz_data_json).replace("{active_ints_json}", active_ints_json)
+    scripts = scripts.replace("{my_ints_json}", my_ints_json)
     return get_layout(content, user, "bot", scripts=scripts)
 
 
 @router.post("/save-integration")
 async def save_integration(
     request: Request,
-    integration_id: str = Form(...),
-    is_active: bool = Form(False),
+    integration_id: Optional[str] = Form(None),
+    provider: str = Form(...),
+    name: str = Form(...),    is_active: bool = Form(False),
     token: Optional[str] = Form(None),
     ext_id: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
-    biz = await db.get(Business, user.business_id)
-    if not biz: return RedirectResponse("/admin/bot-integration", status_code=303)
-    
-    mapping = {
-        "altegio": ("altegio_token", "altegio_company_id"),
-        "beauty_pro": ("beauty_pro_token", "beauty_pro_location_id"),
-        "cleverbox": ("cleverbox_token", "cleverbox_location_id"),
-        "integrica": ("integrica_token", "integrica_location_id"),
-        "luckyfit": ("luckyfit_token", None),
-        "uspacy": ("uspacy_token", "uspacy_workspace_id"),
-        "telegram": ("telegram_token", None),
-        "instagram": ("instagram_token", None),
-        "whatsapp": ("whatsapp_token", None),
-        "viber": ("viber_token", None),
-        "facebook": ("facebook_token", None),
-        "turbosms": ("sms_token", "sms_sender_id"),
-        "binotel": ("binotel_key", "binotel_secret"),
-        "ringostat": ("ringostat_token", None),
-        "twilio": ("twilio_sid", "twilio_token"),
-        "monobank": ("monobank_token", None),
-        "wayforpay": ("wayforpay_key", None),
-        "fondy": ("fondy_merchant_id", "fondy_secret_key"),
-        "stripe": ("stripe_secret_key", None),
-        "groq": ("groq_api_key", None),
-        "wins": ("wins_token", "wins_branch_id"),
-        "appointer": ("appointer_token", "appointer_location_id"),
-        "easyweek": ("easyweek_token", "easyweek_location_id"),
-        "trendis": ("trendis_token", "trendis_location_id"),
-        "miopane": ("miopane_token", "miopane_location_id"),
-        "clinica_web": ("clinica_web_token", "clinica_web_clinic_id"),
-        "doctor_eleks": ("doctor_eleks_token", "doctor_eleks_clinic_id"),
-        "openai": ("openai_api_key", None),
-        "google_maps": ("google_maps_api_key", None),
-    }
-
-    if integration_id in mapping:
-        t_field, id_field = mapping[integration_id]
-        if t_field: setattr(biz, t_field, token)
-        if id_field: setattr(biz, id_field, ext_id)
-
-    active_ints = set(i.strip() for i in (biz.integration_system or "").split(",") if i.strip())
-    if is_active:
-        active_ints.add(integration_id)
+    if integration_id:
+        integration = await db.get(Integration, int(integration_id))
+        if not integration or integration.business_id != user.business_id:
+            return RedirectResponse("/admin/bot-integration", status_code=303)
+        integration.name = name
+        integration.is_active = is_active
+        integration.token = token
+        integration.ext_id = ext_id
     else:
-        active_ints.discard(integration_id)
-        
-    biz.integration_system = ",".join(filter(None, active_ints))
-    
-    if integration_id == "telegram":
-        biz.telegram_enabled = is_active
-        if is_active and token:
-            base_url = str(request.base_url).rstrip('/')
-            if base_url.startswith("http://"): base_url = base_url.replace("http://", "https://")
-            webhook_url = f"{base_url}/webhook/telegram/{biz.id}"
-            try:
-                async with httpx.AsyncClient() as client:
-                    await client.post(f"https://api.telegram.org/bot{token}/setWebhook", json={"url": webhook_url})
-            except Exception: pass
-        elif not is_active and biz.telegram_token:
-            try:
-                async with httpx.AsyncClient() as client:
-                    await client.post(f"https://api.telegram.org/bot{biz.telegram_token}/deleteWebhook")
-            except Exception: pass
+        integration = Integration(
+            business_id=user.business_id,
+            provider=provider,
+            name=name,
+            is_active=is_active,
+            token=token,
+            ext_id=ext_id
+        )
+        db.add(integration)
         
     await db.commit()
-    await log_action(db, user.business_id, user.id, "Оновлено інтеграцію", f"Інтеграцію '{integration_id}' оновлено.")
+    await db.refresh(integration)
+    
+    # Зворотна сумісність для webhook-сервісів (оновлюємо глобальні токени)
+    biz = await db.get(Business, user.business_id)
+    if biz:
+        active_ints = (await db.execute(select(Integration).where(and_(Integration.business_id == user.business_id, Integration.is_active == True)))).scalars().all()
+        biz.integration_system = ",".join(set([i.provider for i in active_ints]))
+        
+        ptg = next((i for i in active_ints if i.provider == 'telegram'), None)
+        biz.telegram_token = ptg.token if ptg else None
+        biz.telegram_enabled = bool(ptg)
+        
+        pa = next((i for i in active_ints if i.provider == 'altegio'), None)
+        if pa: biz.altegio_token = pa.token; biz.altegio_company_id = pa.ext_id
+
+        pb = next((i for i in active_ints if i.provider == 'beauty_pro'), None)
+        if pb: biz.beauty_pro_token = pb.token; biz.beauty_pro_location_id = pb.ext_id
+
+        psms = next((i for i in active_ints if i.provider == 'turbosms'), None)
+        if psms: biz.sms_token = psms.token; biz.sms_sender_id = psms.ext_id
+
+        pgr = next((i for i in active_ints if i.provider == 'groq'), None)
+        if pgr: biz.groq_api_key = pgr.token
+
+        await db.commit()    
+    if provider == "telegram" and token:
+        base_url = str(request.base_url).rstrip('/')
+        if base_url.startswith("http://"): base_url = base_url.replace("http://", "https://")
+        webhook_url = f"{base_url}/webhook/telegram/{user.business_id}"
+        try:
+            async with httpx.AsyncClient() as client:
+                if is_active:
+                    await client.post(f"https://api.telegram.org/bot{token}/setWebhook", json={"url": webhook_url})
+                else:
+                    await client.post(f"https://api.telegram.org/bot{token}/deleteWebhook")
+        except Exception: pass
+        
+        
+    await log_action(db, user.business_id, user.id, "Збережено інтеграцію", f"Інтеграцію '{name}' збережено.")
     
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
+
+
+@router.post("/delete-integration")
+async def delete_integration(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
+    
+    integration = await db.get(Integration, id)
+    if integration and integration.business_id == user.business_id:
+        if integration.provider == "telegram" and integration.token:
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.post(f"https://api.telegram.org/bot{integration.token}/deleteWebhook")
+            except Exception: pass
+            
+        await db.delete(integration)
+        await db.commit()
+        await log_action(db, user.business_id, user.id, "Видалено інтеграцію", f"Інтеграцію '{integration.name}' видалено.")
+
+    return RedirectResponse("/admin/bot-integration?msg=deleted", status_code=303)
 
 
 @router.get("/help", response_class=HTMLResponse)
@@ -2211,6 +2270,11 @@ async def help_page(user: User = Depends(get_current_user)):
 async def updates_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return RedirectResponse("/", status_code=303)
     
+    db_user = await db.get(User, user.id)
+    if db_user:
+        db_user.last_updates_view_at = datetime.now(UA_TZ).replace(tzinfo=None)
+        await db.commit()
+
     updates = (await db.execute(select(SystemUpdate).order_by(desc(SystemUpdate.created_at)))).scalars().all()
     
     updates_html = ""
@@ -2246,3 +2310,12 @@ async def updates_page(user: User = Depends(get_current_user), db: AsyncSession 
     </div>
     """
     return get_layout(content, user, "upd")
+
+@router.get("/api/unread-updates")
+async def api_unread_updates(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user: return {"count": 0}
+    stmt = select(func.count(SystemUpdate.id))
+    if user.last_updates_view_at:
+        stmt = stmt.where(SystemUpdate.created_at > user.last_updates_view_at)
+    count = await db.scalar(stmt)
+    return {"count": count or 0}

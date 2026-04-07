@@ -80,7 +80,11 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
 
     pending_rows = ""
     for b in pending_bizs:
-        plan_badge = "<span class='badge bg-warning text-dark'>11000 грн/міс</span>" if b.plan_type == 'plan1' else "<span class='badge bg-primary'>53000 грн (Pro)</span>"
+        plan_badge = "<span class='badge bg-warning text-dark'>Базовий</span>" if b.plan_type == 'plan1' else "<span class='badge bg-primary'>PRO</span>"
+        if getattr(b, 'subscription_discount', 0) > 0:
+            if not b.discount_ends_at or b.discount_ends_at > datetime.now(UA_TZ).replace(tzinfo=None):
+                d_end_str = b.discount_ends_at.strftime('%d.%m.%Y') if getattr(b, 'discount_ends_at', None) else 'назавжди'
+                plan_badge += f" <span class='badge bg-danger' title='Знижка діє до {d_end_str}'>-{b.subscription_discount}%</span>"
         receipt_html = f"<a href='{b.receipt_url}' target='_blank' class='btn btn-sm btn-outline-info'><i class='fas fa-receipt'></i> Чек</a>" if getattr(b, 'receipt_url', None) else ""
         nda_html = f"<a href='{b.nda_url}' target='_blank' class='btn btn-sm btn-outline-primary'><i class='fas fa-file-signature'></i> NDA</a>" if getattr(b, 'nda_url', None) else ""
         contract_html = f"<a href='{b.contract_url}' target='_blank' class='btn btn-sm btn-outline-success'><i class='fas fa-file-contract'></i> Договір</a>" if getattr(b, 'contract_url', None) else ""
@@ -89,7 +93,11 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
     active_rows = ""
     docs_rows = ""
     for b in approved_bizs:
-        plan_badge = "<span class='badge bg-warning text-dark'>11000 грн/міс</span>" if b.plan_type == 'plan1' else "<span class='badge bg-primary'>53000 грн (Pro)</span>"
+        plan_badge = "<span class='badge bg-warning text-dark'>Базовий</span>" if b.plan_type == 'plan1' else "<span class='badge bg-primary'>PRO</span>"
+        if getattr(b, 'subscription_discount', 0) > 0:
+            if not b.discount_ends_at or b.discount_ends_at > datetime.now(UA_TZ).replace(tzinfo=None):
+                d_end_str = b.discount_ends_at.strftime('%d.%m.%Y') if getattr(b, 'discount_ends_at', None) else 'назавжди'
+                plan_badge += f" <span class='badge bg-danger' title='Знижка діє до {d_end_str}'>-{b.subscription_discount}%</span>"
         parent_tag = "<br><span class='badge bg-info bg-opacity-10 text-info mt-1'><i class='fas fa-code-branch me-1'></i>Філія</span>" if b.parent_id else ""
         ai_badge = f"<span class='badge {'bg-primary' if b.has_ai_bot else 'bg-light text-muted'}'>ШІ: {'Увімк' if b.has_ai_bot else 'Вимк'}</span>"
         int_badge = f"<span class='badge {'bg-success' if getattr(b, 'integration_enabled', True) else 'bg-light text-muted'}'>CRM: {'Увімк' if getattr(b, 'integration_enabled', True) else 'Вимк'}</span>"
@@ -106,6 +114,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         card_esc = html.escape(b.payment_card_number or '', quote=True)
         receiver_esc = html.escape(b.payment_receiver_name or '', quote=True)
         qr_esc = html.escape(b.payment_qr_url or '', quote=True)
+        d_end = b.discount_ends_at.strftime('%Y-%m-%d') if getattr(b, 'discount_ends_at', None) else ''
         active_rows += f"""<tr class='align-middle'>
                 <td><span class='text-muted'>#{b.id}</span></td>
                 <td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small> {plan_badge} {parent_tag}</td>
@@ -118,7 +127,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
                         <button class='btn btn-sm btn-outline-success' onclick="openPaymentModal({b.id}, '{html.escape(b.name, quote=True)}')" title="Фіксувати оплату"><i class='fas fa-hand-holding-usd'></i></button>
                         <button class='btn btn-sm btn-warning' onclick="editPaymentSettings({b.id}, '{iban_esc}', '{card_esc}', '{receiver_esc}', '{qr_esc}', '{html.escape(b.name, quote=True)}')" title="Реквізити для оплати"><i class='fas fa-credit-card'></i></button>
                         <a href='/superadmin/toggle/{b.id}' class='btn btn-sm btn-outline-secondary' title="Блокувати"><i class='fas fa-power-off'></i></a>
-                        <button class='btn btn-sm btn-outline-info' onclick="editBiz({b.id}, '{phone_esc}', '{b.plan_type}', '{ctr_esc}', '{nda_esc}')" title="Редагувати клієнта"><i class='fas fa-edit'></i></button>
+                        <button class='btn btn-sm btn-outline-info' onclick="editBiz({b.id}, '{phone_esc}', '{b.plan_type}', '{ctr_esc}', '{nda_esc}', {getattr(b, 'subscription_discount', 0)}, '{d_end}')" title="Редагувати клієнта"><i class='fas fa-edit'></i></button>
                         <a href='/superadmin/toggle-ai/{b.id}' class='btn btn-sm btn-outline-primary' title="AI Асистент"><i class='fas fa-robot'></i></a>
                         <a href='/superadmin/toggle-integration/{b.id}' class='btn btn-sm btn-outline-success' title="Увімк/Вимк CRM Інтеграції"><i class='fas fa-plug'></i></a>
                         <button class='btn btn-sm btn-outline-warning' onclick="resetPass({b.id}, '{html.escape(b.name, quote=True)}')" title="Скинути пароль"><i class='fas fa-key'></i></button>
@@ -240,8 +249,8 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
                             </div>
                             <div class="mb-4"><label class="form-label">Тариф</label>
                                 <select name="plan_type" class="form-select">
-                                    <option value="plan1">11 000 грн/міс</option>
-                                    <option value="plan2">53 000 грн (Pro)</option>
+                                    <option value="plan1">Базовий</option>
+                                    <option value="plan2">PRO</option>
                                 </select>
                             </div>
                             <button class="btn-primary-glow w-100 py-3">Створити акаунт</button>
@@ -380,11 +389,15 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
             <div class="modal-body">
                 <input type="hidden" name="id" id="editBizId">
                 <div class="mb-3"><label class="form-label">Телефон (Логін)</label><input name="phone" id="editBizPhone" class="glass-input"></div>
-                <div class="mb-3"><label class="form-label">Тариф</label>
-                    <select name="plan_type" id="editBizPlan" class="form-select">
-                        <option value="plan1">11 000 грн/міс</option>
-                        <option value="plan2">53 000 грн (Pro)</option>
-                    </select>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-12"><label class="form-label">Тариф</label>
+                        <select name="plan_type" id="editBizPlan" class="form-select">
+                            <option value="plan1">Базовий</option>
+                            <option value="plan2">PRO</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6"><label class="form-label">Знижка на абонплату (%)</label><input name="subscription_discount" type="number" min="0" max="100" id="editBizDiscount" class="glass-input" value="0"></div>
+                    <div class="col-md-6"><label class="form-label">Діє до (пусто=назавжди)</label><input name="discount_ends_at" type="date" id="editBizDiscountEnd" class="glass-input"></div>
                 </div>
                 <div class="mb-3"><label class="form-label">URL Договору</label><input name="contract_url" id="editBizContract" class="glass-input"></div>
                 <div class="mb-0"><label class="form-label">URL NDA</label><input name="nda_url" id="editBizNda" class="glass-input"></div>
@@ -598,6 +611,8 @@ async def edit_business(
     id: int = Form(...),
     phone: str = Form(...),
     plan_type: str = Form(...),
+    subscription_discount: int = Form(0),
+    discount_ends_at: Optional[str] = Form(None),
     contract_url: Optional[str] = Form(None),
     nda_url: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
@@ -611,6 +626,13 @@ async def edit_business(
         biz.plan_type = plan_type
         biz.contract_url = contract_url
         biz.nda_url = nda_url
+        biz.subscription_discount = subscription_discount
+        if discount_ends_at:
+            try:
+                biz.discount_ends_at = datetime.strptime(discount_ends_at, "%Y-%m-%d").replace(hour=23, minute=59)
+            except ValueError: pass
+        else:
+            biz.discount_ends_at = None
         
         owner_user = await db.scalar(select(User).where(User.business_id == biz.id).where(User.role == 'owner'))
         if owner_user:
@@ -639,7 +661,7 @@ async def log_payment(
         amount=amount,
         receipt_url=receipt_url,
         notes=notes,
-        payment_date=datetime.now(timezone.utc)
+        payment_date=datetime.now(UA_TZ).replace(tzinfo=None)
     )
     db.add(new_log)
     await db.commit()
@@ -815,6 +837,48 @@ async def global_payment_settings_page(user: User = Depends(get_current_user), d
                 <label class="form-check-label text-white" for="isPlan2Active">Активувати PRO Тариф (53 000 грн)</label>
             </div>
 
+            <div class="row g-3 mb-5">
+                <div class="col-md-6">
+                    <label class="form-label">Знижка на Базовий Тариф (%)</label>
+                    <input type="number" min="0" max="100" name="plan1_discount" class="glass-input" value="{settings.plan1_discount or 0}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Знижка на PRO Тариф (%)</label>
+                    <input type="number" min="0" max="100" name="plan2_discount" class="glass-input" value="{settings.plan2_discount or 0}">
+                </div>
+            </div>
+
+            <div class="row g-3 mb-5">
+                <div class="col-md-6">
+                    <label class="form-label">Промокод (Текст)</label>
+                    <input type="text" name="promo_code" class="glass-input" value="{html.escape(settings.promo_code or '')}" placeholder="Наприклад: START20">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Знижка за промокодом (%)</label>
+                    <input type="number" min="0" max="100" name="promo_discount" class="glass-input" value="{settings.promo_discount or 0}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Діє для тарифу</label>
+                    <select name="promo_target_plan" class="form-select">
+                        <option value="all" {'selected' if getattr(settings, 'promo_target_plan', 'all') == 'all' else ''}>Для всіх тарифів</option>
+                        <option value="plan1" {'selected' if getattr(settings, 'promo_target_plan', '') == 'plan1' else ''}>Тільки Базовий (11 000 грн)</option>
+                        <option value="plan2" {'selected' if getattr(settings, 'promo_target_plan', '') == 'plan2' else ''}>Тільки PRO (53 000 грн)</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Діє до (Термін дії)</label>
+                    <input type="date" name="promo_expires_at" class="glass-input" value="{settings.promo_expires_at.strftime('%Y-%m-%d') if getattr(settings, 'promo_expires_at', None) else ''}">
+                </div>
+            </div>
+            
+            <div class="row g-3 mb-5">
+                <div class="col-md-12">
+                    <label class="form-label">Тривалість дії знижок (в місяцях, 0 = назавжди)</label>
+                    <input type="number" min="0" name="discount_duration_months" class="glass-input" value="{getattr(settings, 'discount_duration_months', 0)}">
+                    <div class="small opacity-50 mt-1">Цей термін буде автоматично застосовано до всіх нових клієнтів, які реєструються зі знижкою.</div>
+                </div>
+            </div>
+
             <button type="submit" class="btn-primary-glow w-100 py-3">Зберегти Глобальні Налаштування</button>
         </form>
     </div>
@@ -831,6 +895,13 @@ async def save_global_payment_settings(
     bank_name: Optional[str] = Form(None),
     is_plan1_active: bool = Form(False),
     is_plan2_active: bool = Form(False),
+    plan1_discount: int = Form(0),
+    plan2_discount: int = Form(0),
+    promo_code: Optional[str] = Form(None),
+    promo_discount: int = Form(0),
+    promo_target_plan: str = Form("all"),
+    promo_expires_at: Optional[str] = Form(None),
+    discount_duration_months: int = Form(0),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -850,7 +921,22 @@ async def save_global_payment_settings(
     settings.bank_name = bank_name
     settings.is_plan1_active = is_plan1_active
     settings.is_plan2_active = is_plan2_active
-    settings.updated_at = datetime.now(timezone.utc)
+    settings.plan1_discount = plan1_discount
+    settings.plan2_discount = plan2_discount
+    settings.promo_code = promo_code
+    settings.promo_discount = promo_discount
+    settings.promo_target_plan = promo_target_plan
+    settings.discount_duration_months = discount_duration_months
+    
+    if promo_expires_at:
+        try: 
+            parsed_date = datetime.strptime(promo_expires_at, "%Y-%m-%d")
+            settings.promo_expires_at = parsed_date.replace(hour=23, minute=59, second=59)
+        except ValueError: pass
+    else:
+        settings.promo_expires_at = None
+        
+    settings.updated_at = datetime.now(UA_TZ).replace(tzinfo=None)
 
     await db.commit()
     await log_action(db, None, user.id, "Оновлено глобальні реквізити", "Глобальні платіжні реквізити оновлено супер-адміном.")

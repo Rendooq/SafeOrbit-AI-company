@@ -107,7 +107,16 @@ async def startup():
             "ALTER TABLE customers ADD COLUMN is_blocked BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE products ADD COLUMN image_url TEXT;",
             "ALTER TABLE businesses ADD COLUMN transfer_phone_number TEXT;",
-            "ALTER TABLE users ADD COLUMN last_updates_view_at TIMESTAMP;"
+            "ALTER TABLE users ADD COLUMN last_updates_view_at TIMESTAMP;",
+            "ALTER TABLE global_payment_settings ADD COLUMN plan1_discount INTEGER DEFAULT 0;",
+            "ALTER TABLE global_payment_settings ADD COLUMN plan2_discount INTEGER DEFAULT 0;",
+            "ALTER TABLE global_payment_settings ADD COLUMN promo_code TEXT;",
+            "ALTER TABLE global_payment_settings ADD COLUMN promo_discount INTEGER DEFAULT 0;",
+            "ALTER TABLE global_payment_settings ADD COLUMN promo_target_plan TEXT DEFAULT 'all';",
+            "ALTER TABLE global_payment_settings ADD COLUMN promo_expires_at TIMESTAMP;",
+            "ALTER TABLE global_payment_settings ADD COLUMN discount_duration_months INTEGER DEFAULT 0;",
+            "ALTER TABLE businesses ADD COLUMN subscription_discount INTEGER DEFAULT 0;",
+            "ALTER TABLE businesses ADD COLUMN discount_ends_at TIMESTAMP;"
         ]
         for query in migrations:
             try:

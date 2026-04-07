@@ -116,6 +116,8 @@ class Business(Base):
     payment_qr_url: Mapped[Optional[str]] = mapped_column(Text)
     payment_card_number: Mapped[Optional[str]] = mapped_column(Text)
     payment_receiver_name: Mapped[Optional[str]] = mapped_column(Text)
+    subscription_discount: Mapped[int] = mapped_column(Integer, default=0)
+    discount_ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
 
 class User(Base):
@@ -291,6 +293,13 @@ class GlobalPaymentSettings(Base):
     bank_name: Mapped[Optional[str]] = mapped_column(Text, default="Monobank")
     is_plan1_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_plan2_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    plan1_discount: Mapped[int] = mapped_column(Integer, default=0)
+    plan2_discount: Mapped[int] = mapped_column(Integer, default=0)
+    promo_code: Mapped[Optional[str]] = mapped_column(Text)
+    promo_discount: Mapped[int] = mapped_column(Integer, default=0)
+    promo_target_plan: Mapped[Optional[str]] = mapped_column(Text, default="all")
+    promo_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    discount_duration_months: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
 class SystemUpdate(Base):

@@ -1,7 +1,8 @@
 import html
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -10,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID
+from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID, UA_TZ
 from database import get_db
 from models import Business, GlobalPaymentSettings, User
 from utils import hash_password, verify_password
@@ -32,6 +33,33 @@ async def register_page(db: AsyncSession = Depends(get_db)):
     bank_name = settings.bank_name or "Monobank"
     receiver = settings.receiver_name or "SafeOrbit"
     qr_url = settings.qr_url or "/static/payment_qr.png"
+    
+    plan1_discount = getattr(settings, 'plan1_discount', 0) or 0
+    plan2_discount = getattr(settings, 'plan2_discount', 0) or 0
+    
+    p1_base = 11000
+    p1_setup = 9000
+    p1_final_base = int(p1_base * (1 - plan1_discount / 100))
+    p1_final_total = p1_final_base + p1_setup
+    
+    p2_base = 53000
+    p2_support = 1100
+    p2_final_base = int(p2_base * (1 - plan2_discount / 100))
+    p2_final_total = p2_final_base + p2_support
+    
+    def fmt_p(p): return f"{p:,}".replace(',', ' ')
+    
+    p1_price_html = f"<span class='text-decoration-line-through text-white-50 fs-6'>{fmt_p(p1_base)}</span> {fmt_p(p1_final_base)}" if plan1_discount > 0 else f"{fmt_p(p1_base)}"
+    p2_price_html = f"<span class='text-decoration-line-through text-white-50 fs-6'>{fmt_p(p2_base)}</span> {fmt_p(p2_final_base)}" if plan2_discount > 0 else f"{fmt_p(p2_base)}"
+    
+    p1_orig_total = p1_base + p1_setup
+    p2_orig_total = p2_base + p2_support
+    
+    p1_total_html = f"<span class='text-decoration-line-through text-white-50 fs-5 me-2'>{fmt_p(p1_orig_total)} ₴</span>{fmt_p(p1_final_total)}" if plan1_discount > 0 else f"{fmt_p(p1_final_total)}"
+    p2_total_html = f"<span class='text-decoration-line-through text-white-50 fs-5 me-2'>{fmt_p(p2_orig_total)} ₴</span>{fmt_p(p2_final_total)}" if plan2_discount > 0 else f"{fmt_p(p2_final_total)}"
+
+    p1_badge = f"<span class='badge bg-danger ms-2'>-{plan1_discount}%</span>" if plan1_discount > 0 else ""
+    p2_badge = f"<span class='badge bg-danger ms-2'>-{plan2_discount}%</span>" if plan2_discount > 0 else ""
 
     return f"""<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Реєстрація | SafeOrbit</title>
     <link rel="icon" href="/static/favicon.png" type="image/png">
@@ -316,7 +344,7 @@ async def register_page(db: AsyncSession = Depends(get_db)):
                     <div class="col-6">
                         <input type="radio" class="btn-check" name="plan_type" id="plan1" value="plan1" {"checked" if settings.is_plan1_active else "disabled"} onchange="updatePlan()">
                         <label class="plan-card {'disabled' if not settings.is_plan1_active else ''}" for="plan1">
-                            <div class="plan-price">11 000 ₴<small style="font-size: 15px; opacity: 0.5;">/міс</small></div>
+                            <div class="plan-price" id="plan1Price">{p1_price_html} ₴<small style="font-size: 15px; opacity: 0.5;">/міс</small>{p1_badge}</div>
                             <div class="plan-desc">+ 9 000 ₴ налаштування</div>
                             {f'<span class="badge-status">Тимчасово недоступний</span>' if not settings.is_plan1_active else ''}
                         </label>
@@ -324,12 +352,22 @@ async def register_page(db: AsyncSession = Depends(get_db)):
                     <div class="col-6">
                         <input type="radio" class="btn-check" name="plan_type" id="plan2" value="plan2" {"checked" if not settings.is_plan1_active and settings.is_plan2_active else "disabled" if not settings.is_plan2_active else ""} onchange="updatePlan()">
                         <label class="plan-card {'disabled' if not settings.is_plan2_active else ''}" for="plan2">
-                            <div class="plan-price">53 000 ₴</div>
+                            <div class="plan-price" id="plan2Price">{p2_price_html} ₴{p2_badge}</div>
                             <div class="plan-desc">+ 1 100 ₴/міс тех.підтримка</div>
                             {f'<span class="badge-status">Тимчасово недоступний</span>' if not settings.is_plan2_active else ''}
                         </label>
                     </div>
                 </div>
+            </div>
+
+            <div class="mb-5">
+                <input type="hidden" name="applied_promo" id="hiddenPromoCode" value="">
+                <label class="form-label">Маєте промокод?</label>
+                <div class="input-group">
+                    <input type="text" id="promoCodeInput" class="form-control" placeholder="Введіть код..." style="border-radius: 22px 0 0 22px !important; border-right: none;">
+                    <button type="button" class="btn btn-secondary-glass" onclick="applyPromo()" style="border-radius: 0 22px 22px 0 !important; background: rgba(255,255,255,0.05);">Застосувати</button>
+                </div>
+                <div id="promoMessage" class="mt-2" style="display: none;"></div>
             </div>
 
             <div class="doc-box mb-5">
@@ -352,7 +390,7 @@ async def register_page(db: AsyncSession = Depends(get_db)):
 
             <div class="payment-alert mb-5">
                 <h6 class="fw-800 mb-4 text-warning"><i class="fas fa-wallet me-2"></i>Оплата підписки</h6>
-                <div id="paymentAmountText" class="fs-4 fw-800 mb-4 text-white">До сплати: 20 000 ₴</div>
+                <div id="paymentAmountText" class="fs-4 fw-800 mb-4 text-white">До сплати: <b class='text-white'>{p1_total_html} ₴</b> <span class='small opacity-40 fw-500'>({fmt_p(p1_final_base)} + 9 000)</span></div>
                 
                 <div class="d-flex justify-content-center gap-3 mb-4">
                     <button type="button" class="btn-secondary-glass active" id="btnIban" onclick="showPayment('iban')">IBAN реквізити</button>
@@ -428,28 +466,108 @@ async def register_page(db: AsyncSession = Depends(get_db)):
         }}
         reader.readAsDataURL(event.target.files[0]);
     }}
+
+    const basePlan1 = 11000;
+    const setupPlan1 = 9000;
+    const basePlan2 = 53000;
+    const supportPlan2 = 1100;
+    
+    const globalDiscount1 = {plan1_discount};
+    const globalDiscount2 = {plan2_discount};
+    const activePromoCode = "{getattr(settings, 'promo_code', None) or ''}".toUpperCase();
+    const activePromoDiscount = {getattr(settings, 'promo_discount', 0) or 0};
+    const activePromoTarget = "{getattr(settings, 'promo_target_plan', 'all') or 'all'}";
+    const activePromoExpires = "{settings.promo_expires_at.isoformat() if getattr(settings, 'promo_expires_at', None) else ''}";
+    
+    let currentPromoDiscount = 0;
+
+    function formatPrice(p) {{
+        return p.toString().replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, " ");
+    }}
+
+    function applyPromo() {{
+        const input = document.getElementById('promoCodeInput').value.trim().toUpperCase();
+        const msg = document.getElementById('promoMessage');
+        if (!input) return;
+        
+        let isValid = false;
+        let errorMsg = "Недійсний промокод";
+        
+        if (activePromoCode && input === activePromoCode && activePromoDiscount > 0) {{
+            isValid = true;
+            if (activePromoExpires) {{
+                const expDate = new Date(activePromoExpires);
+                if (new Date() > expDate) {{
+                    isValid = false;
+                    errorMsg = "Термін дії промокоду минув";
+                }}
+            }}
+        }}
+        
+        if (isValid) {{
+            currentPromoDiscount = activePromoDiscount;
+            let targetText = activePromoTarget === 'plan1' ? ' на Базовий тариф' : (activePromoTarget === 'plan2' ? ' на PRO тариф' : '');
+            msg.innerHTML = `<i class="fas fa-check-circle me-1"></i> Промокод застосовано! Знижка -${{activePromoDiscount}}%${{targetText}}`;
+            msg.className = "small mt-2 text-success fw-bold";
+            msg.style.display = "block";
+            document.getElementById('hiddenPromoCode').value = input;
+        }} else {{
+            currentPromoDiscount = 0;
+            msg.innerHTML = `<i class="fas fa-times-circle me-1"></i> ${{errorMsg}}`;
+            msg.className = "small mt-2 text-danger fw-bold";
+            msg.style.display = "block";
+            document.getElementById('hiddenPromoCode').value = '';
+        }}
+        updatePlan();
+    }}
+
     function updatePlan() {{
         const p1 = document.getElementById('plan1').checked;
         const link = document.getElementById('contractTemplateLink');
         const priceText = document.getElementById('paymentAmountText');
+        
+        let appliedPromo1 = currentPromoDiscount > 0 && (activePromoTarget === 'all' || activePromoTarget === 'plan1') ? currentPromoDiscount : 0;
+        let appliedPromo2 = currentPromoDiscount > 0 && (activePromoTarget === 'all' || activePromoTarget === 'plan2') ? currentPromoDiscount : 0;
+
+        let finalDiscount1 = Math.min(100, globalDiscount1 + appliedPromo1);
+        let finalDiscount2 = Math.min(100, globalDiscount2 + appliedPromo2);
+
+        let finalBase1 = Math.floor(basePlan1 * (1 - finalDiscount1 / 100));
+        let finalBase2 = Math.floor(basePlan2 * (1 - finalDiscount2 / 100));
+
+        let total1 = finalBase1 + setupPlan1;
+        let total2 = finalBase2 + supportPlan2;
+        
+        let cardPrice1 = finalDiscount1 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-6'>${{formatPrice(basePlan1)}}</span> ${{formatPrice(finalBase1)}}` : `${{formatPrice(basePlan1)}}`;
+        let badge1 = finalDiscount1 > 0 ? `<span class='badge bg-danger ms-2'>-${{finalDiscount1}}%</span>` : "";
+        document.getElementById('plan1Price').innerHTML = `${{cardPrice1}} ₴<small style="font-size: 15px; opacity: 0.5;">/міс</small>${{badge1}}`;
+
+        let cardPrice2 = finalDiscount2 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-6'>${{formatPrice(basePlan2)}}</span> ${{formatPrice(finalBase2)}}` : `${{formatPrice(basePlan2)}}`;
+        let badge2 = finalDiscount2 > 0 ? `<span class='badge bg-danger ms-2'>-${{finalDiscount2}}%</span>` : "";
+        document.getElementById('plan2Price').innerHTML = `${{cardPrice2}} ₴${{badge2}}`;
+
         if (p1) {{
             link.href = '/static/contract_plan1.pdf';
-            priceText.innerHTML = "До сплати: <b class='text-white'>20 000 ₴</b> <span class='small opacity-40 fw-500'>(11.000 + 9.000)</span>";
+            let origTotal1 = basePlan1 + setupPlan1;
+            let htmlPrice = finalDiscount1 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-5 me-2'>${{formatPrice(origTotal1)}} ₴</span>${{formatPrice(total1)}}` : `${{formatPrice(total1)}}`;
+            priceText.innerHTML = `До сплати: <b class='text-white'>${{htmlPrice}} ₴</b> <span class='small opacity-40 fw-500'>(${{formatPrice(finalBase1)}} + 9 000)</span>`;
         }} else {{
             link.href = '/static/contract_plan2.pdf';
-            priceText.innerHTML = "До сплати: <b class='text-white'>54 100 ₴</b> <span class='small opacity-40 fw-500'>(53.000 + 1.100)</span>";
+            let origTotal2 = basePlan2 + supportPlan2;
+            let htmlPrice = finalDiscount2 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-5 me-2'>${{formatPrice(origTotal2)}} ₴</span>${{formatPrice(total2)}}` : `${{formatPrice(total2)}}`;
+            priceText.innerHTML = `До сплати: <b class='text-white'>${{htmlPrice}} ₴</b> <span class='small opacity-40 fw-500'>(${{formatPrice(finalBase2)}} + 1 100)</span>`;
         }}
     }}
     document.addEventListener('DOMContentLoaded', () => {{
-        updatePlan();
         showPayment('iban');
+        updatePlan();
     }});
     </script>
     </body></html>"""
 
 
 @router.post("/register")
-async def register_post(name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), plan_type: str = Form("plan1"), receipt: UploadFile = File(...), nda_file: UploadFile = File(...), contract_file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def register_post(name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), plan_type: str = Form("plan1"), applied_promo: Optional[str] = Form(None), receipt: UploadFile = File(...), nda_file: UploadFile = File(...), contract_file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     existing = (await db.execute(select(User).where(User.username == phone))).scalar_one_or_none()
     if existing: return HTMLResponse("Цей номер вже зареєстровано. Поверніться назад.", status_code=400)
     
@@ -466,7 +584,25 @@ async def register_post(name: str = Form(...), phone: str = Form(...), password:
     f_contract = f"static/uploads/documents/contract_{int(datetime.now().timestamp())}.{contract_file.filename.split('.')[-1]}"
     with open(f_contract, "wb") as buffer: shutil.copyfileobj(contract_file.file, buffer)
         
-    nb = Business(name=name, type=type, retail_subcategory=retail_subcategory if type == 'retail' else None, plan_type=plan_type, contract_url=f"/{f_contract}", nda_url=f"/{f_nda}", is_active=False, payment_status="pending", receipt_url=f"/{f_receipt}")
+    settings = await db.scalar(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))
+    total_discount = 0
+    if settings:
+        total_discount += getattr(settings, 'plan1_discount', 0) if plan_type == 'plan1' else getattr(settings, 'plan2_discount', 0)
+        if applied_promo and settings.promo_code and applied_promo.upper() == settings.promo_code.upper():
+            is_valid = True
+            if settings.promo_expires_at and datetime.now(UA_TZ).replace(tzinfo=None) > settings.promo_expires_at:
+                is_valid = False
+            if settings.promo_target_plan not in ['all', plan_type]:
+                is_valid = False
+            if is_valid:
+                total_discount += getattr(settings, 'promo_discount', 0)
+    
+    total_discount = min(100, total_discount)
+    discount_ends_at = None
+    if total_discount > 0 and settings and getattr(settings, 'discount_duration_months', 0) > 0:
+        discount_ends_at = datetime.now(UA_TZ).replace(tzinfo=None) + timedelta(days=30 * settings.discount_duration_months)
+
+    nb = Business(name=name, type=type, retail_subcategory=retail_subcategory if type == 'retail' else None, plan_type=plan_type, contract_url=f"/{f_contract}", nda_url=f"/{f_nda}", is_active=False, payment_status="pending", receipt_url=f"/{f_receipt}", subscription_discount=total_discount, discount_ends_at=discount_ends_at)
     db.add(nb); await db.commit(); await db.refresh(nb)
     nu = User(username=phone, password=hash_password(password), role="owner", business_id=nb.id)
     db.add(nu); await db.commit()

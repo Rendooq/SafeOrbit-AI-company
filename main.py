@@ -116,7 +116,10 @@ async def startup():
             "ALTER TABLE global_payment_settings ADD COLUMN promo_expires_at TIMESTAMP;",
             "ALTER TABLE global_payment_settings ADD COLUMN discount_duration_months INTEGER DEFAULT 0;",
             "ALTER TABLE businesses ADD COLUMN subscription_discount INTEGER DEFAULT 0;",
-            "ALTER TABLE businesses ADD COLUMN discount_ends_at TIMESTAMP;"
+            "ALTER TABLE businesses ADD COLUMN discount_ends_at TIMESTAMP;",
+            "ALTER TABLE businesses ADD COLUMN utm_source TEXT;",
+            "ALTER TABLE businesses ADD COLUMN utm_medium TEXT;",
+            "ALTER TABLE businesses ADD COLUMN utm_campaign TEXT;"
         ]
         for query in migrations:
             try:

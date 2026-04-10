@@ -111,6 +111,9 @@ class Business(Base):
     smtp_username: Mapped[Optional[str]] = mapped_column(Text)
     smtp_password: Mapped[Optional[str]] = mapped_column(Text)
     smtp_sender: Mapped[Optional[str]] = mapped_column(Text)
+    utm_source: Mapped[Optional[str]] = mapped_column(Text)
+    utm_medium: Mapped[Optional[str]] = mapped_column(Text)
+    utm_campaign: Mapped[Optional[str]] = mapped_column(Text)
     # Payment settings for super admin configuration
     payment_iban: Mapped[Optional[str]] = mapped_column(Text)
     payment_qr_url: Mapped[Optional[str]] = mapped_column(Text)
@@ -258,6 +261,7 @@ class NPSReview(Base):
     review_text: Mapped[Optional[str]] = mapped_column(Text)
     is_alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    appointment = relationship("Appointment")
 
 
 class AppointmentConfirmation(Base):

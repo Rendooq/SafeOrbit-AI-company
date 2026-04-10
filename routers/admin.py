@@ -100,7 +100,21 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         return get_layout(content, user, "set")
 
     masters_html = ""
+    
+    reviews = (await db.execute(select(NPSReview).options(joinedload(NPSReview.appointment)).where(NPSReview.business_id == user.business_id))).scalars().all()
+    master_ratings = {}
+    master_review_counts = {}
+    for r in reviews:
+        if r.appointment and r.appointment.master_id:
+            m_id = r.appointment.master_id
+            master_ratings[m_id] = master_ratings.get(m_id, 0) + r.rating
+            master_review_counts[m_id] = master_review_counts.get(m_id, 0) + 1
+            
     for m in masters:
+        avg_rating = round(master_ratings[m.id] / master_review_counts[m.id], 1) if master_review_counts.get(m.id) else 0
+        count = master_review_counts.get(m.id, 0)
+        rating_html = f'<span class="badge bg-warning text-dark ms-2" title="Кількість відгуків: {count}"><i class="fas fa-star me-1" style="font-size:10px;"></i>{avg_rating}</span>' if count > 0 else '<span class="badge bg-secondary ms-2" style="opacity:0.5;" title="Немає відгуків"><i class="fas fa-star me-1" style="font-size:10px;"></i>-</span>'
+        
         acc_btn = ""
         if m.id in master_user_map:
             acc_btn = f'<span class="badge bg-success ms-2" title="Логін: {html.escape(master_user_map[m.id])}"><i class="fas fa-user-check"></i></span>'
@@ -108,7 +122,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
             acc_btn = f'<button type="button" class="btn btn-glass btn-sm ms-2" onclick="createMasterAccount({m.id}, \'{html.escape(m.name, quote=True)}\')" title="Створити акаунт"><i class="fas fa-user-plus text-primary"></i></button>'
             
         masters_html += f"""<li class='list-group-item bg-transparent border-0 d-flex justify-content-between align-items-center mb-3 glass-card p-3'>
-            <div><strong class="text-white">{html.escape(m.name)}</strong> <span class="badge bg-primary-glow ms-1" style="font-size: 0.7em;">{html.escape(m.role or 'Майстер')}</span>{acc_btn}<br><small class='text-muted'>{html.escape(', '.join([s.name for s in m.services]))}</small><br><small class="text-info opacity-75"><i class="fas fa-clock me-1"></i> {html.escape(m.working_hours or 'Загальний графік')}</small></div> 
+            <div><strong class="text-white">{html.escape(m.name)}</strong> {rating_html} <span class="badge bg-primary-glow ms-1" style="font-size: 0.7em;">{html.escape(m.role or 'Майстер')}</span>{acc_btn}<br><small class='text-muted'>{html.escape(', '.join([s.name for s in m.services]))}</small><br><small class="text-info opacity-75"><i class="fas fa-clock me-1"></i> {html.escape(m.working_hours or 'Загальний графік')}</small></div> 
             <form action='/admin/delete-master' method='post' style='display:inline'>
                 <input type='hidden' name='id' value='{m.id}'><button class='btn btn-glass btn-sm'><i class="fas fa-times text-danger"></i></button>
             </form>
@@ -340,10 +354,10 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         
         {branches_tab_content}
         
-        <div class="modal fade" id="createAccountModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal fade" id="createAccountModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
             <div class="modal-header"><h5 class="modal-title text-white">Акаунт співробітника</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-            <form action="/admin/create-master-account" method="post">
-                <div class="modal-body">
+            <form action="/admin/create-master-account" method="post" class="d-flex flex-column h-100">
+                <div class="modal-body overflow-y-auto">
                     <input type="hidden" name="id" id="accMasterId">
                     <p class="text-muted small mb-4">Створення доступу для: <strong id="accMasterName" class="text-white"></strong></p>
                     <div class="mb-3"><label class="form-label text-white">Логін (Телефон)</label><input name="login" class="glass-input" placeholder="+380..." required></div>
@@ -1035,17 +1049,17 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
     content = f"""
     <div class="glass-card p-4">
         <h5 class="fw-800 text-white mb-4"><i class="fas fa-users text-primary me-2"></i>База клієнтів</h5>
-        <div class="table-responsive">
+        <div class="table-responsive w-full overflow-x-auto whitespace-nowrap block">
             <table class="glass-table">
                 <thead><tr><th>ID</th><th>Ім'я</th><th>Телефон</th><th>Знижка</th><th>Статус</th><th>Нотатки</th><th class="text-end">Дії</th></tr></thead>
                 <tbody>{rows if rows else '<tr><td colspan="7" class="text-center py-5 text-muted">Клієнтів ще немає</td></tr>'}</tbody>
             </table>
         </div>
     </div>
-    <div class="modal fade" id="editCustomerModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="editCustomerModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title text-white">Редагування клієнта</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <form action="/admin/update-customer" method="post">
-            <div class="modal-body">
+        <form action="/admin/update-customer" method="post" class="d-flex flex-column h-100">
+            <div class="modal-body overflow-y-auto">
                 <input type="hidden" name="id" id="editCustId">
                 <div class="mb-3"><label class="form-label text-white">Ім'я</label><input name="name" id="editCustName" class="glass-input" required></div>
                 <div class="mb-3"><label class="form-label text-white">Телефон</label><input name="phone" id="editCustPhone" class="glass-input" required></div>
@@ -1188,7 +1202,7 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
         <div class="col-lg-7">
             <div class="glass-card p-4">
                 <h5 class="fw-800 text-white mb-4"><i class="fas fa-boxes-stacked text-success me-2"></i>Склад та Товари</h5>
-                <div class="table-responsive">
+                <div class="table-responsive w-full overflow-x-auto whitespace-nowrap block">
                     <table class="glass-table">
                         <thead><tr><th>Фото</th><th>Артикул</th><th>Назва</th><th>Варіанти</th><th>Загалом</th><th>Ціна</th><th class="text-end">Дії</th></tr></thead>
                         <tbody>{rows if rows else '<tr><td colspan="7" class="text-center py-5 text-muted">Товарів ще немає</td></tr>'}</tbody>
@@ -1235,7 +1249,7 @@ async def logs_page(user: User = Depends(get_current_user), db: AsyncSession = D
     content = f"""
     <div class="glass-card p-4">
         <h5 class="fw-800 text-white mb-4"><i class="fas fa-clock-rotate-left text-warning me-2"></i>Журнал подій</h5>
-        <div class="table-responsive">
+        <div class="table-responsive w-full overflow-x-auto whitespace-nowrap block">
             <table class="glass-table">
                 <thead><tr><th>Дата та час</th><th>Дія</th><th>Деталі</th></tr></thead>
                 <tbody>{rows if rows else '<tr><td colspan="3" class="text-center py-5 text-muted">Подій ще немає</td></tr>'}</tbody>

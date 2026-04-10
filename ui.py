@@ -46,7 +46,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     
     return f"""
     <!DOCTYPE html><html lang="uk"><head><meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SafeOrbit CRM | Premium B2B</title>
     <link rel="icon" href="/static/favicon.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -56,7 +56,8 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        *, *::before, *::after {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        html {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}
         
         :root {{
             --bg-primary: #0C051A;
@@ -77,16 +78,43 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             --blur: 40px;
         }}
         
+        /* Tailwind-like Utility Classes */
+        .w-full {{ width: 100% !important; max-width: 100% !important; }}
+        .max-w-md {{ max-width: 28rem !important; }} /* 448px */
+        .mx-auto {{ margin-left: auto !important; margin-right: auto !important; }}
+        .overflow-hidden {{ overflow: hidden !important; }}
+        .overflow-y-auto {{ overflow-y: auto !important; }}
+        .max-h-85vh {{ max-height: 85vh !important; }}
+        .whitespace-nowrap {{ white-space: nowrap !important; }}
+        .block {{ display: block !important; }}
+        .overflow-x-auto {{ overflow-x: auto !important; }}
+        .flex-col {{ flex-direction: column !important; }}
+
+        body.sidebar-hidden {{ padding-bottom: 0 !important; }}
+
         body {{
             font-family: 'Manrope', system-ui, -apple-system, sans-serif;
             background: var(--bg-primary);
             background-attachment: fixed;
             min-height: 100vh;
+            width: 100%;
+            max-width: 100vw;
+            margin: 0;
+            padding: 0;
             color: var(--text-primary);
             overflow-x: hidden;
             letter-spacing: -0.01em;
             position: relative;
         }}
+
+        .w-full {{ width: 100% !important; }}
+        .overflow-x-auto {{ overflow-x: auto !important; }}
+        .overflow-y-auto {{ overflow-y: auto !important; }}
+        .whitespace-nowrap {{ white-space: nowrap !important; }}
+        .block {{ display: block !important; }}
+        .max-w-md {{ max-width: 540px !important; }}
+        .mx-auto {{ margin-left: auto !important; margin-right: auto !important; }}
+        .max-h-85vh {{ max-height: 85vh !important; }}
 
         /* Premium Mesh Background */
         body::before {{
@@ -114,6 +142,11 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             display: flex;
             flex-direction: column;
             z-index: 1000;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }}
+        
+        .sidebar.hidden {{
+            transform: translateX(-100%);
         }}
         
         .sidebar-logo {{
@@ -144,6 +177,27 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             letter-spacing: -1px;
         }}
         
+        .sidebar-toggle-btn {{
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            margin-left: auto;
+        }}
+        
+        .sidebar-toggle-btn:hover {{
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            transform: scale(1.05);
+        }}
+
         .sidebar .nav-link {{
             display: flex;
             align-items: center;
@@ -195,6 +249,11 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             min-width: 0;
             flex: 1;
             position: relative;
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }}
+        
+        .main-content.expanded {{
+            margin-left: 0 !important;
         }}
         
         .top-header {{
@@ -204,6 +263,14 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             margin-bottom: 48px;
             padding-bottom: 24px;
             border-bottom: 1px solid var(--glass-border);
+        }}
+
+        .header-title-row {{
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-direction: row !important;
+            min-width: 0;
         }}
         
         .page-title {{
@@ -753,21 +820,31 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             margin-bottom: 0;
+            width: 100%;
+            min-width: 0;
         }}
-        
+
         .table-responsive::-webkit-scrollbar {{
             height: 4px;
         }}
-        
+
         .table-responsive::-webkit-scrollbar-thumb {{
             background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
+        }}
+
+        .table-responsive table {{
+            min-width: 100%;
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 12px;
         }}
 
         .glass-table {{
             width: 100%;
             border-collapse: separate;
             border-spacing: 0 12px;
+            min-width: 0;
         }}
         
         .glass-table th {{
@@ -778,7 +855,9 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             letter-spacing: 1px;
             color: rgba(255, 255, 255, 0.35);
             border: none;
-            white-space: nowrap;
+            white-space: normal;
+            word-break: break-word;
+            min-width: 0;
         }}
         
         .glass-table tr {{
@@ -786,44 +865,20 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         }}
         
         .glass-table td {{
-            padding: 18px 20px;
-            background: rgba(255, 255, 255, 0.02);
-            border-top: 1px solid var(--glass-border);
-            border-bottom: 1px solid var(--glass-border);
-            color: #FFFFFF;
-            font-size: 14px;
-        }}
-
-        .glass-table td:first-child {{
-            border-left: 1px solid var(--glass-border);
-            border-radius: 16px 0 0 16px;
-        }}
-
-        .glass-table td:last-child {{
-            border-right: 1px solid var(--glass-border);
-            border-radius: 0 16px 16px 0;
-        }}
-        
-        .glass-table tr:hover td {{
-            background: rgba(255, 255, 255, 0.04);
-            border-color: rgba(255, 255, 255, 0.12);
-        }}
-            transform: scale(1.008) translateY(-3px);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-        }}
-        
-        .glass-table td {{
             padding: 22px 24px;
+            background: rgba(255, 255, 255, 0.02);
             border-top: 0.5px solid var(--glass-border);
             border-bottom: 0.5px solid var(--glass-border);
             vertical-align: middle;
             color: rgba(255, 255, 255, 0.9);
             font-size: 14px;
             font-weight: 500;
-            max-width: 250px;
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap;
+            white-space: normal;
+            word-break: break-word;
+            min-width: 0;
+            overflow-wrap: anywhere;
         }}
         
         .glass-table td:first-child {{
@@ -831,11 +886,21 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             border-top-left-radius: 22px;
             border-bottom-left-radius: 22px;
         }}
-        
+
         .glass-table td:last-child {{
             border-right: 0.5px solid var(--glass-border);
             border-top-right-radius: 22px;
             border-bottom-right-radius: 22px;
+        }}
+        
+        .glass-table tr:hover td {{
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.12);
+        }}
+        
+        .glass-table tr:hover {{
+            transform: scale(1.008) translateY(-3px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
         }}
         
         /* Forms iOS 26 */
@@ -1156,168 +1221,392 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         .client-badge.regular {{ background: rgba(99, 102, 241, 0.1); color: #6366f1; }}
         .client-badge.new {{ background: rgba(16, 185, 129, 0.1); color: #10b981; }}
 
-        /* Mobile Adaptation iOS 26 */
-        @media (max-width: 991.98px) {{
-            .app-container {{
-                flex-direction: column;
-                padding: 10px;
-                gap: 12px;
+        @media (min-width: 1200px) {{
+            body:not(.sidebar-hidden) .sidebar-open-btn {{
+                display: none !important;
             }}
-            
-            .sidebar {{
+        }}
+
+        /* 📱 ЧИСТА ТА СТАБІЛЬНА МОБІЛЬНА АДАПТАЦІЯ */
+        @media (max-width: 1199px) {{
+            .sidebar-toggle-btn {{ display: none !important; }}
+            .sidebar {{ width: 100px; padding: 20px 10px; }}
+            .sidebar-logo .logo-text {{ display: none; }}
+            .sidebar-logo {{ justify-content: center; margin-bottom: 30px; }}
+            .sidebar .nav-link {{ flex-direction: column; text-align: center; padding: 12px 5px; gap: 6px; margin-bottom: 10px; }}
+            .sidebar .nav-link i {{ font-size: 22px; width: auto; margin: 0; }}
+            .sidebar .nav-link span {{ font-size: 10px; display: block; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 100%; line-height: 1.2; }}
+            .sidebar .nav-link.active::before {{ display: none; }}
+            .main-content {{ margin-left: 100px; padding: 30px 20px; }}
+        }}
+
+        @media (max-width: 767.98px) {{
+            * {{
+                box-sizing: border-box !important;
+            }}
+
+            html, body {{
+                overflow-x: hidden !important;
                 width: 100% !important;
-                min-width: 100% !important;
-                height: auto !important;
-                position: sticky !important;
+                max-width: 100vw !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }}
+
+            body {{
+                padding-bottom: 0 !important;
+                background-attachment: scroll !important;
+            }}
+
+            .app-container {{
+                display: block !important;
+                padding: 0 !important;
+                gap: 0 !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+                overflow-x: hidden !important;
+            }}
+
+            .sidebar {{
+                position: fixed !important;
                 top: 0 !important;
-                padding: 12px 16px !important;
-                flex-direction: row !important;
-                overflow-x: auto;
-                border-radius: 20px !important;
-                margin-bottom: 0;
-                z-index: 1000;
-                background: rgba(20, 20, 25, 0.9);
-            }}
-            
-            .sidebar::-webkit-scrollbar {{
-                display: none;
-            }}
-            
-            .sidebar-logo {{
-                margin-bottom: 0 !important;
-                margin-right: 20px;
-                padding: 0 !important;
-                gap: 10px;
-            }}
-            
-            .logo-icon {{
-                width: 36px;
-                height: 36px;
-                font-size: 16px;
-            }}
-            
-            .logo-text {{
-                font-size: 18px;
-                display: none;
-            }}
-            
-            .sidebar .nav-link {{
-                margin-bottom: 0 !important;
-                margin-right: 6px;
-                padding: 10px 14px !important;
-                font-size: 13px;
-                white-space: nowrap;
-                gap: 8px;
-            }}
-            
-            .sidebar .nav-link i {{
-                font-size: 16px;
-                width: auto;
-            }}
-            
-            .main-content {{
-                padding: 0 !important;
-                gap: 12px;
-            }}
-            
-            .top-header {{
-                padding: 16px 20px !important;
-                border-radius: 20px !important;
-                margin-bottom: 12px;
-                flex-direction: column;
+                left: 0 !important;
+                bottom: 0 !important;
+                width: 280px !important;
+                height: 100vh !important;
+                flex-direction: column !important;
+                justify-content: flex-start !important;
                 align-items: stretch !important;
-                gap: 16px;
+                padding: 30px 20px !important;
+                background: #0C051A !important;
+                border-right: 1px solid var(--glass-border) !important;
+                z-index: 2000 !important;
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             }}
-            
+
+            .sidebar.mobile-open {{
+                transform: translateX(0) !important;
+            }}
+
+            .sidebar-logo {{ display: flex !important; margin-bottom: 30px !important; }}
+            .sidebar-logo .logo-text {{ display: block !important; }}
+            .sidebar-toggle-btn {{ display: flex !important; margin-left: auto !important; }}
+
+            .sidebar > div:last-child {{ display: block !important; margin-top: auto !important; }}
+
+            .sidebar .nav-link {{
+                flex: 0 0 auto !important;
+                flex-direction: row !important;
+                width: 100% !important;
+                padding: 14px 18px !important;
+                margin-bottom: 8px !important;
+                border-radius: 16px !important;
+                text-align: left !important;
+            }}
+            .sidebar .nav-link span {{
+                display: inline-block !important;
+                font-size: 15px !important;
+            }}
+
+            .main-content {{
+                margin-left: 0 !important;
+                padding: 20px 12px 40px !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+                overflow-x: hidden !important;
+            }}
+
+            .top-header {{
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 15px !important;
+                margin-bottom: 25px !important;
+                padding-bottom: 15px !important;
+            }}
+
+        .top-header > div[style], .top-header > div:not(.header-title-row) {{
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+                width: 100% !important;
+            }}
+        .header-title-row {{ width: 100% !important; }}
+
+            .page-title {{
+                font-size: 24px !important;
+                text-align: left !important;
+            }}
+
             .search-box {{
                 width: 100% !important;
+                max-width: 100% !important;
             }}
-            
+
+            .search-box input {{ width: 100% !important; }}
+
             .user-pill {{
-                width: 100%;
-                justify-content: flex-start;
-                padding: 4px 4px 4px 12px;
-            }}
-            
-            .user-info {{
-                flex: 1;
-            }}
-            
-            .dashboard-stats {{
-                grid-template-columns: repeat(2, 1fr) !important;
-                gap: 10px !important;
-                margin-bottom: 12px;
-            }}
-            
-            .stat-card {{
-                padding: 12px 14px !important;
-                min-height: 80px;
-            }}
-            
-            .stat-icon {{
-                width: 44px !important;
-                height: 44px !important;
-                font-size: 18px !important;
-                border-radius: 14px;
-            }}
-            
-            .stat-info .stat-value {{
-                font-size: 18px;
-            }}
-            
-            .glass-card, .custom-calendar {{
-                padding: 16px !important;
-                border-radius: 20px !important;
-            }}
-            
-            .card-header {{
-                margin-bottom: 20px;
-            }}
-            
-            .card-title {{
-                font-size: 18px;
-            }}
-            
-            .integration-selector {{
-                grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
-                gap: 8px !important;
-            }}
-            
-            .integration-pill {{
                 width: 100% !important;
-                height: 64px !important;
-                border-radius: 18px !important;
-                padding: 8px !important;
+                justify-content: space-between !important;
+                padding: 8px 12px !important;
             }}
-            
-            .integration-pill-text {{
-                font-size: 9px !important;
-            }}
-            
-            .modal-content {{
-                border-radius: 24px !important;
-            }}
-            
-            .modal-header, .modal-body, .modal-footer {{
-                padding: 20px !important;
-            }}
-            
-            .btn-glass, .btn-primary-glow {{
-                padding: 10px 16px !important;
-                font-size: 13px !important;
-                border-radius: 14px !important;
-            }}
-        }}
-        
-        @media (max-width: 575.98px) {{
+
+            .user-info {{ display: block !important; }}
+
             .dashboard-stats {{
                 grid-template-columns: 1fr !important;
+                gap: 12px !important;
+                margin-bottom: 20px !important;
+                width: 100% !important;
             }}
-            
-            .sidebar-logo span {{
-                display: none;
+
+            .stat-card {{
+                padding: 15px 12px !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 12px !important;
+                border-radius: 20px !important;
+                width: 100% !important;
+            }}
+
+            .stat-icon {{
+                width: 42px !important;
+                height: 42px !important;
+                font-size: 16px !important;
+                margin: 0 !important;
+            }}
+
+            .stat-value {{ font-size: 18px !important; }}
+
+            .glass-card, .custom-calendar {{
+                padding: 15px !important;
+                border-radius: 24px !important;
+                margin-bottom: 16px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow: hidden !important;
+            }}
+
+            .table-responsive {{
+                border-radius: 12px !important;
+                margin: 0 !important;
+                width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                display: block !important;
+                white-space: nowrap !important;
+                min-width: 0 !important;
+            }}
+
+            .table-responsive table {{
+                width: auto !important;
+                min-width: 100% !important;
+                border-collapse: separate !important;
+            }}
+
+            .glass-table {{
+                min-width: 100% !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                table-layout: auto !important;
+            }}
+
+            .glass-table th, .glass-table td {{
+                padding: 12px 10px !important;
+                font-size: 13px !important;
+                white-space: nowrap !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+            }}
+
+            .modal {{
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                margin: 0 !important;
+                padding: 16px 0 !important;
+                z-index: 1055 !important;
+                overflow-x: hidden !important;
+            }}
+
+            .modal-dialog {{
+                width: 95% !important;
+                max-width: 540px !important;
+                margin: 0 auto !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }}
+
+            .modal-content {{
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: 85vh !important;
+                margin: 0 auto !important;
+                border-radius: 24px !important;
+                border: none !important;
+                overflow: hidden !important;
+            }}
+
+            .modal-body {{
+                max-height: calc(85vh - 140px) !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+            }}
+
+            .modal .d-flex {{
+                flex-direction: column !important;
+                gap: 12px !important;
+            }}
+
+            .modal .d-flex > * {{
+                width: 100% !important;
+                min-width: 0 !important;
+            }}
+
+            .modal .row {{
+                width: 100% !important;
+            }}
+
+            .modal .col-md-6, .modal .col-lg-6, .modal .col-md-4, .modal .col-lg-4 {{
+                width: 100% !important;
+                max-width: 100% !important;
+            }}
+
+            input, textarea, select, .form-control, .form-select, .glass-input {{
+                width: 100% !important;
+                max-width: 100% !important;
+                min-height: 44px !important;
+                font-size: 16px !important;
+                padding: 12px 16px !important;
+                border-radius: 16px !important;
+            }}
+
+            button, .btn, .btn-glass, .btn-primary-glow {{
+                width: 100% !important;
+                min-height: 44px !important;
+                font-size: 14px !important;
+                padding: 12px 20px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                margin: 0 !important;
+            }}
+
+            .nav-pills {{
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+                width: 100% !important;
+            }}
+
+            .nav-pills .nav-link {{
+                flex: 1 1 auto !important;
+                min-width: 120px !important;
+            }}
+
+            .integration-selector {{
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
+                gap: 8px !important;
+            }}
+
+            .integration-pill {{
+                min-width: 100px !important;
+                height: 60px !important;
+                padding: 8px !important;
+            }}
+
+            .integration-pill-text {{ font-size: 10px !important; }}
+
+            .calendar-month-year {{
+                flex-direction: column !important;
+                gap: 16px !important;
+                text-align: center !important;
+            }}
+
+            .weekdays {{ font-size: 10px !important; }}
+            .day {{ font-size: 14px !important; }}
+
+            .chat-bubble {{
+                max-width: 85% !important;
+                font-size: 14px !important;
+            }}
+
+            .stat-card {{
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 12px !important;
+                padding: 16px !important;
+            }}
+
+            .stat-icon {{
+                width: 48px !important;
+                height: 48px !important;
+                font-size: 20px !important;
+            }}
+
+            .stat-value {{ font-size: 20px !important; }}
+
+            .client-item {{
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 8px !important;
+                padding: 12px !important;
+            }}
+
+            .client-avatar {{
+                width: 40px !important;
+                height: 40px !important;
+                font-size: 12px !important;
+            }}
+
+            .modal-backdrop, .modal-backdrop.show {{
+                width: 100vw !important;
+                left: 0 !important;
+                right: 0 !important;
+            }}
+
+            .modal-open {{
+                overflow: hidden !important;
+            }}
+
+            .row {{
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                width: 100% !important;
+            }}
+
+            .row > * {{
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }}
+
+        .sidebar .nav-link span {{
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                display: block !important;
+        }}
+
+            .flex-grow-1, .min-w-0 {{ min-width: 0 !important; }}
+
+            .app-container, .sidebar, .main-content, .glass-card, .modal, .modal-content {{
+                overflow-x: hidden !important;
+                max-width: 100vw !important;
             }}
         }}
+
+        @media (max-width: 375px) {{
+            .sidebar .nav-link {{ width: 65px !important; padding: 6px 2px !important; }}
+            .page-title {{ font-size: 22px !important; }}
+            .search-box input {{ font-size: 14px !important; }}
+        }}
+
     </style></head>
     <body>
     <div class="app-container">
@@ -1325,6 +1614,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             <div class="sidebar-logo">
                 <div class="logo-icon"><i class="fas fa-bolt"></i></div>
                 <span class="logo-text">SafeOrbit</span>
+                <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Сховати панель"><i class="fas fa-chevron-left"></i></button>
             </div>
             <nav class="flex-grow-1">{menu_html}</nav>
             <div style="padding-top: 20px; border-top: 0.5px solid var(--glass-border); margin-top: 20px;">
@@ -1334,10 +1624,11 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         
         <main class="main-content">
             <div class="top-header">
-                <div>
-                    <h1 class="page-title">{ 'Аналітика' if active in ['super', 'dash'] else ('Конфігурація' if active == 'set' else ('Склад' if active == 'fin' else (l['clients'] if active == 'cust' else ('AI Сервіс' if active == 'gen' else ('Інтелектуальний Асистент' if active == 'bot' else ('Журнал подій' if active == 'logs' else ('Комунікації' if active == 'chats' else ('Підтримка' if active == 'help' else 'Панель')))))))) }</h1>
+                <div class="header-title-row">
+                    <button class="btn-glass sidebar-open-btn" onclick="toggleSidebar()" style="padding: 10px 14px; border-radius: 12px; height: 44px; width: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;"><i class="fas fa-bars"></i></button>
+                    <h1 class="page-title text-truncate">{ 'Аналітика' if active in ['super', 'dash'] else ('Конфігурація' if active == 'set' else ('Склад' if active == 'fin' else (l['clients'] if active == 'cust' else ('AI Сервіс' if active == 'gen' else ('Інтелектуальний Асистент' if active == 'bot' else ('Журнал подій' if active == 'logs' else ('Комунікації' if active == 'chats' else ('Підтримка' if active == 'help' else 'Панель')))))))) }</h1>
                 </div>
-                <div style="display: flex; align-items: center; gap: 20px;">
+                <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
                     <div class="search-box">
                         <i class="fas fa-magnifying-glass"></i>
                         <input type="text" id="globalSearch" placeholder="Пошук..." autocomplete="off">
@@ -1453,6 +1744,16 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
                 if (row) row.scrollIntoView({{behavior: 'smooth'}});
             }}
             searchResults.classList.remove('active');
+        }}
+        
+        function toggleSidebar() {{
+            if (window.innerWidth <= 767.98) {{
+                document.querySelector('.sidebar').classList.toggle('mobile-open');
+            }} else {{
+                document.querySelector('.sidebar').classList.toggle('hidden');
+                document.querySelector('.main-content').classList.toggle('expanded');
+                document.body.classList.toggle('sidebar-hidden');
+            }}
         }}
         
         document.addEventListener("DOMContentLoaded", async () => {{

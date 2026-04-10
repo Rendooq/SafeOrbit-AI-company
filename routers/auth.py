@@ -20,7 +20,7 @@ router = APIRouter(tags=["Authentication"])
 
 
 @router.get("/register", response_class=HTMLResponse)
-async def register_page(db: AsyncSession = Depends(get_db)):
+async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     # Load global payment settings
     settings = await db.scalar(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))
     if not settings:
@@ -61,12 +61,19 @@ async def register_page(db: AsyncSession = Depends(get_db)):
     p1_badge = f"<span class='badge bg-danger ms-2'>-{plan1_discount}%</span>" if plan1_discount > 0 else ""
     p2_badge = f"<span class='badge bg-danger ms-2'>-{plan2_discount}%</span>" if plan2_discount > 0 else ""
 
+    utm_s = html.escape(request.query_params.get('utm_source', ''))
+    utm_m = html.escape(request.query_params.get('utm_medium', ''))
+    utm_c = html.escape(request.query_params.get('utm_campaign', ''))
+
     return f"""<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Реєстрація | SafeOrbit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="icon" href="/static/favicon.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+    *, *::before, *::after {{ box-sizing: border-box; }}
+    html, body {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}
     :root {{
         --bg-primary: #000000;
         --accent-primary: #BB86FC; /* Softer, slightly brighter purple */
@@ -567,7 +574,7 @@ async def register_page(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/register")
-async def register_post(name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), plan_type: str = Form("plan1"), applied_promo: Optional[str] = Form(None), receipt: UploadFile = File(...), nda_file: UploadFile = File(...), contract_file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def register_post(name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), plan_type: str = Form("plan1"), applied_promo: Optional[str] = Form(None), utm_source: Optional[str] = Form(None), utm_medium: Optional[str] = Form(None), utm_campaign: Optional[str] = Form(None), receipt: UploadFile = File(...), nda_file: UploadFile = File(...), contract_file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     existing = (await db.execute(select(User).where(User.username == phone))).scalar_one_or_none()
     if existing: return HTMLResponse("Цей номер вже зареєстровано. Поверніться назад.", status_code=400)
     
@@ -602,7 +609,7 @@ async def register_post(name: str = Form(...), phone: str = Form(...), password:
     if total_discount > 0 and settings and getattr(settings, 'discount_duration_months', 0) > 0:
         discount_ends_at = datetime.now(UA_TZ).replace(tzinfo=None) + timedelta(days=30 * settings.discount_duration_months)
 
-    nb = Business(name=name, type=type, retail_subcategory=retail_subcategory if type == 'retail' else None, plan_type=plan_type, contract_url=f"/{f_contract}", nda_url=f"/{f_nda}", is_active=False, payment_status="pending", receipt_url=f"/{f_receipt}", subscription_discount=total_discount, discount_ends_at=discount_ends_at)
+    nb = Business(name=name, type=type, retail_subcategory=retail_subcategory if type == 'retail' else None, plan_type=plan_type, contract_url=f"/{f_contract}", nda_url=f"/{f_nda}", is_active=False, payment_status="pending", receipt_url=f"/{f_receipt}", subscription_discount=total_discount, discount_ends_at=discount_ends_at, utm_source=utm_source, utm_medium=utm_medium, utm_campaign=utm_campaign)
     db.add(nb); await db.commit(); await db.refresh(nb)
     nu = User(username=phone, password=hash_password(password), role="owner", business_id=nb.id)
     db.add(nu); await db.commit()
@@ -626,14 +633,70 @@ async def register_post(name: str = Form(...), phone: str = Form(...), password:
     return RedirectResponse(f"/pending-activation/{nb.id}", status_code=303)
 
 
+@router.get("/pending-activation/{id}", response_class=HTMLResponse)
+async def pending_activation_page(id: int, db: AsyncSession = Depends(get_db)):
+    biz = await db.get(Business, id)
+    if not biz:
+        return RedirectResponse("/", status_code=303)
+        
+    if biz.payment_status == 'rejected':
+        title = "Заявку Відхилено"
+        icon = "fa-times-circle"
+        color = "danger"
+        reason_html = f"<div class='p-3 mb-4 rounded-3' style='background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); text-align: left;'><strong class='text-danger d-block mb-1'>Причина відмови:</strong><span class='text-white-50'>{html.escape(biz.admin_message or 'Не вказана')}</span></div>"
+        desc = "На жаль, вашу заявку на реєстрацію було відхилено. Ви можете звернутися до підтримки для вирішення проблеми."
+    elif biz.payment_status == 'approved':
+        title = "Акаунт Активовано"
+        icon = "fa-check-circle"
+        color = "success"
+        reason_html = ""
+        desc = "Вашу заявку успішно схвалено! Тепер ви можете увійти в свій особистий кабінет."
+    else:
+        title = "Заявку прийнято"
+        icon = "fa-clock"
+        color = "warning"
+        reason_html = ""
+        desc = "Ваш акаунт наразі перевіряється адміністратором. Ви зможете увійти в систему після підтвердження."
+
+    return HTMLResponse(f"""<!DOCTYPE html><html data-bs-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>{title}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+    *, *::before, *::after {{ box-sizing: border-box; }}
+    html, body {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}
+    body {{ background: #0b0b0f; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; color: #ffffff; padding: 20px; }}
+    .auth-card {{ max-width: 500px; width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); backdrop-filter: blur(20px); padding: 3rem; border-radius: 32px; margin: auto; }}
+    @media (max-width: 768px) {{
+        .auth-card {{ padding: 2rem 1.5rem; border-radius: 24px; }}
+        .btn {{ width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; }}
+    }}
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet"></head>
+    <body><div class="text-center auth-card">
+        <div class="mb-4"><span class="fa-stack fa-3x"><i class="fas fa-circle fa-stack-2x text-{color} opacity-25"></i><i class="fas {icon} fa-stack-1x text-{color}"></i></span></div>
+        <h2 class="fw-800 text-white mb-3">{title}</h2>
+        <p class="text-white-50 mb-4">{desc}</p>
+        {reason_html}
+        <a href="/" class="btn btn-outline-{color} px-5 py-2 rounded-pill fw-bold">На головну</a>
+    </div>
+    <script>
+        // Автоматично оновлюємо сторінку кожні 10 секунд, якщо заявка ще на розгляді
+        if ("{biz.payment_status}" === "pending") {{
+            setTimeout(() => window.location.reload(), 10000);
+        }}
+    </script>
+    </body></html>""")
+
 @router.get("/", response_class=HTMLResponse)
 async def login_page():
-    return """<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Вхід | SafeOrbit</title>
+    return """<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Вхід | SafeOrbit</title>
     <link rel="icon" href="/static/favicon.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }
     :root {
         --bg-primary: #000000;
         --accent-primary: #af85ff;
@@ -807,8 +870,16 @@ async def login_page():
     }
     .text-link:hover { color: #ffffff; }
 
-    @media (max-width: 480px) {{ 
-        .login-card {{ padding: 3.5rem 2rem; border-radius: 40px; }}
+    @media (max-width: 768px) {{ 
+        body {{ padding: 20px 10px; }}
+        .register-card {{ padding: 2rem 1.5rem; border-radius: 32px; width: 100%; max-width: 100vw; overflow: hidden; margin: 0; }}
+        .row {{ --bs-gutter-x: 1rem; --bs-gutter-y: 1rem; }}
+        .doc-box, .payment-alert {{ padding: 1.5rem 1rem; border-radius: 24px; }}
+        .btn-primary-glow, .btn-secondary-glass {{ width: 100%; display: block; min-height: 44px; display: flex; align-items: center; justify-content: center; }}
+        .input-group {{ flex-wrap: wrap; }}
+        .input-group > input {{ border-radius: 22px !important; margin-bottom: 10px; width: 100% !important; border-right: 0.5px solid var(--glass-border) !important; }}
+        .input-group > button {{ border-radius: 22px !important; width: 100% !important; margin-left: 0 !important; }}
+        .form-control, .form-select {{ min-height: 44px; }}
     }}
     </style></head>
     <body>
@@ -858,6 +929,48 @@ async def login_demo(request: Request, db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(User).where(User.username == "+380999999999"))
     user = res.scalar_one_or_none()
     if user:
+        biz = user.business
+        if biz.payment_status == 'rejected':
+            title = "Заявку Відхилено"
+            icon = "fa-times-circle"
+            color = "danger"
+            reason_html = f"<div class='p-3 mb-4 rounded-3' style='background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); text-align: left;'><strong class='text-danger d-block mb-1'>Причина відмови:</strong><span class='text-white-50'>{html.escape(biz.admin_message or 'Не вказана')}</span></div>"
+            desc = "На жаль, вашу заявку на реєстрацію було відхилено. Ви можете звернутися до підтримки для вирішення проблеми."
+        elif biz.payment_status == 'pending':
+            title = "Очікує Активації"
+            icon = "fa-clock"
+            color = "warning"
+            reason_html = ""
+            desc = "Ваша заявка успішно надіслана та наразі перевіряється адміністратором. Будь ласка, зачекайте на підтвердження."
+        else:
+            title = "Акаунт Заблоковано"
+            icon = "fa-lock"
+            color = "danger"
+            reason_html = ""
+            desc = "Доступ до вашого акаунту тимчасово призупинено.<br>Зверніться до адміністратора."
+
+        return HTMLResponse(f"""<!DOCTYPE html><html data-bs-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>{title}</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+        *, *::before, *::after {{ box-sizing: border-box; }}
+        html, body {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}
+        body {{ background: #0b0b0f; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; color: #ffffff; padding: 20px; }}
+        .auth-card {{ max-width: 500px; width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); backdrop-filter: blur(20px); padding: 3rem; border-radius: 32px; margin: auto; }}
+        @media (max-width: 768px) {{
+            .auth-card {{ padding: 2rem 1.5rem; border-radius: 24px; }}
+            .btn {{ width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; }}
+        }}
+        </style>
+        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet"></head>
+        <body><div class="text-center auth-card">
+            <div class="mb-4"><span class="fa-stack fa-3x"><i class="fas fa-circle fa-stack-2x text-{color} opacity-25"></i><i class="fas {icon} fa-stack-1x text-{color}"></i></span></div>
+            <h2 class="fw-800 text-white mb-3">{title}</h2>
+            <p class="text-white-50 mb-4">{desc}</p>
+            {reason_html}
+            <a href="/" class="btn btn-outline-{color} px-5 py-2 rounded-pill fw-bold">Повернутися</a>
+        </div></body></html>""", status_code=403)
+
         request.session["user_id"] = user.id
         return RedirectResponse("/admin", status_code=303)
     return RedirectResponse("/", status_code=303)
@@ -871,16 +984,46 @@ async def login(request: Request, username: str = Form(...), password: str = For
     if not user: return RedirectResponse("/", status_code=303)
     if not verify_password(password, user.password): return RedirectResponse("/", status_code=303)
     if user.role == "owner" and user.business and not user.business.is_active:
-        return HTMLResponse("""<!DOCTYPE html><html><head><meta charset="utf-8"><title>Блокування</title>
+        biz = user.business
+        if biz.payment_status == 'rejected':
+            title = "Заявку Відхилено"
+            icon = "fa-times-circle"
+            color = "danger"
+            reason_html = f"<div class='p-3 mb-4 rounded-3' style='background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); text-align: left;'><strong class='text-danger d-block mb-1'>Причина відмови:</strong><span class='text-white-50'>{html.escape(biz.admin_message or 'Не вказана')}</span></div>"
+            desc = "На жаль, вашу заявку на реєстрацію було відхилено. Ви можете звернутися до підтримки для вирішення проблеми."
+        elif biz.payment_status == 'pending':
+            title = "Очікує Активації"
+            icon = "fa-clock"
+            color = "warning"
+            reason_html = ""
+            desc = "Ваша заявка успішно надіслана та наразі перевіряється адміністратором. Будь ласка, зачекайте на підтвердження."
+        else:
+            title = "Акаунт Заблоковано"
+            icon = "fa-lock"
+            color = "danger"
+            reason_html = ""
+            desc = "Доступ до вашого акаунту тимчасово призупинено.<br>Зверніться до адміністратора."
+
+        return HTMLResponse(f"""<!DOCTYPE html><html data-bs-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>{title}</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <style>body {{ background: #fef2f2; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.02em; }}</style>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet"></head>
-        <body><div class="text-center p-5 bg-white shadow rounded-4" style="max-width: 500px;">
-            <div class="mb-4"><span class="fa-stack fa-3x"><i class="fas fa-circle fa-stack-2x text-danger opacity-25"></i><i class="fas fa-lock fa-stack-1x text-danger"></i></span></div>
-            <h2 class="fw-bold text-dark mb-3">Акаунт Заблоковано</h2>
-            <p class="text-muted mb-4">Доступ до вашого акаунту тимчасово призупинено.<br>Зверніться до адміністратора.</p>
-            <a href="/" class="btn btn-outline-danger px-4 rounded-pill">Повернутися</a>
+        <style>
+        *, *::before, *::after {{ box-sizing: border-box; }}
+        html, body {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}
+        body {{ background: #0b0b0f; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Manrope', sans-serif; letter-spacing: -0.02em; color: #ffffff; padding: 20px; }}
+        .auth-card {{ max-width: 500px; width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); backdrop-filter: blur(20px); padding: 3rem; border-radius: 32px; margin: auto; }}
+        @media (max-width: 768px) {{
+            .auth-card {{ padding: 2rem 1.5rem; border-radius: 24px; }}
+            .btn {{ width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; }}
+        }}
+        </style>
+        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet"></head>
+        <body><div class="text-center auth-card">
+            <div class="mb-4"><span class="fa-stack fa-3x"><i class="fas fa-circle fa-stack-2x text-{color} opacity-25"></i><i class="fas {icon} fa-stack-1x text-{color}"></i></span></div>
+            <h2 class="fw-800 text-white mb-3">{title}</h2>
+            <p class="text-white-50 mb-4">{desc}</p>
+            {reason_html}
+            <a href="/" class="btn btn-outline-{color} px-5 py-2 rounded-pill fw-bold">Повернутися</a>
         </div></body></html>""", status_code=403)
     
     request.session["user_id"] = user.id

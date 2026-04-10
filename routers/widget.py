@@ -53,6 +53,8 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        *, *::before, *::after {{ box-sizing: border-box; }}
+        html, body {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}
         :root {{ 
             --accent-primary: #af85ff;
             --accent-pink: #f472b6;
@@ -243,9 +245,12 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
         .toast-msg.error {{ background: #ef4444; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); }}
         
         @media (max-width: 480px) {{ 
-            .glass-card {{ border-radius: 24px; padding: 1.25rem; margin-bottom: 1rem; }}
-            .header-block {{ padding: 2.5rem 1rem 1.5rem; border-bottom-left-radius: 32px; border-bottom-right-radius: 32px; margin-bottom: 1.5rem; }}
-            .avatar-wrapper {{ width: 72px; height: 72px; font-size: 30px; border-radius: 22px; }}
+            .booking-container {{ padding: 0 10px; width: 100%; max-width: 100vw; overflow-x: hidden; }}
+            .glass-card {{ border-radius: 24px; padding: 1.25rem 1rem; margin-bottom: 1rem; width: 100%; }}
+            .header-block {{ padding: 2rem 1rem 1.5rem; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; margin-bottom: 1rem; width: 100%; }}
+            .avatar-wrapper {{ width: 64px; height: 64px; font-size: 28px; border-radius: 20px; }}
+            .btn-super {{ min-height: 48px; display: flex; align-items: center; justify-content: center; }}
+            .input-modern {{ min-height: 44px; }}
         }}
     </style></head>
     <body>

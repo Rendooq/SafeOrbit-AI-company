@@ -75,7 +75,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         date_str = pl.payment_date.strftime('%d.%m.%Y')
         payment_rows += f"<tr class='payment-row'><td>{date_str}</td><td><div class='fw-bold'>{b_name}</div></td><td class='fw-bold text-success'>{int(pl.amount or 0)} грн</td><td>{rec_link}</td><td class='small text-muted'>{html.escape(pl.notes or '')}</td><td class='text-end'><button class='btn btn-sm btn-outline-danger' onclick='deletePayment({pl.id})' title='Видалити платіж'><i class='fas fa-trash'></i></button></td></tr>"
 
-    pending_bizs = [b for b in bizs if getattr(b, 'payment_status', 'approved') == 'pending' and not b.parent_id]
+    pending_bizs = [b for b in bizs if getattr(b, 'payment_status', 'approved') in ['pending', 'rejected'] and not b.parent_id]
     approved_bizs = [b for b in bizs if getattr(b, 'payment_status', 'approved') == 'approved']
 
     pending_rows = ""
@@ -88,7 +88,16 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         receipt_html = f"<a href='{b.receipt_url}' target='_blank' class='btn btn-sm btn-outline-info'><i class='fas fa-receipt'></i> Чек</a>" if getattr(b, 'receipt_url', None) else ""
         nda_html = f"<a href='{b.nda_url}' target='_blank' class='btn btn-sm btn-outline-primary'><i class='fas fa-file-signature'></i> NDA</a>" if getattr(b, 'nda_url', None) else ""
         contract_html = f"<a href='{b.contract_url}' target='_blank' class='btn btn-sm btn-outline-success'><i class='fas fa-file-contract'></i> Договір</a>" if getattr(b, 'contract_url', None) else ""
-        pending_rows += f"<tr class='align-middle'><td><span class='text-muted'>#{b.id}</span></td><td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small></td><td>{plan_badge}</td><td><div class='d-flex gap-1'>{receipt_html}{nda_html}{contract_html}</div></td><td class='text-end'><form action='/superadmin/approve-payment/{b.id}' method='post' class='d-inline'><button class='btn btn-sm btn-success me-2'><i class='fas fa-check me-1'></i>Схвалити</button></form><button type='button' class='btn btn-sm btn-danger' onclick='rejectPayment({b.id})'><i class='fas fa-times'></i></button></td></tr>"
+        utm_info = f"<br><span class='badge bg-light text-dark mt-1' style='font-size:9px;' title='Кампанія: {html.escape(b.utm_campaign or '')}'><i class='fas fa-link'></i> {html.escape(b.utm_source)} / {html.escape(b.utm_medium or '')}</span>" if getattr(b, 'utm_source', None) else ""
+        
+        if b.payment_status == 'rejected':
+            status_html = f"{plan_badge}<br><span class='badge bg-danger mt-1'>Відхилено</span><br><small class='text-muted' style='font-size:10px;'>{html.escape(b.admin_message or '')}</small>"
+            actions_html = f"<form action='/superadmin/approve-payment/{b.id}' method='post' class='d-inline'><button class='btn btn-sm btn-success me-2' title='Схвалити'><i class='fas fa-check'></i></button></form><button type='button' class='btn btn-sm btn-outline-danger' onclick='deleteBiz({b.id})' title='Видалити остаточно'><i class='fas fa-trash'></i></button>"
+        else:
+            status_html = plan_badge
+            actions_html = f"<form action='/superadmin/approve-payment/{b.id}' method='post' class='d-inline'><button class='btn btn-sm btn-success me-2'><i class='fas fa-check me-1'></i>Схвалити</button></form><button type='button' class='btn btn-sm btn-danger' onclick='rejectPayment({b.id})'><i class='fas fa-times'></i></button>"
+            
+        pending_rows += f"<tr class='align-middle'><td><span class='text-muted'>#{b.id}</span></td><td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small>{utm_info}</td><td>{status_html}</td><td><div class='d-flex gap-1'>{receipt_html}{nda_html}{contract_html}</div></td><td class='text-end'>{actions_html}</td></tr>"
 
     active_rows = ""
     docs_rows = ""
@@ -99,6 +108,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
                 d_end_str = b.discount_ends_at.strftime('%d.%m.%Y') if getattr(b, 'discount_ends_at', None) else 'назавжди'
                 plan_badge += f" <span class='badge bg-danger' title='Знижка діє до {d_end_str}'>-{b.subscription_discount}%</span>"
         parent_tag = "<br><span class='badge bg-info bg-opacity-10 text-info mt-1'><i class='fas fa-code-branch me-1'></i>Філія</span>" if b.parent_id else ""
+        utm_info = f"<br><span class='badge bg-light text-dark mt-1' style='font-size:9px;' title='Кампанія: {html.escape(b.utm_campaign or '')}'><i class='fas fa-link'></i> {html.escape(b.utm_source)} / {html.escape(b.utm_medium or '')}</span>" if getattr(b, 'utm_source', None) else ""
         ai_badge = f"<span class='badge {'bg-primary' if b.has_ai_bot else 'bg-light text-muted'}'>ШІ: {'Увімк' if b.has_ai_bot else 'Вимк'}</span>"
         int_badge = f"<span class='badge {'bg-success' if getattr(b, 'integration_enabled', True) else 'bg-light text-muted'}'>CRM: {'Увімк' if getattr(b, 'integration_enabled', True) else 'Вимк'}</span>"
         
@@ -117,7 +127,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         d_end = b.discount_ends_at.strftime('%Y-%m-%d') if getattr(b, 'discount_ends_at', None) else ''
         active_rows += f"""<tr class='align-middle'>
                 <td><span class='text-muted'>#{b.id}</span></td>
-                <td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small> {plan_badge} {parent_tag}</td>
+                <td><div class='fw-bold'>{html.escape(b.name)}</div><small class='text-muted'>{html.escape(b.type)}</small> {plan_badge} {parent_tag}{utm_info}</td>
                 <td><span class='badge {'bg-success' if b.is_active else 'bg-danger'}'>{'АКТИВНИЙ' if b.is_active else 'ЗАБЛОКОВАНИЙ'}</span></td>
                 <td class='text-muted small'>{counts.get(b.id, 0)} записів</td>
                 <td><div class="d-flex flex-wrap" style="max-width: 140px;">{doc_links}</div></td>
@@ -371,10 +381,10 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
     </div>
     
     <!-- Modals (iOS 26 Style) -->
-    <div class="modal fade" id="resetModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="resetModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">Скинути пароль</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <form action="/superadmin/reset-password" method="post">
-            <div class="modal-body">
+        <form action="/superadmin/reset-password" method="post" class="d-flex flex-column h-100">
+            <div class="modal-body overflow-y-auto">
                 <input type="hidden" name="id" id="resetId">
                 <p class="text-muted mb-4">Встановлення нового пароля для: <strong id="resetName" class="text-white"></strong></p>
                 <input name="new_password" class="glass-input" required placeholder="Введіть новий пароль">
@@ -383,10 +393,10 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         </form>
     </div></div></div>
 
-    <div class="modal fade" id="editBizModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="editBizModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">Редагування клієнта</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <form action="/superadmin/edit-business" method="post">
-            <div class="modal-body">
+        <form action="/superadmin/edit-business" method="post" class="d-flex flex-column h-100">
+            <div class="modal-body overflow-y-auto">
                 <input type="hidden" name="id" id="editBizId">
                 <div class="mb-3"><label class="form-label">Телефон (Логін)</label><input name="phone" id="editBizPhone" class="glass-input"></div>
                 <div class="row g-3 mb-3">
@@ -396,8 +406,8 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
                             <option value="plan2">PRO</option>
                         </select>
                     </div>
-                    <div class="col-md-6"><label class="form-label">Знижка на абонплату (%)</label><input name="subscription_discount" type="number" min="0" max="100" id="editBizDiscount" class="glass-input" value="0"></div>
-                    <div class="col-md-6"><label class="form-label">Діє до (пусто=назавжди)</label><input name="discount_ends_at" type="date" id="editBizDiscountEnd" class="glass-input"></div>
+                    <div class="col-12 col-md-6"><label class="form-label">Знижка (%)</label><input name="subscription_discount" type="number" min="0" max="100" id="editBizDiscount" class="glass-input" value="0"></div>
+                    <div class="col-12 col-md-6"><label class="form-label">Діє до</label><input name="discount_ends_at" type="date" id="editBizDiscountEnd" class="glass-input"></div>
                 </div>
                 <div class="mb-3"><label class="form-label">URL Договору</label><input name="contract_url" id="editBizContract" class="glass-input"></div>
                 <div class="mb-0"><label class="form-label">URL NDA</label><input name="nda_url" id="editBizNda" class="glass-input"></div>
@@ -406,10 +416,10 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         </form>
     </div></div></div>
 
-    <div class="modal fade" id="paymentModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="paymentModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">Фіксація оплати</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <form action="/superadmin/log-payment" method="post">
-            <div class="modal-body">
+        <form action="/superadmin/log-payment" method="post" class="d-flex flex-column h-100">
+            <div class="modal-body overflow-y-auto">
                 <input type="hidden" name="id" id="paymentBizId">
                 <p class="text-muted mb-4">Оплата для: <strong id="paymentBizName" class="text-white"></strong></p>
                 <div class="mb-3"><label class="form-label">Сума (грн)</label><input name="amount" type="number" class="glass-input" required></div>
@@ -420,10 +430,10 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         </form>
     </div></div></div>
 
-    <div class="modal fade" id="paymentSettingsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="paymentSettingsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">Реквізити для оплати</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <form action="/superadmin/save-payment-settings" method="post">
-            <div class="modal-body">
+        <form action="/superadmin/save-payment-settings" method="post" class="d-flex flex-column h-100">
+            <div class="modal-body overflow-y-auto">
                 <input type="hidden" name="id" id="paymentSettingsBizId">
                 <p class="text-muted mb-4">Реквізити для: <strong id="paymentSettingsBizName" class="text-white"></strong></p>
                 <div class="mb-3"><label class="form-label">IBAN</label><input name="iban" id="paymentIban" class="glass-input"></div>
@@ -435,10 +445,10 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         </form>
     </div></div></div>
 
-    <div class="modal fade" id="editUpdateModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="editUpdateModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">Редагувати новину</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <form action="/superadmin/edit-update" method="post">
-            <div class="modal-body">
+        <form action="/superadmin/edit-update" method="post" class="d-flex flex-column h-100">
+            <div class="modal-body overflow-y-auto">
                 <input type="hidden" name="id" id="editUpdId">
                 <div class="mb-3"><label class="form-label">Заголовок</label><input name="title" id="editUpdTitle" class="glass-input" required></div>
                 <div class="mb-0"><label class="form-label">Текст</label><textarea name="content" id="editUpdContent" class="glass-input" rows="8" required></textarea></div>
@@ -457,13 +467,13 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         });
     }
     function deleteBiz(id) {
-        Swal.fire({ title: 'Видалити бізнес?', text: "Це видалить всі дані, включаючи записи та клієнтів!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати' }).then(r => { if(r.isConfirmed) window.location.href = '/superadmin/delete/' + id; });
+        Swal.fire({ title: 'Видалити бізнес?', text: "Це видалить всі дані, включаючи записи та клієнтів!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) window.location.href = '/superadmin/delete/' + id; });
     }
     function deletePayment(id) {
-        Swal.fire({ title: 'Видалити платіж?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати' }).then(r => { if(r.isConfirmed) window.location.href = '/superadmin/delete-payment/' + id; });
+        Swal.fire({ title: 'Видалити платіж?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) window.location.href = '/superadmin/delete-payment/' + id; });
     }
     function rejectPayment(id) {
-        Swal.fire({ title: 'Відхилити заявку?', text: "Бізнес буде видалено.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, відхилити', cancelButtonText: 'Скасувати' }).then(r => { if(r.isConfirmed) window.location.href = '/superadmin/delete/' + id; });
+        Swal.fire({ title: 'Відхилити заявку?', input: 'textarea', inputLabel: 'Причина відмови (побачить клієнт)', inputPlaceholder: 'Наприклад: Неякісний чек / Невірні дані', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Відхилити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) { const form = document.createElement('form'); form.method = 'POST'; form.action = '/superadmin/reject-payment/' + id; const input = document.createElement('input'); input.type = 'hidden'; input.name = 'reason'; input.value = r.value || ''; form.appendChild(input); document.body.appendChild(form); form.submit(); } });
     }
     function openPaymentModal(id, name) {
         document.getElementById('paymentBizId').value = id;
@@ -544,6 +554,22 @@ async def approve_payment(business_id: int, user: User = Depends(get_current_use
             except Exception as e:
                 logging.error(f"Failed to send activation notification to business {biz.id} owner: {e}")
 
+    return RedirectResponse("/superadmin?msg=saved", status_code=303)
+
+
+@router.post("/reject-payment/{business_id}")
+async def reject_payment(business_id: int, reason: str = Form(""), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "superadmin":
+        return RedirectResponse("/", status_code=303)
+
+    biz = await db.get(Business, business_id)
+    if biz:
+        biz.payment_status = "rejected"
+        biz.is_active = False
+        biz.admin_message = reason
+        await db.commit()
+        await log_action(db, biz.id, user.id, "Відхилено заявку", f"Заявку бізнесу '{biz.name}' відхилено. Причина: {reason}")
+        
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 

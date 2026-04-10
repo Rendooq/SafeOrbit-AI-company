@@ -217,7 +217,12 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
                     <div class="glass-card">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-800 text-white m-0">{l['new_appt']}</h5>
-                            <a href="/widget/{user.business_id}" target="_blank" class="btn-glass py-2" style="font-size: 12px;"><i class="fas fa-external-link-alt me-2"></i>Віджет</a>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn-glass py-2" style="font-size: 12px; background: rgba(175, 133, 255, 0.1); color: var(--accent-primary) !important; border-color: rgba(175, 133, 255, 0.3);" onclick="new bootstrap.Modal(document.getElementById('aiModal')).show()">
+                                    <i class="fas fa-robot me-1"></i> ШІ
+                                </button>
+                                <a href="/widget/{user.business_id}" target="_blank" class="btn-glass py-2" style="font-size: 12px;"><i class="fas fa-external-link-alt me-1"></i>Віджет</a>
+                            </div>
                         </div>
                         <form action="/admin/add-appointment" method="post" class="row g-4 max-w-full">
                             <div class="col-lg-6 col-md-12 min-w-0"><label class="form-label text-white-50 small fw-bold mb-2 break-words">КОНТАКТНИЙ НОМЕР</label><input name="phone" class="glass-input break-words overflow-hidden min-w-0" required placeholder="+380..."></div>
@@ -264,7 +269,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
             </div>
             <div class="glass-card">
                 <h5 class="fw-800 text-white mb-4">{l['appts']}</h5>
-                <div class="table-responsive">
+                <div class="table-responsive w-full overflow-x-auto whitespace-nowrap block">
                     <table class="glass-table">
                         <thead><tr><th>Профіль гостя</th><th>Час</th><th>{l['service_single']}</th><th>Сума до сплати</th><th>Статус</th><th class="text-end">Дії</th></tr></thead>
                         <tbody>{rows if rows else '<tr><td colspan=6 class="text-center py-5 text-muted">Записів ще немає</td></tr>'}</tbody>
@@ -310,13 +315,9 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         </div>
     </div>
     
-    <button class="btn-primary-glow rounded-circle d-flex align-items-center justify-content-center" style="position:fixed;bottom:30px;right:30px;width:64px;height:64px;z-index:1000; border:none;" onclick="new bootstrap.Modal(document.getElementById('aiModal')).show()">
-        <i class="fas fa-robot fa-xl"></i>
-    </button>
-
-    <div class="modal fade" id="aiModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="aiModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">AI Асистент</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
+        <div class="modal-body overflow-y-auto">
             <div id="aiResponse" class="mb-4 p-4 rounded-4" style="background: rgba(255,255,255,0.02); min-height: 100px; color: rgba(255,255,255,0.8); font-size: 14px; border: 0.5px solid var(--glass-border); line-height: 1.6;">Запитайте щось про ваші записи...</div>
             <div class="input-group gap-2">
                 <input id="aiQuestion" class="glass-input break-words overflow-hidden min-w-0" placeholder="Хто записаний на завтра?">
@@ -326,9 +327,9 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         </div>
     </div></div></div>
 
-    <div class="modal fade" id="notifyModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal fade" id="notifyModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">Надіслати нагадування</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
+        <div class="modal-body overflow-y-auto">
             <input type="hidden" id="notifyPhone">
             <label class="form-label">Текст повідомлення</label>
             <textarea id="notifyMsg" class="glass-input mb-4" rows="3"></textarea>
@@ -342,13 +343,13 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     </div></div></div>
 
     <div class="modal fade" id="editModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+      <div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
         <div class="modal-header"><h5 class="modal-title">Редагування Запису</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <form action="/admin/update-appointment" method="post"><div class="modal-body">
+        <form action="/admin/update-appointment" method="post" class="d-flex flex-column h-100"><div class="modal-body overflow-y-auto">
             <input type="hidden" name="id" id="editId">
             <div class="row g-3">
-                <div class="col-md-6"><label class="form-label">Дата</label><input name="date" type="date" id="editDate" class="glass-input" required></div>
-                <div class="col-md-6"><label class="form-label">Час</label><input name="time" type="time" id="editTime" class="glass-input" required></div>
+                <div class="col-12 col-md-6"><label class="form-label">Дата</label><input name="date" type="date" id="editDate" class="glass-input" required></div>
+                <div class="col-12 col-md-6"><label class="form-label">Час</label><input name="time" type="time" id="editTime" class="glass-input" required></div>
                 <div class="col-md-12"><label class="form-label">Сума (грн)</label><input name="cost" type="number" step="0.01" id="editCost" class="glass-input"></div>
                 <div class="col-md-12"><label class="form-label">{l['master_single']}</label><select name="master_id" id="editMaster" class="form-select">{master_options}</select></div>
                 

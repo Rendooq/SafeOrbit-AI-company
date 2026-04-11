@@ -926,7 +926,7 @@ async def login_page():
 
 @router.get("/login-demo")
 async def login_demo(request: Request, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(User).where(User.username == "+380999999999"))
+    res = await db.execute(select(User).options(joinedload(User.business)).where(User.username == "+380999999999"))
     user = res.scalar_one_or_none()
     if user:
         biz = user.business

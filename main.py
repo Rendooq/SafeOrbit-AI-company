@@ -24,7 +24,7 @@ from models import (
     GlobalPaymentSettings,
 )
 from dependencies import get_current_user
-from routers import auth, dashboard, superadmin, admin, webhooks, widget
+from routers import auth, dashboard, superadmin, admin, webhooks, widget, api_v1, educational_api
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
                                        nps_collection_loop, reminder_loop,
@@ -67,6 +67,8 @@ app.include_router(superadmin.router)
 app.include_router(admin.router)
 app.include_router(widget.router)
 app.include_router(webhooks.router)
+app.include_router(api_v1.router)
+app.include_router(educational_api.router)
 
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -119,7 +121,8 @@ async def startup():
             "ALTER TABLE businesses ADD COLUMN discount_ends_at TIMESTAMP;",
             "ALTER TABLE businesses ADD COLUMN utm_source TEXT;",
             "ALTER TABLE businesses ADD COLUMN utm_medium TEXT;",
-            "ALTER TABLE businesses ADD COLUMN utm_campaign TEXT;"
+            "ALTER TABLE businesses ADD COLUMN utm_campaign TEXT;",
+            "ALTER TABLE businesses ADD COLUMN api_key TEXT;"
         ]
         for query in migrations:
             try:

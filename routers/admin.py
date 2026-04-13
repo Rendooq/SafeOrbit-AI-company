@@ -190,6 +190,31 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
             </div>
         </div>"""
         
+    # API Tab HTML
+    api_key_val = getattr(biz, 'api_key', None) or 'Ключ не згенеровано'
+    api_tab_btn = '<li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#pills-api"><i class="fas fa-code me-2"></i>API</button></li>'
+    api_tab_content = f"""
+        <div class="tab-pane fade" id="pills-api">
+            <div class="glass-card p-4 p-md-5" style="max-width: 800px;">
+                <h5 class="fw-800 text-white mb-4">REST API для розробників</h5>
+                <p class="small text-muted mb-4">Використовуйте цей ключ для інтеграції вашої CRM з іншими сервісами або власним сайтом.</p>
+                <div class="mb-4">
+                    <label class="form-label text-white">Ваш API Ключ</label>
+                    <div class="input-group">
+                        <input type="text" class="glass-input" value="{html.escape(api_key_val)}" readonly id="apiKeyInput" style="border-radius: 12px 0 0 12px;">
+                        <button class="btn btn-glass" type="button" onclick="navigator.clipboard.writeText(document.getElementById('apiKeyInput').value); showToast('Ключ скопійовано!');" style="border-radius: 0; border-left: none; border-right: none;"><i class="fas fa-copy text-info"></i></button>
+                        <form action="/admin/generate-api-key" method="post" class="m-0 d-inline-flex">
+                            <button class="btn btn-glass" type="submit" style="border-radius: 0 12px 12px 0;" title="Згенерувати новий"><i class="fas fa-sync text-warning"></i></button>
+                        </form>
+                    </div>
+                </div>
+                <div class="p-4 rounded-4" style="background: rgba(255,255,255,0.02); border: 0.5px solid var(--glass-border);">
+                    <h6 class="fw-bold text-white mb-3">Приклад використання (Python)</h6>
+                    <pre class="text-info small m-0" style="white-space: pre-wrap; font-family: monospace;"><code>import requests\nheaders = {{"X-API-Key": "{api_key_val}"}}\nres = requests.get("https://ваш-домен/api/v1/appointments", headers=headers)\nprint(res.json())</code></pre>
+                </div>
+            </div>
+        </div>"""
+
     if biz.type == 'retail':
         roles_html = """
             <option value="Менеджер з продажу">Менеджер з продажу (обробка замовлень)</option>
@@ -217,6 +242,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
             <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#pills-services">{l['services']}</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#pills-notifications">🔔 Сповіщення</button></li>
             {branches_tab_btn}
+            {api_tab_btn}
         </ul>
     </div>
     
@@ -353,6 +379,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         </div>
         
         {branches_tab_content}
+        {api_tab_content}
         
         <div class="modal fade" id="createAccountModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered w-full max-w-md mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
             <div class="modal-header"><h5 class="modal-title text-white">Акаунт співробітника</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
@@ -1324,6 +1351,18 @@ async def delete_product(id: int = Form(...), user: User = Depends(get_current_u
         await log_action(db, user.business_id, user.id, "Видалено товар", f"Видалено товар '{product.name}' зі складу.")
 
     return RedirectResponse("/admin/finance?msg=deleted", status_code=303)
+
+@router.post("/generate-api-key")
+async def generate_api_key(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "owner":
+        return RedirectResponse("/", status_code=303)
+    import secrets
+    biz = await db.get(Business, user.business_id)
+    if biz:
+        biz.api_key = f"sk_live_{secrets.token_urlsafe(24)}"
+        await db.commit()
+        await log_action(db, user.business_id, user.id, "Генерація API ключа", "Згенеровано новий API ключ.")
+    return RedirectResponse("/admin/settings?msg=saved", status_code=303)
 
 @router.get("/chats", response_class=HTMLResponse)
 async def chats_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

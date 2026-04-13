@@ -1,5 +1,6 @@
 import html
 import os
+import json
 import shutil
 from datetime import datetime, timedelta
 from typing import Optional
@@ -40,17 +41,22 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     p1_base = 11000
     p1_setup = 9000
     p1_final_base = int(p1_base * (1 - plan1_discount / 100))
-    p1_final_total = p1_final_base + p1_setup
+    p1_final_setup = int(p1_setup * (1 - plan1_discount / 100))
+    p1_final_total = p1_final_base + p1_final_setup
     
     p2_base = 53000
     p2_support = 1100
     p2_final_base = int(p2_base * (1 - plan2_discount / 100))
-    p2_final_total = p2_final_base + p2_support
+    p2_final_support = int(p2_support * (1 - plan2_discount / 100))
+    p2_final_total = p2_final_base + p2_final_support
     
     def fmt_p(p): return f"{p:,}".replace(',', ' ')
     
     p1_price_html = f"<span class='text-decoration-line-through text-white-50 fs-6'>{fmt_p(p1_base)}</span> {fmt_p(p1_final_base)}" if plan1_discount > 0 else f"{fmt_p(p1_base)}"
     p2_price_html = f"<span class='text-decoration-line-through text-white-50 fs-6'>{fmt_p(p2_base)}</span> {fmt_p(p2_final_base)}" if plan2_discount > 0 else f"{fmt_p(p2_base)}"
+    
+    p1_desc_html = f"+ <span class='text-decoration-line-through'>{fmt_p(p1_setup)}</span> {fmt_p(p1_final_setup)} ₴ налаштування" if plan1_discount > 0 else f"+ {fmt_p(p1_setup)} ₴ налаштування"
+    p2_desc_html = f"+ <span class='text-decoration-line-through'>{fmt_p(p2_support)}</span> {fmt_p(p2_final_support)} ₴/міс тех.підтримка" if plan2_discount > 0 else f"+ {fmt_p(p2_support)} ₴/міс тех.підтримка"
     
     p1_orig_total = p1_base + p1_setup
     p2_orig_total = p2_base + p2_support
@@ -64,6 +70,24 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     utm_s = html.escape(request.query_params.get('utm_source', ''))
     utm_m = html.escape(request.query_params.get('utm_medium', ''))
     utm_c = html.escape(request.query_params.get('utm_campaign', ''))
+    
+    try:
+        if settings.promo_code and settings.promo_code.strip().startswith('['):
+            promos = json.loads(settings.promo_code)
+        elif settings.promo_code:
+            promos = [{
+                "code": settings.promo_code,
+                "discount": settings.promo_discount or 0,
+                "plan": getattr(settings, 'promo_target_plan', 'all'),
+                "expires": settings.promo_expires_at.strftime('%Y-%m-%d') if getattr(settings, 'promo_expires_at', None) else "",
+                "duration": getattr(settings, 'discount_duration_months', 0)
+            }]
+        else:
+            promos = []
+    except:
+        promos = []
+        
+    promos_json = json.dumps(promos)
 
     return f"""<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Реєстрація | SafeOrbit</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -352,7 +376,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
                         <input type="radio" class="btn-check" name="plan_type" id="plan1" value="plan1" {"checked" if settings.is_plan1_active else "disabled"} onchange="updatePlan()">
                         <label class="plan-card {'disabled' if not settings.is_plan1_active else ''}" for="plan1">
                             <div class="plan-price" id="plan1Price">{p1_price_html} ₴<small style="font-size: 15px; opacity: 0.5;">/міс</small>{p1_badge}</div>
-                            <div class="plan-desc">+ 9 000 ₴ налаштування</div>
+                            <div class="plan-desc" id="plan1Desc">{p1_desc_html}</div>
                             {f'<span class="badge-status">Тимчасово недоступний</span>' if not settings.is_plan1_active else ''}
                         </label>
                     </div>
@@ -360,7 +384,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
                         <input type="radio" class="btn-check" name="plan_type" id="plan2" value="plan2" {"checked" if not settings.is_plan1_active and settings.is_plan2_active else "disabled" if not settings.is_plan2_active else ""} onchange="updatePlan()">
                         <label class="plan-card {'disabled' if not settings.is_plan2_active else ''}" for="plan2">
                             <div class="plan-price" id="plan2Price">{p2_price_html} ₴{p2_badge}</div>
-                            <div class="plan-desc">+ 1 100 ₴/міс тех.підтримка</div>
+                            <div class="plan-desc" id="plan2Desc">{p2_desc_html}</div>
                             {f'<span class="badge-status">Тимчасово недоступний</span>' if not settings.is_plan2_active else ''}
                         </label>
                     </div>
@@ -397,7 +421,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
 
             <div class="payment-alert mb-5">
                 <h6 class="fw-800 mb-4 text-warning"><i class="fas fa-wallet me-2"></i>Оплата підписки</h6>
-                <div id="paymentAmountText" class="fs-4 fw-800 mb-4 text-white">До сплати: <b class='text-white'>{p1_total_html} ₴</b> <span class='small opacity-40 fw-500'>({fmt_p(p1_final_base)} + 9 000)</span></div>
+                <div id="paymentAmountText" class="fs-4 fw-800 mb-4 text-white">До сплати: <b class='text-white'>{p1_total_html} ₴</b> <span class='small opacity-40 fw-500'>({fmt_p(p1_final_base)} + {fmt_p(p1_final_setup)})</span></div>
                 
                 <div class="d-flex justify-content-center gap-3 mb-4">
                     <button type="button" class="btn-secondary-glass active" id="btnIban" onclick="showPayment('iban')">IBAN реквізити</button>
@@ -481,10 +505,8 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     
     const globalDiscount1 = {plan1_discount};
     const globalDiscount2 = {plan2_discount};
-    const activePromoCode = "{getattr(settings, 'promo_code', None) or ''}".toUpperCase();
-    const activePromoDiscount = {getattr(settings, 'promo_discount', 0) or 0};
-    const activePromoTarget = "{getattr(settings, 'promo_target_plan', 'all') or 'all'}";
-    const activePromoExpires = "{settings.promo_expires_at.isoformat() if getattr(settings, 'promo_expires_at', None) else ''}";
+    const activePromos = {promos_json};
+    let activePromoTarget = 'all';
     
     let currentPromoDiscount = 0;
 
@@ -497,13 +519,14 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
         const msg = document.getElementById('promoMessage');
         if (!input) return;
         
+        let foundPromo = activePromos.find(p => p.code === input);
         let isValid = false;
         let errorMsg = "Недійсний промокод";
         
-        if (activePromoCode && input === activePromoCode && activePromoDiscount > 0) {{
+        if (foundPromo && foundPromo.discount > 0) {{
             isValid = true;
-            if (activePromoExpires) {{
-                const expDate = new Date(activePromoExpires);
+            if (foundPromo.expires) {{
+                const expDate = new Date(foundPromo.expires);
                 if (new Date() > expDate) {{
                     isValid = false;
                     errorMsg = "Термін дії промокоду минув";
@@ -512,14 +535,16 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
         }}
         
         if (isValid) {{
-            currentPromoDiscount = activePromoDiscount;
-            let targetText = activePromoTarget === 'plan1' ? ' на Базовий тариф' : (activePromoTarget === 'plan2' ? ' на PRO тариф' : '');
-            msg.innerHTML = `<i class="fas fa-check-circle me-1"></i> Промокод застосовано! Знижка -${{activePromoDiscount}}%${{targetText}}`;
+            currentPromoDiscount = foundPromo.discount;
+            activePromoTarget = foundPromo.plan;
+            let targetText = foundPromo.plan === 'plan1' ? ' на Базовий тариф' : (foundPromo.plan === 'plan2' ? ' на PRO тариф' : '');
+            msg.innerHTML = `<i class="fas fa-check-circle me-1"></i> Промокод застосовано! Знижка -${{foundPromo.discount}}%${{targetText}}`;
             msg.className = "small mt-2 text-success fw-bold";
             msg.style.display = "block";
             document.getElementById('hiddenPromoCode').value = input;
         }} else {{
             currentPromoDiscount = 0;
+            activePromoTarget = 'all';
             msg.innerHTML = `<i class="fas fa-times-circle me-1"></i> ${{errorMsg}}`;
             msg.className = "small mt-2 text-danger fw-bold";
             msg.style.display = "block";
@@ -540,29 +565,35 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
         let finalDiscount2 = Math.min(100, globalDiscount2 + appliedPromo2);
 
         let finalBase1 = Math.floor(basePlan1 * (1 - finalDiscount1 / 100));
+        let finalSetup1 = Math.floor(setupPlan1 * (1 - finalDiscount1 / 100));
         let finalBase2 = Math.floor(basePlan2 * (1 - finalDiscount2 / 100));
+        let finalSupport2 = Math.floor(supportPlan2 * (1 - finalDiscount2 / 100));
 
-        let total1 = finalBase1 + setupPlan1;
-        let total2 = finalBase2 + supportPlan2;
+        let total1 = finalBase1 + finalSetup1;
+        let total2 = finalBase2 + finalSupport2;
+        
         
         let cardPrice1 = finalDiscount1 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-6'>${{formatPrice(basePlan1)}}</span> ${{formatPrice(finalBase1)}}` : `${{formatPrice(basePlan1)}}`;
         let badge1 = finalDiscount1 > 0 ? `<span class='badge bg-danger ms-2'>-${{finalDiscount1}}%</span>` : "";
         document.getElementById('plan1Price').innerHTML = `${{cardPrice1}} ₴<small style="font-size: 15px; opacity: 0.5;">/міс</small>${{badge1}}`;
+        document.getElementById('plan1Desc').innerHTML = finalDiscount1 > 0 ? `+ <span class='text-decoration-line-through'>${{formatPrice(setupPlan1)}}</span> ${{formatPrice(finalSetup1)}} ₴ налаштування` : `+ ${{formatPrice(setupPlan1)}} ₴ налаштування`;
 
         let cardPrice2 = finalDiscount2 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-6'>${{formatPrice(basePlan2)}}</span> ${{formatPrice(finalBase2)}}` : `${{formatPrice(basePlan2)}}`;
         let badge2 = finalDiscount2 > 0 ? `<span class='badge bg-danger ms-2'>-${{finalDiscount2}}%</span>` : "";
         document.getElementById('plan2Price').innerHTML = `${{cardPrice2}} ₴${{badge2}}`;
+        document.getElementById('plan2Desc').innerHTML = finalDiscount2 > 0 ? `+ <span class='text-decoration-line-through'>${{formatPrice(supportPlan2)}}</span> ${{formatPrice(finalSupport2)}} ₴/міс тех.підтримка` : `+ ${{formatPrice(supportPlan2)}} ₴/міс тех.підтримка`;
+
 
         if (p1) {{
             link.href = '/static/contract_plan1.pdf';
             let origTotal1 = basePlan1 + setupPlan1;
             let htmlPrice = finalDiscount1 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-5 me-2'>${{formatPrice(origTotal1)}} ₴</span>${{formatPrice(total1)}}` : `${{formatPrice(total1)}}`;
-            priceText.innerHTML = `До сплати: <b class='text-white'>${{htmlPrice}} ₴</b> <span class='small opacity-40 fw-500'>(${{formatPrice(finalBase1)}} + 9 000)</span>`;
+            priceText.innerHTML = `До сплати: <b class='text-white'>${{htmlPrice}} ₴</b> <span class='small opacity-40 fw-500'>(${{formatPrice(finalBase1)}} + ${{formatPrice(finalSetup1)}})</span>`;
         }} else {{
             link.href = '/static/contract_plan2.pdf';
             let origTotal2 = basePlan2 + supportPlan2;
             let htmlPrice = finalDiscount2 > 0 ? `<span class='text-decoration-line-through text-white-50 fs-5 me-2'>${{formatPrice(origTotal2)}} ₴</span>${{formatPrice(total2)}}` : `${{formatPrice(total2)}}`;
-            priceText.innerHTML = `До сплати: <b class='text-white'>${{htmlPrice}} ₴</b> <span class='small opacity-40 fw-500'>(${{formatPrice(finalBase2)}} + 1 100)</span>`;
+            priceText.innerHTML = `До сплати: <b class='text-white'>${{htmlPrice}} ₴</b> <span class='small opacity-40 fw-500'>(${{formatPrice(finalBase2)}} + ${{formatPrice(finalSupport2)}})</span>`;
         }}
     }}
     document.addEventListener('DOMContentLoaded', () => {{
@@ -593,21 +624,45 @@ async def register_post(name: str = Form(...), phone: str = Form(...), password:
         
     settings = await db.scalar(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))
     total_discount = 0
+    promo_duration = 0
+    promo_applied = False
     if settings:
         total_discount += getattr(settings, 'plan1_discount', 0) if plan_type == 'plan1' else getattr(settings, 'plan2_discount', 0)
         if applied_promo and settings.promo_code and applied_promo.upper() == settings.promo_code.upper():
-            is_valid = True
-            if settings.promo_expires_at and datetime.now(UA_TZ).replace(tzinfo=None) > settings.promo_expires_at:
-                is_valid = False
-            if settings.promo_target_plan not in ['all', plan_type]:
-                is_valid = False
-            if is_valid:
-                total_discount += getattr(settings, 'promo_discount', 0)
+            try:
+                if settings.promo_code.strip().startswith('['):
+                    promos = json.loads(settings.promo_code)
+                else:
+                    promos = [{
+                        "code": settings.promo_code,
+                        "discount": getattr(settings, 'promo_discount', 0),
+                        "plan": getattr(settings, 'promo_target_plan', 'all'),
+                        "expires": settings.promo_expires_at.strftime('%Y-%m-%d') if getattr(settings, 'promo_expires_at', None) else "",
+                        "duration": getattr(settings, 'discount_duration_months', 0)
+                    }]
+            except:
+                promos = []
+            for p in promos:
+                if p['code'] == applied_promo.upper():
+                    is_valid = True
+                    if p.get('expires') and datetime.now(UA_TZ).replace(tzinfo=None) > datetime.strptime(p['expires'], "%Y-%m-%d"):
+                        is_valid = False
+                    if p.get('plan', 'all') not in ['all', plan_type]:
+                        is_valid = False
+                    if is_valid:
+                        total_discount += int(p.get('discount', 0))
+                        promo_duration = int(p.get('duration', 0))
+                        promo_applied = True
+                    break
     
     total_discount = min(100, total_discount)
     discount_ends_at = None
-    if total_discount > 0 and settings and getattr(settings, 'discount_duration_months', 0) > 0:
-        discount_ends_at = datetime.now(UA_TZ).replace(tzinfo=None) + timedelta(days=30 * settings.discount_duration_months)
+    if total_discount > 0:
+        if promo_applied:
+            if promo_duration > 0:
+                discount_ends_at = datetime.now(UA_TZ).replace(tzinfo=None) + timedelta(days=30 * promo_duration)
+        elif settings and getattr(settings, 'discount_duration_months', 0) > 0:
+            discount_ends_at = datetime.now(UA_TZ).replace(tzinfo=None) + timedelta(days=30 * settings.discount_duration_months)
 
     nb = Business(name=name, type=type, retail_subcategory=retail_subcategory if type == 'retail' else None, plan_type=plan_type, contract_url=f"/{f_contract}", nda_url=f"/{f_nda}", is_active=False, payment_status="pending", receipt_url=f"/{f_receipt}", subscription_discount=total_discount, discount_ends_at=discount_ends_at, utm_source=utm_source, utm_medium=utm_medium, utm_campaign=utm_campaign)
     db.add(nb); await db.commit(); await db.refresh(nb)

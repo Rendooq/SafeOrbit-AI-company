@@ -471,3 +471,18 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
         return response_text, None
     except Exception as e:
         return f"Помилка AI: {str(e)}", None
+
+async def generate_ai_reply(message: str, intent: str, extracted_data: dict) -> str:
+    """
+    Placeholder for generating a response using an AI model for the educational API.
+    """
+    logger.info(f"Generating AI reply for intent: {intent} with data: {extracted_data}")
+    # In a real application, this would call an LLM like GPT or Llama.
+    if intent == "booking":
+        return f"Добре, я можу записати вас на курс '{extracted_data.get('course', 'не вказано')}'. Уточніть, будь ласка, ваше ім'я та телефон."
+    elif intent == "pricing":
+        return "Звісно, зараз надішлю вам інформацію про ціни. Який курс вас цікавить?"
+    elif intent == "trial_lesson":
+        return "Чудовий вибір! Пробне заняття - це гарна можливість познайомитись. На який курс ви б хотіли записатись?"
+    else:
+        return "Дякую за ваше повідомлення! Я передам його менеджеру, і він незабаром з вами зв'яжеться."

@@ -480,6 +480,30 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         document.getElementById('paymentBizName').innerText = name;
         new bootstrap.Modal(document.getElementById('paymentModal')).show();
     }
+    function editPaymentSettings(id, iban, card, receiver, qr, name) {
+        document.getElementById('paymentSettingsBizId').value = id;
+        document.getElementById('paymentSettingsBizName').innerText = name;
+        document.getElementById('paymentIban').value = iban;
+        document.getElementById('paymentCard').value = card;
+        document.getElementById('paymentReceiver').value = receiver;
+        document.getElementById('paymentQr').value = qr;
+        new bootstrap.Modal(document.getElementById('paymentSettingsModal')).show();
+    }
+    function editBiz(id, phone, plan, contract, nda, discount, discountEnd) {
+        document.getElementById('editBizId').value = id;
+        document.getElementById('editBizPhone').value = phone;
+        document.getElementById('editBizPlan').value = plan;
+        document.getElementById('editBizContract').value = contract;
+        document.getElementById('editBizNda').value = nda;
+        document.getElementById('editBizDiscount').value = discount;
+        document.getElementById('editBizDiscountEnd').value = discountEnd;
+        new bootstrap.Modal(document.getElementById('editBizModal')).show();
+    }
+    function resetPass(id, name) {
+        document.getElementById('resetId').value = id;
+        document.getElementById('resetName').innerText = name;
+        new bootstrap.Modal(document.getElementById('resetModal')).show();
+    }
     function editUpdate(id, title, content) {
         document.getElementById('editUpdId').value = id;
         document.getElementById('editUpdTitle').value = title;
@@ -843,6 +867,41 @@ async def global_payment_settings_page(user: User = Depends(get_current_user), d
     plan1_check = 'checked' if settings.is_plan1_active else ''
     plan2_check = 'checked' if settings.is_plan2_active else ''
 
+    try:
+        if settings.promo_code and settings.promo_code.strip().startswith('['):
+            promos = json.loads(settings.promo_code)
+        elif settings.promo_code:
+            promos = [{
+                "code": settings.promo_code,
+                "discount": settings.promo_discount or 0,
+                "plan": getattr(settings, 'promo_target_plan', 'all'),
+                "expires": settings.promo_expires_at.strftime('%Y-%m-%d') if getattr(settings, 'promo_expires_at', None) else "",
+                "duration": getattr(settings, 'discount_duration_months', 0)
+            }]
+        else:
+            promos = []
+    except:
+        promos = []
+        
+    promos_html = ""
+    for i, p in enumerate(promos):
+        promos_html += f"""
+        <div class="promo-row row g-3 mb-3 align-items-end" id="promo_row_{i}">
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Промокод</label><input type="text" name="promo_code_list[]" class="glass-input" value="{html.escape(p['code'])}" placeholder="START20" required></div>
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Знижка (%)</label><input type="number" min="1" max="100" name="promo_discount_list[]" class="glass-input" value="{p['discount']}" required></div>
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Тариф</label>
+                <select name="promo_plan_list[]" class="form-select">
+                    <option value="all" {'selected' if p['plan'] == 'all' else ''}>Всі</option>
+                    <option value="plan1" {'selected' if p['plan'] == 'plan1' else ''}>Базовий</option>
+                    <option value="plan2" {'selected' if p['plan'] == 'plan2' else ''}>PRO</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Діє міс. (0=назавжди)</label><input type="number" min="0" name="promo_duration_list[]" class="glass-input" value="{p.get('duration', 0)}"></div>
+            <div class="col-10 col-md-3"><label class="form-label text-muted small">Діє до (дата)</label><input type="date" name="promo_expires_list[]" class="glass-input" value="{p.get('expires', '')}"></div>
+            <div class="col-2 col-md-1"><button type="button" class="btn btn-glass w-100 text-danger" onclick="document.getElementById('promo_row_{i}').remove()"><i class="fas fa-trash"></i></button></div>
+        </div>
+        """
+
     content = f"""
     <div class="glass-card p-5" style="max-width: 800px; margin: 0 auto;">
         <h4 class="fw-800 text-white mb-4">Глобальні Налаштування Оплати</h4>
@@ -874,65 +933,56 @@ async def global_payment_settings_page(user: User = Depends(get_current_user), d
                 </div>
             </div>
 
-            <div class="row g-3 mb-5">
-                <div class="col-md-6">
-                    <label class="form-label">Промокод (Текст)</label>
-                    <input type="text" name="promo_code" class="glass-input" value="{html.escape(settings.promo_code or '')}" placeholder="Наприклад: START20">
+            <div class="mb-5">
+                <label class="form-label text-white mb-3">Система Промокодів</label>
+                <div id="promocodes-container">
+                    {promos_html}
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Знижка за промокодом (%)</label>
-                    <input type="number" min="0" max="100" name="promo_discount" class="glass-input" value="{settings.promo_discount or 0}">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Діє для тарифу</label>
-                    <select name="promo_target_plan" class="form-select">
-                        <option value="all" {'selected' if getattr(settings, 'promo_target_plan', 'all') == 'all' else ''}>Для всіх тарифів</option>
-                        <option value="plan1" {'selected' if getattr(settings, 'promo_target_plan', '') == 'plan1' else ''}>Тільки Базовий (11 000 грн)</option>
-                        <option value="plan2" {'selected' if getattr(settings, 'promo_target_plan', '') == 'plan2' else ''}>Тільки PRO (53 000 грн)</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Діє до (Термін дії)</label>
-                    <input type="date" name="promo_expires_at" class="glass-input" value="{settings.promo_expires_at.strftime('%Y-%m-%d') if getattr(settings, 'promo_expires_at', None) else ''}">
-                </div>
-            </div>
-            
-            <div class="row g-3 mb-5">
-                <div class="col-md-12">
-                    <label class="form-label">Тривалість дії знижок (в місяцях, 0 = назавжди)</label>
-                    <input type="number" min="0" name="discount_duration_months" class="glass-input" value="{getattr(settings, 'discount_duration_months', 0)}">
-                    <div class="small opacity-50 mt-1">Цей термін буде автоматично застосовано до всіх нових клієнтів, які реєструються зі знижкою.</div>
-                </div>
+                <button type="button" class="btn-glass py-2 px-4 mt-2" onclick="addPromoCode()">
+                    <i class="fas fa-plus me-2 text-primary"></i>Додати Промокод
+                </button>
             </div>
 
             <button type="submit" class="btn-primary-glow w-100 py-3">Зберегти Глобальні Налаштування</button>
         </form>
     </div>
+    <script>
+    function addPromoCode() {{
+        const container = document.getElementById('promocodes-container');
+        const index = container.children.length;
+        const html = `
+            <div class="promo-row row g-3 mb-3 align-items-end" id="promo_row_${{index}}">
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Промокод</label><input type="text" name="promo_code_list[]" class="glass-input" placeholder="START20" required></div>
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Знижка (%)</label><input type="number" min="1" max="100" name="promo_discount_list[]" class="glass-input" value="10" required></div>
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Тариф</label>
+                    <select name="promo_plan_list[]" class="form-select">
+                        <option value="all">Всі</option>
+                        <option value="plan1">Базовий</option>
+                        <option value="plan2">PRO</option>
+                    </select>
+                </div>
+            <div class="col-6 col-md-2"><label class="form-label text-muted small">Діє міс. (0=назавжди)</label><input type="number" min="0" name="promo_duration_list[]" class="glass-input" value="0"></div>
+            <div class="col-10 col-md-3"><label class="form-label text-muted small">Діє до (дата)</label><input type="date" name="promo_expires_list[]" class="glass-input"></div>
+                <div class="col-2 col-md-1"><button type="button" class="btn btn-glass w-100 text-danger" onclick="document.getElementById('promo_row_${{index}}').remove()"><i class="fas fa-trash"></i></button></div>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+    }}
+    </script>
     """
     return get_layout(content, user, "super", scripts="")
 
 
 @router.post("/save-global-payment-settings")
 async def save_global_payment_settings(
-    iban: Optional[str] = Form(None),
-    card_number: Optional[str] = Form(None),
-    receiver_name: Optional[str] = Form(None),
-    qr_url: Optional[str] = Form(None),
-    bank_name: Optional[str] = Form(None),
-    is_plan1_active: bool = Form(False),
-    is_plan2_active: bool = Form(False),
-    plan1_discount: int = Form(0),
-    plan2_discount: int = Form(0),
-    promo_code: Optional[str] = Form(None),
-    promo_discount: int = Form(0),
-    promo_target_plan: str = Form("all"),
-    promo_expires_at: Optional[str] = Form(None),
-    discount_duration_months: int = Form(0),
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
+        
+    form_data = await request.form()
 
     settings = await db.scalar(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))
     if not settings:
@@ -940,27 +990,34 @@ async def save_global_payment_settings(
         db.add(settings)
         await db.flush()
 
-    settings.iban = iban
-    settings.card_number = card_number
-    settings.receiver_name = receiver_name
-    settings.qr_url = qr_url
-    settings.bank_name = bank_name
-    settings.is_plan1_active = is_plan1_active
-    settings.is_plan2_active = is_plan2_active
-    settings.plan1_discount = plan1_discount
-    settings.plan2_discount = plan2_discount
-    settings.promo_code = promo_code
-    settings.promo_discount = promo_discount
-    settings.promo_target_plan = promo_target_plan
-    settings.discount_duration_months = discount_duration_months
+    settings.iban = form_data.get('iban')
+    settings.card_number = form_data.get('card_number')
+    settings.receiver_name = form_data.get('receiver_name')
+    settings.qr_url = form_data.get('qr_url')
+    settings.bank_name = form_data.get('bank_name')
+    settings.is_plan1_active = form_data.get('is_plan1_active') == 'on'
+    settings.is_plan2_active = form_data.get('is_plan2_active') == 'on'
+    try: settings.plan1_discount = int(form_data.get('plan1_discount') or 0)
+    except: settings.plan1_discount = 0
+    try: settings.plan2_discount = int(form_data.get('plan2_discount') or 0)
+    except: settings.plan2_discount = 0
     
-    if promo_expires_at:
-        try: 
-            parsed_date = datetime.strptime(promo_expires_at, "%Y-%m-%d")
-            settings.promo_expires_at = parsed_date.replace(hour=23, minute=59, second=59)
-        except ValueError: pass
-    else:
-        settings.promo_expires_at = None
+    promos = []
+    codes = form_data.getlist('promo_code_list[]')
+    discounts = form_data.getlist('promo_discount_list[]')
+    plans = form_data.getlist('promo_plan_list[]')
+    expires = form_data.getlist('promo_expires_list[]')
+    durations = form_data.getlist('promo_duration_list[]')
+    
+    for c, d, p, e, dur in zip(codes, discounts, plans, expires, durations):
+        if c.strip():
+            try: disc_val = int(d)
+            except: disc_val = 0
+            try: dur_val = int(dur)
+            except: dur_val = 0
+            promos.append({"code": c.strip().upper(), "discount": disc_val, "plan": p, "expires": e, "duration": dur_val})
+            
+    settings.promo_code = json.dumps(promos)
         
     settings.updated_at = datetime.now(UA_TZ).replace(tzinfo=None)
 

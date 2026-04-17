@@ -1,9 +1,10 @@
 import os
 import asyncio
+import secrets
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Depends, Request, Response
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import RedirectResponse, FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,12 +25,15 @@ from models import (
     GlobalPaymentSettings,
 )
 from dependencies import get_current_user
-from routers import auth, dashboard, superadmin, admin, webhooks, widget, api_v1, educational_api
+from exceptions import APIError
+from middleware import LoggingMiddleware, RateLimitMiddleware
+from routers import admin, api_v1, auth, dashboard, educational_api, superadmin, webhooks, widget
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
                                        nps_collection_loop, reminder_loop,
                                        rfm_segmentation_loop)
-from utils import hash_password
+from utils import hash_password # hash_api_key is removed
+from ui import get_api_docs_html
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -39,8 +43,18 @@ if is_sqlite_db():
 if not GROQ_API_KEY:
     logger.warning("GROQ_API_KEY не задано — AI-відповіді та пов’язані функції недоступні. Додайте ключ у .env або змінні оточення.")
 
-app = FastAPI()
+# Ховаємо стандартний Swagger UI та залишаємо його лише за адресою /dev-docs (для розробника)
+app = FastAPI(docs_url="/dev-docs", redoc_url=None)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=False, same_site="lax")
+
+# Add custom middlewares
+app.add_middleware(LoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+# Register custom exception handler for APIError
+@app.exception_handler(APIError)
+async def api_error_exception_handler(request: Request, exc: APIError):
+    return JSONResponse(status_code=exc.status_code, content=exc.detail)
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,6 +83,16 @@ app.include_router(widget.router)
 app.include_router(webhooks.router)
 app.include_router(api_v1.router)
 app.include_router(educational_api.router)
+
+
+@app.get("/api-docs", include_in_schema=False)
+async def custom_api_docs():
+    return HTMLResponse(content=get_api_docs_html())
+
+# Робимо редирект зі старого /docs на наш новий кастомний (для клієнтів)
+@app.get("/docs", include_in_schema=False)
+async def redirect_to_custom_docs():
+    return RedirectResponse(url="/api-docs")
 
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -119,10 +143,10 @@ async def startup():
             "ALTER TABLE global_payment_settings ADD COLUMN discount_duration_months INTEGER DEFAULT 0;",
             "ALTER TABLE businesses ADD COLUMN subscription_discount INTEGER DEFAULT 0;",
             "ALTER TABLE businesses ADD COLUMN discount_ends_at TIMESTAMP;",
-            "ALTER TABLE businesses ADD COLUMN utm_source TEXT;",
-            "ALTER TABLE businesses ADD COLUMN utm_medium TEXT;",
-            "ALTER TABLE businesses ADD COLUMN utm_campaign TEXT;",
-            "ALTER TABLE businesses ADD COLUMN api_key TEXT;"
+            "ALTER TABLE businesses ADD COLUMN webhook_secret TEXT;", # New field for webhook signature verification
+            "ALTER TABLE api_keys ADD COLUMN api_key TEXT;",
+            "ALTER TABLE api_keys DROP COLUMN IF EXISTS prefix;",
+            "ALTER TABLE api_keys DROP COLUMN IF EXISTS key_hash;"
         ]
         for query in migrations:
             try:
@@ -149,6 +173,15 @@ async def startup():
             if not (await db.execute(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))).scalar_one_or_none():
                 db.add(GlobalPaymentSettings(id=1))
                 await db.commit()
+            
+            # Ensure all existing businesses have a webhook_secret
+            businesses_without_secret = (await db.execute(select(Business).where(Business.webhook_secret == None))).scalars().all()
+            for biz in businesses_without_secret:
+                biz.webhook_secret = secrets.token_hex(32)
+                await db.commit()
+                await db.refresh(biz)
+            
+            logger.info("Database startup and migrations complete.")
 
         # Start background tasks (from services/background_tasks.py)
         asyncio.create_task(reminder_loop())

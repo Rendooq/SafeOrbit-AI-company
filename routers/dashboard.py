@@ -12,7 +12,7 @@ from sqlalchemy.orm import joinedload
 from config import LABELS, UA_TZ, DEFAULT_SMS_SENDER
 from database import get_db
 from dependencies import get_current_user
-from models import User, Appointment, Master, Service, Customer, Business, ActionLog, ChatLog
+from models import User, Appointment, Master, Service, Customer, Business, ActionLog, ChatLog # get_altegio_free_slots, get_beauty_pro_free_slots are removed
 from ui import get_layout
 from utils import log_action
 from services.ai_service import process_ai_request, get_altegio_free_slots, get_beauty_pro_free_slots

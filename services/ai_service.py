@@ -17,23 +17,23 @@ from services.integrations import push_to_beauty_pro, push_to_cleverbox, push_to
 
 logger = logging.getLogger(__name__)
 
-async def get_altegio_free_slots(token: str, company_id: str, service_name: str, master_id: Optional[int], desired_datetime: datetime) -> List[datetime]:
+async def get_altegio_free_slots(integration: Integration, service_name: str, master_id: Optional[int], desired_datetime: datetime) -> List[datetime]:
 
-    if not token or not company_id:
-        logger.warning(f"Altegio token or company ID missing for business {biz.id}")
+    if not integration.token or not integration.ext_id:
+        logger.warning(f"Altegio token or company ID missing for integration {integration.id}")
         return []
-
+    
     try:
         date_str = desired_datetime.strftime('%Y-%m-%d')
         staff_id = master_id if master_id else 0 
         
         async with httpx.AsyncClient() as client:
             headers = {
-                "Authorization": f"Bearer {token}",
+                "Authorization": f"Bearer {integration.token}",
                 "Accept": "application/vnd.yclients.v2+json",
                 "Content-Type": "application/json"
             }
-            url = f"https://api.alteg.io/api/v1/book_times/{company_id}/{staff_id}/{date_str}"
+            url = f"https://api.alteg.io/api/v1/book_times/{integration.ext_id}/{staff_id}/{date_str}"
             
             resp = await client.get(url, headers=headers, timeout=10.0)
             if resp.status_code == 200:
@@ -50,25 +50,25 @@ async def get_altegio_free_slots(token: str, company_id: str, service_name: str,
         logger.error(f"Altegio request failed: {e}")
     return []
 
-async def get_beauty_pro_free_slots(token: str, location_id: str, service_name: str, master_id: Optional[int], desired_datetime: datetime) -> List[datetime]:
+async def get_beauty_pro_free_slots(integration: Integration, service_name: str, master_id: Optional[int], desired_datetime: datetime) -> List[datetime]:
     """
     Fetches actual free slots from Beauty Pro API.
     """
-    if not token or not location_id:
-        logger.warning(f"Beauty Pro token or location ID missing for business {biz.id}")
+    if not integration.token or not integration.ext_id:
+        logger.warning(f"Beauty Pro token or location ID missing for integration {integration.id}")
         return []
 
     try:
         date_str = desired_datetime.strftime('%Y-%m-%d')
         async with httpx.AsyncClient() as client:
             headers = {
-                "Authorization": f"Bearer {token}",
+                "Authorization": f"Bearer {integration.token}",
                 "Content-Type": "application/json"
             }
             api_url = "https://api.beautyprosoftware.com/v1"
             url = f"{api_url}/availability"
             params = {
-                "location_id": location_id,
+                "location_id": integration.ext_id,
                 "date": date_str
             }
             resp = await client.get(url, headers=headers, params=params, timeout=10.0)
@@ -444,11 +444,13 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
                     all_available_slots = []
                 active_integrations = (await db.execute(select(Integration).where(and_(Integration.business_id == business_id, Integration.is_active == True)))).scalars().all()
                 for integ in active_integrations:
-                    if integ.provider == "altegio" and integ.token and integ.ext_id:
-                        altegio_slots = await get_altegio_free_slots(integ.token, integ.ext_id, service_name, None, desired_datetime)
+                    if integ.provider == "altegio":
+                        # Pass the integration object directly
+                        altegio_slots = await get_altegio_free_slots(integ, service_name, None, desired_datetime)
                         all_available_slots.extend(altegio_slots)
-                    if integ.provider == "beauty_pro" and integ.token and integ.ext_id:
-                        beauty_pro_slots = await get_beauty_pro_free_slots(integ.token, integ.ext_id, service_name, None, desired_datetime)
+                    if integ.provider == "beauty_pro":
+                        # Pass the integration object directly
+                        beauty_pro_slots = await get_beauty_pro_free_slots(integ, service_name, None, desired_datetime)
                         all_available_slots.extend(beauty_pro_slots)
 
                     all_available_slots = sorted(list(set(all_available_slots))) # Remove duplicates and sort

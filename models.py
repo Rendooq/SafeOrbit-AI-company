@@ -121,6 +121,7 @@ class Business(Base):
     payment_receiver_name: Mapped[Optional[str]] = mapped_column(Text)
     subscription_discount: Mapped[int] = mapped_column(Integer, default=0)
     discount_ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    webhook_secret: Mapped[Optional[str]] = mapped_column(Text)
 
 
 class User(Base):
@@ -227,6 +228,18 @@ class ActionLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
 
+class ApiRequestLog(Base):
+    __tablename__ = "api_request_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    api_key_id: Mapped[int] = mapped_column(ForeignKey("api_keys.id", ondelete="CASCADE"))
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    endpoint: Mapped[str] = mapped_column(Text)
+    method: Mapped[str] = mapped_column(Text)
+    status_code: Mapped[int] = mapped_column(Integer)
+    ip_address: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
 class MonthlyPaymentLog(Base):
     __tablename__ = "monthly_payment_logs"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -324,3 +337,25 @@ class Integration(Base):
     ext_id: Mapped[Optional[str]] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    api_key: Mapped[str] = mapped_column(Text, unique=True) # Storing in plain text as per requirement
+    name: Mapped[str] = mapped_column(Text, default="Default API Key")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class IdempotencyKey(Base):
+    __tablename__ = "idempotency_keys"
+    idempotency_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    request_hash: Mapped[str] = mapped_column(Text)  # Hash of the request payload
+    response_data: Mapped[Optional[str]] = mapped_column(Text)  # Stored JSON response
+    status_code: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime) # Keys should expire

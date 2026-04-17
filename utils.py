@@ -1,6 +1,6 @@
 import hashlib
 import secrets
-from typing import Optional
+from typing import Optional # Keep Optional for log_action
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

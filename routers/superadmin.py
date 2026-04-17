@@ -21,8 +21,8 @@ from models import (ActionLog, Appointment, Business, ChatLog, Customer,
                     CustomerSegment, GlobalPaymentSettings, Master, MasterService,
                     MonthlyPaymentLog, NPSReview, Product, Service, User,
                     AppointmentConfirmation, SystemUpdate)
-from ui import get_layout
-from utils import hash_password, log_action, verify_password
+from ui import get_layout # verify_password is removed
+from utils import hash_password, log_action
 from database import get_db, AsyncSessionLocal
 from config import UA_TZ
 import httpx
@@ -674,7 +674,7 @@ async def edit_business(
     biz = await db.get(Business, id)
     if biz:
         biz.plan_type = plan_type
-        biz.contract_url = contract_url
+        biz.contract_url = contract_url # Keep contract_url
         biz.nda_url = nda_url
         biz.subscription_discount = subscription_discount
         if discount_ends_at:

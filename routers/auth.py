@@ -14,8 +14,8 @@ from sqlalchemy.orm import joinedload
 
 from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID, UA_TZ
 from database import get_db
-from models import Business, GlobalPaymentSettings, User
-from utils import hash_password, verify_password
+from models import Business, GlobalPaymentSettings, User # verify_password is removed
+from utils import hash_password
 
 router = APIRouter(tags=["Authentication"])
 
@@ -104,7 +104,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
         --accent-pink: #FFC0CB; /* Soft pink for gradients */
         --glass-bg: rgba(25, 12, 45, 0.3); /* Lighter, more transparent */
         --glass-border: rgba(187, 134, 252, 0.3); /* Matches accent-primary */
-        --blur: 40px; /* Consistent blur value */
+        --blur: 16px; /* Значно зменшуємо розмиття для плавності інтерфейсу */
     }}
     body {{ 
         background: #000; 
@@ -129,9 +129,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
             radial-gradient(circle at 15% 0%, rgba(187, 134, 252, 0.25) 0%, transparent 60%),
             radial-gradient(circle at 85% 100%, rgba(255, 192, 203, 0.15) 0%, transparent 50%),
             radial-gradient(circle at 50% 50%, rgba(12, 5, 26, 1) 0%, transparent 100%);
-        filter: blur(80px); /* Adjust blur for better blend */
         z-index: -1;
-        animation: meshMove 30s infinite alternate ease-in-out;
     }}
 
     @keyframes meshMove {{
@@ -758,7 +756,7 @@ async def login_page():
         --accent-pink: #FFC0CB; /* Soft pink for gradients */
         --glass-bg: rgba(255, 255, 255, 0.012);
         --glass-border: rgba(255, 255, 255, 0.08);
-        --blur: 60px;
+        --blur: 16px; /* Зменшуємо розмиття для усунення лагів */
     }
     body { 
         background: #000;
@@ -785,9 +783,7 @@ async def login_page():
             radial-gradient(circle at 15% 0%, rgba(187, 134, 252, 0.25) 0%, transparent 60%),
             radial-gradient(circle at 85% 100%, rgba(255, 192, 203, 0.15) 0%, transparent 50%),
             radial-gradient(circle at 50% 50%, rgba(12, 5, 26, 1) 0%, transparent 100%);
-        filter: blur(100px);
         z-index: -1;
-        animation: meshMove 30s infinite alternate ease-in-out;
     }
 
     @keyframes meshMove {

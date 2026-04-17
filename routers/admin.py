@@ -6,7 +6,7 @@ import re
 import shutil
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-import urllib.parse
+import urllib.parse, secrets
 
 import httpx
 import pandas as pd
@@ -20,8 +20,8 @@ from config import LABELS, UA_TZ
 from database import get_db
 from dependencies import get_current_user
 from models import (ActionLog, Appointment, AppointmentConfirmation, Business, ChatLog, Customer,
-                    CustomerSegment, GlobalPaymentSettings, Master, MasterService, 
-                    MonthlyPaymentLog, NPSReview, Product, Service, User, SystemUpdate, Integration)
+                    CustomerSegment, GlobalPaymentSettings, Master, MasterService,
+                    MonthlyPaymentLog, NPSReview, Product, Service, User, SystemUpdate, Integration, ApiKey, ApiRequestLog)
 from ui import get_layout
 from utils import hash_password, log_action
 
@@ -167,7 +167,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         branches_tab_content = f"""
         <div class="tab-pane fade" id="pills-branches">
             <div class="row g-4"> 
-                <div class="col-md-5">
+                <div class="col-md-5"> 
                     <div class="glass-card p-4">
                         <h5 class="fw-800 text-white mb-4">Додати філію</h5>
                         <form action="/admin/add-branch" method="post">
@@ -191,27 +191,58 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         </div>"""
         
     # API Tab HTML
-    api_key_val = getattr(biz, 'api_key', None) or 'Ключ не згенеровано'
+    api_keys = (await db.execute(select(ApiKey).where(ApiKey.business_id == user.business_id).order_by(desc(ApiKey.created_at)))).scalars().all()
+    api_keys_html = ""
+    if not api_keys:
+        api_keys_html = "<p class='text-muted small'>API ключі ще не створено.</p>"
+    else:
+        api_keys_html = "<ul class='list-group list-group-flush bg-transparent'>"
+        for key in api_keys:
+            last_used = key.last_used_at.strftime('%d.%m.%Y %H:%M') if key.last_used_at else 'Ніколи'
+            status_badge = f"<span class='badge bg-success'>Активний</span>" if key.is_active else f"<span class='badge bg-secondary text-white-50'>Вимкнений</span>"
+            toggle_icon = "fa-toggle-on text-success" if key.is_active else "fa-toggle-off text-muted"
+            toggle_title = "Вимкнути ключ" if key.is_active else "Увімкнути ключ"
+            
+            api_keys_html += f"""<li class='list-group-item bg-transparent border-0 d-flex justify-content-between align-items-center px-0 mb-3'>
+                <div class="flex-grow-1 me-3">
+                    <strong class='text-white'>{html.escape(key.name)}</strong> {status_badge}<br>
+                    <div class="input-group mt-2">
+                        <input type="password" class="glass-input" value="{html.escape(key.api_key or '')}" readonly id="apiKeyInput_{key.id}" style="border-radius: 12px 0 0 12px;">
+                        <button class="btn btn-glass" type="button" onclick="toggleApiKeyVisibility('apiKeyInput_{key.id}', this)" style="border-radius: 0; border-left: none; border-right: none;" title="Показати/Приховати ключ"><i class="fas fa-eye text-info"></i></button>
+                        <button class="btn btn-glass" type="button" onclick="copyApiKey('apiKeyInput_{key.id}')" style="border-radius: 0 12px 12px 0;" title="Скопіювати ключ"><i class="fas fa-copy text-success"></i></button>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class='text-muted'>Останнє використання: {last_used}</small>
+                        <button class="btn btn-sm btn-link text-info text-decoration-none p-0" onclick="showApiKeyLogs({key.id}, '{html.escape(key.name)}')"><i class="fas fa-history me-1"></i>Історія запитів</button>
+                    </div>
+                </div>
+                <div class='d-flex flex-column gap-2'>
+                    <form action='/admin/toggle-api-key' method='post' style='margin:0;'>
+                        <input type='hidden' name='id' value='{key.id}'>
+                        <button class='btn btn-glass btn-sm w-100' title='{toggle_title}'><i class="fas {toggle_icon} fa-lg"></i></button>
+                    </form>
+                    <form action='/admin/delete-api-key' method='post' style='margin:0;' onsubmit="return confirm('Ви впевнені, що хочете ВИДАЛИТИ цей API ключ назавжди?');">
+                        <input type='hidden' name='id' value='{key.id}'>
+                        <button class='btn btn-glass btn-sm w-100' title='Видалити ключ'><i class="fas fa-trash text-danger"></i></button>
+                    </form>
+                </div>
+            </li>"""
+        api_keys_html += "</ul>"
+
     api_tab_btn = '<li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#pills-api"><i class="fas fa-code me-2"></i>API</button></li>'
     api_tab_content = f"""
         <div class="tab-pane fade" id="pills-api">
             <div class="glass-card p-4 p-md-5" style="max-width: 800px;">
                 <h5 class="fw-800 text-white mb-4">REST API для розробників</h5>
-                <p class="small text-muted mb-4">Використовуйте цей ключ для інтеграції вашої CRM з іншими сервісами або власним сайтом.</p>
+                <p class="small text-muted mb-4">Керуйте API ключами для інтеграції вашої CRM з іншими сервісами. Повна документація доступна за посиланням <a href="/docs" target="_blank" class="text-info">/docs</a>.</p>
                 <div class="mb-4">
-                    <label class="form-label text-white">Ваш API Ключ</label>
-                    <div class="input-group">
-                        <input type="text" class="glass-input" value="{html.escape(api_key_val)}" readonly id="apiKeyInput" style="border-radius: 12px 0 0 12px;">
-                        <button class="btn btn-glass" type="button" onclick="navigator.clipboard.writeText(document.getElementById('apiKeyInput').value); showToast('Ключ скопійовано!');" style="border-radius: 0; border-left: none; border-right: none;"><i class="fas fa-copy text-info"></i></button>
-                        <form action="/admin/generate-api-key" method="post" class="m-0 d-inline-flex">
-                            <button class="btn btn-glass" type="submit" style="border-radius: 0 12px 12px 0;" title="Згенерувати новий"><i class="fas fa-sync text-warning"></i></button>
-                        </form>
-                    </div>
+                    <h6 class="fw-bold text-white mb-3">Ваші ключі</h6>
+                    {api_keys_html if api_keys else "<p class='text-muted small mb-4'>API ключі ще не створено. Створіть перший ключ нижче.</p>"}
                 </div>
-                <div class="p-4 rounded-4" style="background: rgba(255,255,255,0.02); border: 0.5px solid var(--glass-border);">
-                    <h6 class="fw-bold text-white mb-3">Приклад використання (Python)</h6>
-                    <pre class="text-info small m-0" style="white-space: pre-wrap; font-family: monospace;"><code>import requests\nheaders = {{"X-API-Key": "{api_key_val}"}}\nres = requests.get("https://ваш-домен/api/v1/appointments", headers=headers)\nprint(res.json())</code></pre>
-                </div>
+                <form action="/admin/create-api-key" method="post" class="d-flex flex-wrap gap-2 align-items-center">
+                    <input type="text" name="name" class="glass-input m-0 flex-grow-1" placeholder="Назва ключа (напр. 'Мій сайт')" required style="max-width: 300px;">
+                    <button type="submit" class="btn-primary-glow px-4 py-2 m-0" style="min-height: 44px;"><i class="fas fa-plus me-2"></i>Створити API ключ</button>
+                </form>
             </div>
         </div>"""
 
@@ -395,6 +426,20 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
                 </div>
             </form>
         </div></div></div>
+
+        <div class="modal fade" id="apiKeyLogsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg mx-auto"><div class="modal-content max-h-85vh overflow-hidden flex-col">
+            <div class="modal-header"><h5 class="modal-title text-white">Історія запитів: <span id="logKeyName" class="text-primary"></span></h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body overflow-y-auto">
+                <div class="table-responsive">
+                    <table class="glass-table">
+                        <thead><tr><th>Час</th><th>Метод</th><th>Ендпоінт</th><th>IP</th><th>Статус</th></tr></thead>
+                        <tbody id="apiKeyLogsTableBody">
+                            <tr><td colspan="5" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Завантаження...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div></div></div>
     </div>"""
     scripts = """
     <script>
@@ -456,6 +501,40 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         document.getElementById('accMasterId').value = id;
         document.getElementById('accMasterName').innerText = name;
         new bootstrap.Modal(document.getElementById('createAccountModal')).show();
+    }
+    
+    async function showApiKeyLogs(keyId, keyName) {
+        document.getElementById('logKeyName').innerText = keyName;
+        const tbody = document.getElementById('apiKeyLogsTableBody');
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Завантаження...</td></tr>';
+        
+        new bootstrap.Modal(document.getElementById('apiKeyLogsModal')).show();
+        
+        try {
+            const res = await fetch(`/admin/api/api-key-logs/${keyId}`);
+            const logs = await res.json();
+            
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Історія запитів порожня</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = logs.map(log => {
+                let statusBadge = log.status_code >= 200 && log.status_code < 300 
+                    ? `<span class="badge bg-success bg-opacity-10 text-success">${log.status_code}</span>`
+                    : `<span class="badge bg-danger bg-opacity-10 text-danger">${log.status_code}</span>`;
+                let methodColor = log.method === 'GET' ? 'text-info' : (log.method === 'POST' ? 'text-success' : (log.method === 'DELETE' ? 'text-danger' : 'text-warning'));
+                return `<tr>
+                    <td class="text-muted small">${log.time}</td>
+                    <td class="fw-bold ${methodColor}">${log.method}</td>
+                    <td><code class="text-white-50 bg-transparent p-0">${log.endpoint}</code></td>
+                    <td class="text-muted small">${log.ip_address || '-'}</td>
+                    <td>${statusBadge}</td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-danger">Помилка завантаження історії</td></tr>';
+        }
     }
     </script>
     """
@@ -1043,6 +1122,80 @@ async def update_master_profile(
 
     return RedirectResponse("/admin/settings?msg=saved", status_code=303)
 
+@router.post("/create-api-key")
+async def create_first_api_key(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "owner":
+        return RedirectResponse("/", status_code=303)
+
+    new_api_key_value = f"sk_live_{secrets.token_hex(32)}"
+    
+    new_api_key = ApiKey(
+        business_id=user.business_id,
+        api_key=new_api_key_value, # Store the key directly
+        name=name,
+        is_active=True,
+        created_at=datetime.now()
+    )
+    db.add(new_api_key)
+    await db.commit()
+    
+    return RedirectResponse("/admin/settings?msg=API+ключ+створено!+Скопіюйте+його+з+поля+вище.", status_code=303)
+
+
+@router.post("/toggle-api-key")
+async def toggle_api_key(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "owner":
+        return RedirectResponse("/", status_code=303)
+
+    api_key = await db.get(ApiKey, id)
+    if api_key and api_key.business_id == user.business_id:
+        # Перемикаємо статус (з активного на вимкнений і навпаки)
+        api_key.is_active = not api_key.is_active
+        await db.commit()
+        state = "увімкнено" if api_key.is_active else "вимкнено"
+        await log_action(db, user.business_id, user.id, "Зміна статусу API ключа", f"API ключ '{api_key.name}' {state}.")
+
+    return RedirectResponse("/admin/settings?msg=saved", status_code=303)
+
+
+@router.post("/delete-api-key")
+async def delete_api_key(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "owner":
+        return RedirectResponse("/", status_code=303)
+
+    api_key = await db.get(ApiKey, id)
+    if api_key and api_key.business_id == user.business_id:
+        key_name = api_key.name
+        await db.delete(api_key)
+        await db.commit()
+        await log_action(db, user.business_id, user.id, "Видалено API ключ", f"API ключ '{key_name}' видалено остаточно.")
+
+    return RedirectResponse("/admin/settings?msg=deleted", status_code=303)
+
+@router.get("/api/api-key-logs/{key_id}")
+async def get_api_key_logs(key_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role not in ["owner", "master"]:
+        return []
+        
+    api_key = await db.get(ApiKey, key_id)
+    if not api_key or api_key.business_id != user.business_id:
+        return []
+        
+    logs = (await db.execute(
+        select(ApiRequestLog)
+        .where(ApiRequestLog.api_key_id == key_id)
+        .order_by(desc(ApiRequestLog.created_at))
+        .limit(100)
+    )).scalars().all()
+    
+    return [{
+        "endpoint": html.escape(l.endpoint),
+        "method": html.escape(l.method),
+        "status_code": l.status_code,
+        "ip_address": html.escape(l.ip_address) if l.ip_address else "-",
+        "time": l.created_at.strftime('%d.%m.%Y %H:%M:%S')
+    } for l in logs]
+
 
 @router.get("/klienci", response_class=HTMLResponse)
 async def clients_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -1351,18 +1504,6 @@ async def delete_product(id: int = Form(...), user: User = Depends(get_current_u
         await log_action(db, user.business_id, user.id, "Видалено товар", f"Видалено товар '{product.name}' зі складу.")
 
     return RedirectResponse("/admin/finance?msg=deleted", status_code=303)
-
-@router.post("/generate-api-key")
-async def generate_api_key(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner":
-        return RedirectResponse("/", status_code=303)
-    import secrets
-    biz = await db.get(Business, user.business_id)
-    if biz:
-        biz.api_key = f"sk_live_{secrets.token_urlsafe(24)}"
-        await db.commit()
-        await log_action(db, user.business_id, user.id, "Генерація API ключа", "Згенеровано новий API ключ.")
-    return RedirectResponse("/admin/settings?msg=saved", status_code=303)
 
 @router.get("/chats", response_class=HTMLResponse)
 async def chats_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

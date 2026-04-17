@@ -111,6 +111,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "SUPER_SECRET_KEY_PRO_999")
 SUPERADMIN_TG_BOT_TOKEN = os.getenv("SUPERADMIN_TG_BOT_TOKEN", "")
 SUPERADMIN_TG_CHAT_ID = os.getenv("SUPERADMIN_TG_CHAT_ID", "")
+WEBHOOK_SIGNING_SECRET = os.getenv("WEBHOOK_SIGNING_SECRET", "a_very_secret_key_for_webhooks")
 
 # --- Other Constants ---
 DEFAULT_SMS_SENDER = "Service"

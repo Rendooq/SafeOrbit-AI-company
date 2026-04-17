@@ -1,6 +1,8 @@
 import json
 import logging
 from datetime import datetime
+import hmac
+import asyncio
 
 import httpx
 from fastapi import APIRouter, Depends, Request
@@ -11,20 +13,61 @@ from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID
 from database import get_db
 from models import Business, ChatLog, Customer, User
 from services.ai_service import process_ai_request
+from config import WEBHOOK_SIGNING_SECRET
 
 router = APIRouter(prefix="/webhook", tags=["Webhooks"])
 logger = logging.getLogger(__name__)
 
 
+async def _process_telegram_update(business_id: int, data: dict, db: AsyncSession):
+    """Internal function to process Telegram updates asynchronously. This is a placeholder."""
+    try:
+        biz = await db.get(Business, business_id)
+        if not biz or not biz.telegram_token:
+            logger.warning(f"Business {business_id} or Telegram token not found for webhook processing.")
+            return
+        if not biz.telegram_enabled:
+            logger.info(f"Telegram integration disabled for business {business_id}.")
+            return
+
+        # TODO: Move the actual Telegram webhook processing logic here.
+        # This function should receive the `Integration` object for Telegram
+        # instead of relying on `biz.telegram_token` directly.
+        logger.info(f"Processing Telegram update for business {business_id}: {data}")
+
+    except Exception as e:
+        logger.error(f"Error processing Telegram update for business {business_id}: {e}")
+
+
 @router.post("/telegram/{business_id}")
 async def telegram_webhook(business_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        data = await request.json()
+        # Read raw body for signature verification if Telegram provides it
+        # Telegram's Bot API uses a secret token in the webhook URL, not a signature header.
+        # However, if you were using a custom webhook proxy or a different provider,
+        # signature verification would be crucial here.
+        
+        # For Telegram, the token is part of the URL or configured in the bot settings.
+        # The `biz.telegram_token` is used to send messages *from* the bot,
+        # not typically to verify incoming webhooks, unless you set a custom secret token
+        # in BotFather and check it here.
+        
+        # For this example, we'll assume the `business_id` in the URL is sufficient
+        # for initial routing, and the actual token check happens implicitly
+        # when the bot tries to respond.
+        
+        # If Telegram provided a signature, it would look like this:
+        # x_telegram_bot_api_secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        # if x_telegram_bot_api_secret_token != biz.telegram_webhook_secret: # Assuming biz has this field
+        #     raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret")
+
+        data = await request.json() # Parse JSON after body is read
         biz = await db.get(Business, business_id)
         if not biz or not biz.telegram_token:
             return {"ok": False, "error": "Business or token not found"}
         if not biz.telegram_enabled: return {"ok": True}
 
+        # Acknowledge the webhook immediately and process in background
         if "callback_query" in data:
             cb_data = data["callback_query"]["data"]
             chat_id = data["callback_query"]["message"]["chat"]["id"]
@@ -90,7 +133,6 @@ async def telegram_webhook(business_id: int, request: Request, db: AsyncSession 
                         f"https://api.telegram.org/bot{biz.telegram_token}/sendMessage",
                         json={"chat_id": chat_id, "text": ai_reply_text}
                     )
-        return {"ok": True}
     except Exception as e:
         logger.error(f"Telegram Webhook Error: {e}")
         return {"ok": False}

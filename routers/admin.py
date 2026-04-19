@@ -30,7 +30,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/settings", response_class=HTMLResponse)
 async def ai_settings_page(request: Request, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "master"]: return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager", "master"]: return RedirectResponse("/", status_code=303)
     biz = (await db.execute(select(Business).where(Business.id == user.business_id))).scalar_one_or_none()
     
     models = [("llama-3.3-70b-versatile", "AI-5.0.0-expert-version")]
@@ -43,6 +43,12 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
     master_user_map = {u.master_id: u.username for u in master_users if u.master_id}
 
     l = LABELS.get(biz.type, LABELS["generic"])
+    if biz.type == 'school':
+        l = {"clients": "Учні", "masters": "Викладачі", "master_single": "Викладач", "services": "Курси", "service_single": "Курс", "appts": "Записи на курси", "new_appt": "Новий учень", "analytics_clients": "Топ Учнів"}
+        branch_label = "Філії / Групи"
+    else:
+        l = LABELS.get(biz.type, LABELS.get("generic", {"clients": "Клієнти"}))
+        branch_label = "Філії"
 
     email_chk = "checked" if biz.email_notifications_enabled else ""
     tg_chk = "checked" if biz.telegram_notifications_enabled else ""
@@ -164,20 +170,25 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
             branches_html = "<li class='list-group-item bg-transparent border-0 text-muted text-center py-4'>У вас ще немає філій</li>"
 
         branches_tab_btn = '<li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#pills-branches">🏢 Філії</button></li>'
+        branches_tab_btn = f'<li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#pills-branches">🏢 {branch_label}</button></li>'
         branches_tab_content = f"""
         <div class="tab-pane fade" id="pills-branches">
             <div class="row g-4"> 
                 <div class="col-md-5"> 
                     <div class="glass-card p-4">
                         <h5 class="fw-800 text-white mb-4">Додати філію</h5>
+                        <h5 class="fw-800 text-white mb-4">Додати {branch_label.split(' / ')[0].lower()}</h5>
                         <form action="/admin/add-branch" method="post">
                             <div class="mb-3"><input name="name" class="glass-input" placeholder="Назва філії (напр. 'На Подолі')" required></div>
+                            <div class="mb-3"><input name="name" class="glass-input" placeholder="Назва філії / групи" required></div>
                             <div class="mb-3"><input name="city" class="glass-input" placeholder="Місто (напр. Київ)" required></div>
                             <div class="mb-4"><input name="address" class="glass-input" placeholder="Адреса (напр. вул. Хрещатик, 1)" required></div>
                             <h6 class="fw-800 text-muted small mb-3">Акаунт для входу у філію</h6>
+                            <h6 class="fw-800 text-muted small mb-3">Акаунт для входу (менеджер)</h6>
                             <div class="mb-3"><input name="login" class="glass-input" placeholder="Логін (телефон філії)" required></div>
                             <div class="mb-4"><input name="password" type="password" class="glass-input" placeholder="Пароль" required></div>
                             <button class="btn-primary-glow w-100 py-3">Створити філію</button>
+                            <button class="btn-primary-glow w-100 py-3">Створити під-акаунт</button>
                         </form>
                     </div>
                 </div>
@@ -255,6 +266,13 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
             <option value="Маркетолог">Маркетолог (аналітика та ШІ)</option>
             <option value="СЕО">СЕО (повний доступ)</option>
             <option value="СОО">СОО (повний доступ)</option>
+        """
+    elif biz.type == 'school':
+        roles_html = f"""
+            <option value="Викладач">Викладач (бачить тільки свої групи/записи)</option>
+            <option value="Адміністратор">Адміністратор (бачить всі записи)</option>
+            <option value="Куратор">Куратор курсу</option>
+            <option value="Директор">Директор (повний доступ)</option>
         """
     else:
         roles_html = f"""
@@ -542,7 +560,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
 
 @router.get("/generator", response_class=HTMLResponse)
 async def prompt_generator_page(user: User = Depends(get_current_user)):
-    if not user or user.role != "owner": return RedirectResponse("/admin", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager"]: return RedirectResponse("/admin", status_code=303)
     
     content = """
     <div class="glass-card p-5">
@@ -868,7 +886,7 @@ async def save_prompt(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role != "owner":
+    if not user or user.role not in ["owner", "admin", "manager"]:
         return {"success": False, "ok": False, "error": "Unauthorized", "msg": "Помилка авторизації"}
 
     biz = await db.get(Business, user.business_id)
@@ -897,7 +915,7 @@ async def add_master(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role not in ["owner", "superadmin"]:
+    if not user or user.role not in ["owner", "superadmin", "admin", "manager"]:
         return RedirectResponse("/", status_code=303)
 
     new_master = Master(business_id=user.business_id, name=name, role=emp_role, working_hours=working_hours)
@@ -917,7 +935,7 @@ async def add_master(
 
 @router.post("/delete-master")
 async def delete_master(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "superadmin"]:
+    if not user or user.role not in ["owner", "superadmin", "admin", "manager"]:
         return RedirectResponse("/", status_code=303)
 
     master_to_delete = await db.get(Master, id)
@@ -938,7 +956,7 @@ async def add_service(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role not in ["owner", "superadmin"]:
+    if not user or user.role not in ["owner", "superadmin", "admin"]:
         return RedirectResponse("/", status_code=303)
 
     new_service = Service(business_id=user.business_id, name=name, price=price, duration=duration)
@@ -951,7 +969,7 @@ async def add_service(
 
 @router.post("/delete-service")
 async def delete_service(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "superadmin"]:
+    if not user or user.role not in ["owner", "superadmin", "admin"]:
         return RedirectResponse("/", status_code=303)
 
     service_to_delete = await db.get(Service, id)
@@ -972,7 +990,7 @@ async def create_master_account(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role not in ["owner", "superadmin"]:
+    if not user or user.role not in ["owner", "superadmin", "admin"]:
         return RedirectResponse("/", status_code=303)
 
     master = await db.get(Master, id)
@@ -1006,12 +1024,21 @@ async def add_branch(
     if existing_user:
         return RedirectResponse("/admin/settings?msg=login_exists", status_code=303)
 
-    new_branch = Business(name=name, city=city, address=address, parent_id=user.business_id, type=user.business.type, plan_type=user.business.plan_type)
+    new_branch = Business(
+        name=name, 
+        city=city, 
+        address=address, 
+        parent_id=user.business_id, 
+        type=user.business.type, 
+        plan_type=user.business.plan_type,
+        has_ai_bot=True,
+        integration_enabled=True
+    )
     db.add(new_branch)
     await db.flush()
     await db.refresh(new_branch)
 
-    new_user = User(username=login, password=hash_password(password), role="owner", business_id=new_branch.id)
+    new_user = User(username=login, password=hash_password(password), role="admin", business_id=new_branch.id)
     db.add(new_user)
     await db.commit()
     await log_action(db, user.business_id, user.id, "Створено філію", f"Створено філію '{name}' з логіном '{login}'.")
@@ -1080,7 +1107,7 @@ async def save_notification_settings(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role != "owner":
+    if not user or user.role not in ["owner", "admin"]:
         return {"ok": False, "msg": "Unauthorized"}
 
     biz = await db.get(Business, user.business_id)
@@ -1124,7 +1151,7 @@ async def update_master_profile(
 
 @router.post("/create-api-key")
 async def create_first_api_key(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner":
+    if not user or user.role not in ["owner", "admin"]:
         return RedirectResponse("/", status_code=303)
 
     new_api_key_value = f"sk_live_{secrets.token_hex(32)}"
@@ -1144,7 +1171,7 @@ async def create_first_api_key(user: User = Depends(get_current_user), db: Async
 
 @router.post("/toggle-api-key")
 async def toggle_api_key(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner":
+    if not user or user.role not in ["owner", "admin"]:
         return RedirectResponse("/", status_code=303)
 
     api_key = await db.get(ApiKey, id)
@@ -1160,7 +1187,7 @@ async def toggle_api_key(id: int = Form(...), user: User = Depends(get_current_u
 
 @router.post("/delete-api-key")
 async def delete_api_key(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner":
+    if not user or user.role not in ["owner", "admin"]:
         return RedirectResponse("/", status_code=303)
 
     api_key = await db.get(ApiKey, id)
@@ -1174,7 +1201,7 @@ async def delete_api_key(id: int = Form(...), user: User = Depends(get_current_u
 
 @router.get("/api/api-key-logs/{key_id}")
 async def get_api_key_logs(key_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "master"]:
+    if not user or user.role not in ["owner", "admin", "master"]:
         return []
         
     api_key = await db.get(ApiKey, key_id)
@@ -1199,9 +1226,15 @@ async def get_api_key_logs(key_id: int, user: User = Depends(get_current_user), 
 
 @router.get("/klienci", response_class=HTMLResponse)
 async def clients_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "master"]: return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager", "master"]: return RedirectResponse("/", status_code=303)
     customers = (await db.execute(select(Customer).where(Customer.business_id == user.business_id).order_by(desc(Customer.id)))).scalars().all()
     
+    biz_type = user.business.type if user.business else "barbershop"
+    if biz_type == 'school':
+        l = {"clients": "Учні"}
+    else:
+        l = LABELS.get(biz_type, LABELS.get("generic", {"clients": "Клієнти"}))
+        
     rows = ""
     for c in customers:
         badge = "<span class='badge bg-danger bg-opacity-10 text-danger'>Заблоковано</span>" if getattr(c, 'is_blocked', False) else "<span class='badge bg-success bg-opacity-10 text-success'>Активний</span>"
@@ -1229,6 +1262,7 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
     content = f"""
     <div class="glass-card p-4">
         <h5 class="fw-800 text-white mb-4"><i class="fas fa-users text-primary me-2"></i>База клієнтів</h5>
+        <h5 class="fw-800 text-white mb-4"><i class="fas fa-users text-primary me-2"></i>База {l.get('clients', 'Клієнтів').lower()}</h5>
         <div class="table-responsive w-full overflow-x-auto whitespace-nowrap block">
             <table class="glass-table">
                 <thead><tr><th>ID</th><th>Ім'я</th><th>Телефон</th><th>Знижка</th><th>Статус</th><th>Нотатки</th><th class="text-end">Дії</th></tr></thead>
@@ -1267,7 +1301,7 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
 
 @router.post("/toggle-client-block")
 async def toggle_client_block(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "master"]: 
+    if not user or user.role not in ["owner", "admin", "manager", "master"]: 
         return RedirectResponse("/", status_code=303)
     
     customer = await db.get(Customer, id)
@@ -1289,7 +1323,7 @@ async def update_customer(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role not in ["owner", "master"]: 
+    if not user or user.role not in ["owner", "admin", "manager", "master"]: 
         return RedirectResponse("/", status_code=303)
     
     customer = await db.get(Customer, id)
@@ -1305,7 +1339,7 @@ async def update_customer(
 
 @router.get("/finance", response_class=HTMLResponse)
 async def finance_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager"]: return RedirectResponse("/", status_code=303)
     products = (await db.execute(select(Product).where(Product.business_id == user.business_id).order_by(desc(Product.id)))).scalars().all()
     
     rows = ""
@@ -1414,7 +1448,7 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
 
 @router.get("/logs", response_class=HTMLResponse)
 async def logs_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin"]: return RedirectResponse("/", status_code=303)
     logs = (await db.execute(select(ActionLog).where(ActionLog.business_id == user.business_id).order_by(desc(ActionLog.created_at)).limit(100))).scalars().all()
     
     rows = ""
@@ -1451,7 +1485,7 @@ async def add_product(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role != "owner":
+    if not user or user.role not in ["owner", "admin", "manager"]:
         return RedirectResponse("/", status_code=303)
 
     variants = []
@@ -1494,7 +1528,7 @@ async def add_product(
 
 @router.post("/delete-product")
 async def delete_product(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner":
+    if not user or user.role not in ["owner", "admin", "manager"]:
         return RedirectResponse("/", status_code=303)
     
     product = await db.get(Product, id)
@@ -1507,7 +1541,7 @@ async def delete_product(id: int = Form(...), user: User = Depends(get_current_u
 
 @router.get("/chats", response_class=HTMLResponse)
 async def chats_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "master"]: return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager", "master"]: return RedirectResponse("/", status_code=303)
     
     content = f"""
     <div class="glass-card p-0 overflow-hidden d-flex" style="height: 75vh; border-radius: 32px;">
@@ -1764,19 +1798,35 @@ async def get_day_details(date: str, user: User = Depends(get_current_user), db:
 
 @router.get("/bot-integration", response_class=HTMLResponse)
 async def bot_integration_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
-    ints = (await db.execute(select(Integration).where(Integration.business_id == user.business_id).order_by(desc(Integration.id)))).scalars().all()
+    if not user or user.role not in ["owner", "admin", "manager"]: return RedirectResponse("/", status_code=303)
+    
+    branches_data = []
+    if user.role == "owner" and user.business and user.business.parent_id is None:
+        branches = (await db.execute(select(Business).where(Business.parent_id == user.business_id))).scalars().all()
+        branches_data = [{"id": b.id, "name": b.name} for b in branches]
+    
+    all_biz_ids = [user.business_id] + [b["id"] for b in branches_data]
+    ints = (await db.execute(select(Integration).where(Integration.business_id.in_(all_biz_ids)).order_by(desc(Integration.id)))).scalars().all()
+    
     my_ints = []
     for i in ints:
+        biz_name = "Головний офіс"
+        if i.business_id != user.business_id:
+            biz_name = next((b["name"] for b in branches_data if b["id"] == i.business_id), "Філія")
+            
         my_ints.append({
             "id": i.id,
             "provider": i.provider,
             "name": i.name,
             "token": i.token or "",
             "ext_id": i.ext_id or "",
-            "is_active": i.is_active
+            "is_active": i.is_active,
+            "business_id": i.business_id,
+            "business_name": biz_name
         })
+        
     my_ints_json = json.dumps(my_ints)
+    branches_json = json.dumps(branches_data)
 
     content = f"""
     <div class="glass-card p-4 p-md-5 mb-4">
@@ -1814,7 +1864,7 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
     """
     scripts = """
     <script>
-    const myIntegrations = {my_ints_json};
+    const myIntegrations = __MY_INTS__;
 
 
     const catalog = [
@@ -1857,6 +1907,21 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
     
     let currentCat = 'all';
     
+    const currentBizId = __BIZ_ID__;
+    const branchesData = __BRANCHES__;
+    
+    function getBranchSelectHTML(selectedId = currentBizId) {
+        if (branchesData.length === 0) return '';
+        let options = `<option value="${currentBizId}" ${selectedId == currentBizId ? 'selected' : ''}>Головний офіс</option>`;
+        branchesData.forEach(b => {
+            options += `<option value="${b.id}" ${selectedId == b.id ? 'selected' : ''}>${b.name}</option>`;
+        });
+        return `
+            <label class="form-label text-white-50">Локація (Філія)</label>
+            <select name="target_business_id" class="form-select mb-3">${options}</select>
+        `;
+    }
+    
     function renderMyIntegrations() {
         const grid = document.getElementById('my-integrations-grid');
         grid.innerHTML = '';
@@ -1879,7 +1944,7 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
                         </div>
                         <div class="min-w-0 flex-grow-1" style="cursor: pointer;" onclick="openConfig('${int.id}')">
                             <h6 class="mb-1 text-white fw-bold text-truncate">${int.name}${activeBadge}</h6>
-                            <div class="small opacity-50 text-truncate" style="font-size: 11px;">${meta.name}</div>
+                            <div class="small opacity-50 text-truncate" style="font-size: 11px;">${meta.name} • ${int.business_name}</div>
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-glass btn-sm px-2 py-1" onclick="openConfig('${int.id}')"><i class="fas fa-edit text-info"></i></button>
@@ -1944,6 +2009,8 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
                     <input type="hidden" name="integration_id" value="">
                     <input type="hidden" name="provider" value="${providerId}">
                     
+                    ${getBranchSelectHTML(currentBizId)}
+                    
                     <label class="form-label text-white-50">Назва (для себе)</label>
                     <input type="text" name="name" class="glass-input mb-3" placeholder="Мій ${providerName}" value="${providerName} 1" required>
 
@@ -1983,6 +2050,8 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
                     <input type="hidden" name="integration_id" value="${data.id}">
                     <input type="hidden" name="provider" value="${data.provider}">
                     
+                    ${getBranchSelectHTML(data.business_id || currentBizId)}
+                    
                     <label class="form-label text-white-50">Назва (для себе)</label>
                     <input type="text" name="name" class="glass-input mb-3" value="${data.name}" required>
 
@@ -2016,7 +2085,7 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
     });
     </script>
     """
-    scripts = scripts.replace("{my_ints_json}", my_ints_json)
+    scripts = scripts.replace("__MY_INTS__", my_ints_json).replace("__BIZ_ID__", str(user.business_id)).replace("__BRANCHES__", branches_json)
     return get_layout(content, user, "bot", scripts=scripts)
 
 
@@ -2025,24 +2094,49 @@ async def save_integration(
     request: Request,
     integration_id: Optional[str] = Form(None),
     provider: str = Form(...),
-    name: str = Form(...),    is_active: bool = Form(False),
+    name: str = Form(...),
+    is_active: bool = Form(False),
     token: Optional[str] = Form(None),
     ext_id: Optional[str] = Form(None),
+    target_business_id: Optional[int] = Form(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager"]: return RedirectResponse("/", status_code=303)
+    
+    biz_id_to_use = user.business_id
+    if target_business_id and target_business_id != user.business_id:
+        if user.role == "owner":
+            branch = await db.get(Business, target_business_id)
+            if branch and branch.parent_id == user.business_id:
+                biz_id_to_use = target_business_id
+            else:
+                return RedirectResponse("/admin/bot-integration", status_code=303)
+                
     if integration_id:
         integration = await db.get(Integration, int(integration_id))
-        if not integration or integration.business_id != user.business_id:
+        if not integration:
             return RedirectResponse("/admin/bot-integration", status_code=303)
+            
+        is_allowed = False
+        if integration.business_id == user.business_id:
+            is_allowed = True
+        elif user.role == "owner":
+            branch = await db.get(Business, integration.business_id)
+            if branch and branch.parent_id == user.business_id:
+                is_allowed = True
+                
+        if not is_allowed:
+            return RedirectResponse("/admin/bot-integration", status_code=303)
+            
         integration.name = name
         integration.is_active = is_active
         integration.token = token
         integration.ext_id = ext_id
+        integration.business_id = biz_id_to_use
     else:
         integration = Integration(
-            business_id=user.business_id,
+            business_id=biz_id_to_use,
             provider=provider,
             name=name,
             is_active=is_active,
@@ -2054,33 +2148,29 @@ async def save_integration(
     await db.commit()
     await db.refresh(integration)
     
-    # Зворотна сумісність для webhook-сервісів (оновлюємо глобальні токени)
-    biz = await db.get(Business, user.business_id)
-    if biz:
-        active_ints = (await db.execute(select(Integration).where(and_(Integration.business_id == user.business_id, Integration.is_active == True)))).scalars().all()
-        biz.integration_system = ",".join(set([i.provider for i in active_ints]))
+    biz_to_update = await db.get(Business, biz_id_to_use)
+    if biz_to_update:
+        active_ints = (await db.execute(select(Integration).where(and_(Integration.business_id == biz_id_to_use, Integration.is_active == True)))).scalars().all()
+        biz_to_update.integration_system = ",".join(set([i.provider for i in active_ints]))
         
         ptg = next((i for i in active_ints if i.provider == 'telegram'), None)
-        biz.telegram_token = ptg.token if ptg else None
-        biz.telegram_enabled = bool(ptg)
+        biz_to_update.telegram_token = ptg.token if ptg else None
+        biz_to_update.telegram_enabled = bool(ptg)
         
         pa = next((i for i in active_ints if i.provider == 'altegio'), None)
-        if pa: biz.altegio_token = pa.token; biz.altegio_company_id = pa.ext_id
-
+        if pa: biz_to_update.altegio_token = pa.token; biz_to_update.altegio_company_id = pa.ext_id
         pb = next((i for i in active_ints if i.provider == 'beauty_pro'), None)
-        if pb: biz.beauty_pro_token = pb.token; biz.beauty_pro_location_id = pb.ext_id
-
+        if pb: biz_to_update.beauty_pro_token = pb.token; biz_to_update.beauty_pro_location_id = pb.ext_id
         psms = next((i for i in active_ints if i.provider == 'turbosms'), None)
-        if psms: biz.sms_token = psms.token; biz.sms_sender_id = psms.ext_id
-
+        if psms: biz_to_update.sms_token = psms.token; biz_to_update.sms_sender_id = psms.ext_id
         pgr = next((i for i in active_ints if i.provider == 'groq'), None)
-        if pgr: biz.groq_api_key = pgr.token
-
-        await db.commit()    
+        if pgr: biz_to_update.groq_api_key = pgr.token
+        await db.commit()
+        
     if provider == "telegram" and token:
         base_url = str(request.base_url).rstrip('/')
         if base_url.startswith("http://"): base_url = base_url.replace("http://", "https://")
-        webhook_url = f"{base_url}/webhook/telegram/{user.business_id}"
+        webhook_url = f"{base_url}/webhook/telegram/{biz_id_to_use}"
         try:
             async with httpx.AsyncClient() as client:
                 if is_active:
@@ -2089,27 +2179,39 @@ async def save_integration(
                     await client.post(f"https://api.telegram.org/bot{token}/deleteWebhook")
         except Exception: pass
         
-        
-    await log_action(db, user.business_id, user.id, "Збережено інтеграцію", f"Інтеграцію '{name}' збережено.")
-    
+    await log_action(db, biz_id_to_use, user.id, "Збережено інтеграцію", f"Інтеграцію '{name}' збережено.")
     return RedirectResponse("/admin/bot-integration?msg=saved", status_code=303)
 
 
 @router.post("/delete-integration")
 async def delete_integration(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role != "owner": return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager"]: return RedirectResponse("/", status_code=303)
     
     integration = await db.get(Integration, id)
-    if integration and integration.business_id == user.business_id:
-        if integration.provider == "telegram" and integration.token:
-            try:
-                async with httpx.AsyncClient() as client:
-                    await client.post(f"https://api.telegram.org/bot{integration.token}/deleteWebhook")
-            except Exception: pass
+    if integration:
+        is_allowed = False
+        if integration.business_id == user.business_id:
+            is_allowed = True
+        elif user.role == "owner":
+            branch = await db.get(Business, integration.business_id)
+            if branch and branch.parent_id == user.business_id:
+                is_allowed = True
+                
+        if is_allowed:
+            biz_id = integration.business_id
+            if integration.provider == "telegram" and integration.token:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        await client.post(f"https://api.telegram.org/bot{integration.token}/deleteWebhook")
+                except Exception: pass
+                
+            await db.delete(integration)
             
-        await db.delete(integration)
-        await db.commit()
-        await log_action(db, user.business_id, user.id, "Видалено інтеграцію", f"Інтеграцію '{integration.name}' видалено.")
+            biz_to_update = await db.get(Business, biz_id)
+            active_ints = (await db.execute(select(Integration).where(and_(Integration.business_id == biz_id, Integration.is_active == True)))).scalars().all()
+            biz_to_update.integration_system = ",".join(set([i.provider for i in active_ints]))
+            await db.commit()
+            await log_action(db, biz_id, user.id, "Видалено інтеграцію", f"Інтеграцію '{integration.name}' видалено.")
 
     return RedirectResponse("/admin/bot-integration?msg=deleted", status_code=303)
 

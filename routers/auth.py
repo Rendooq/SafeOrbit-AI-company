@@ -14,8 +14,8 @@ from sqlalchemy.orm import joinedload
 
 from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID, UA_TZ
 from database import get_db
-from models import Business, GlobalPaymentSettings, User # verify_password is removed
-from utils import hash_password
+from models import Business, GlobalPaymentSettings, User
+from utils import hash_password, verify_password
 
 router = APIRouter(tags=["Authentication"])
 
@@ -337,6 +337,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
                         <option value="medical">Медичний центр</option>
                         <option value="fitness">Фітнес / Спорт</option>
                         <option value="retail">Магазин / Товарний бізнес</option>
+                        <option value="school">🎓 Школа / Навчальний центр</option>
                         <option value="generic">Інше</option>
                     </select>
                 </div>

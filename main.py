@@ -27,7 +27,7 @@ from models import (
 from dependencies import get_current_user
 from exceptions import APIError
 from middleware import LoggingMiddleware, RateLimitMiddleware
-from routers import admin, api_v1, auth, dashboard, educational_api, superadmin, webhooks, widget
+from routers import admin, api_v1, auth, dashboard, educational_api, superadmin, webhooks, widget, api_schools
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
                                        nps_collection_loop, reminder_loop,
@@ -83,6 +83,7 @@ app.include_router(widget.router)
 app.include_router(webhooks.router)
 app.include_router(api_v1.router)
 app.include_router(educational_api.router)
+app.include_router(api_schools.router) # REST API Шкіл та ізольованих філій
 
 
 @app.get("/api-docs", include_in_schema=False)

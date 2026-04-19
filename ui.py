@@ -5,6 +5,8 @@ from config import LABELS
 def get_layout(content: str, user: User, active: str, scripts: str = ""):
     is_super = user.role == "superadmin"
     is_master = user.role == "master"
+    is_admin = user.role == "admin"
+    is_owner = user.role == "owner"
     
     biz_type = user.business.type if user.business else "barbershop"
     l = LABELS.get(biz_type, LABELS["generic"])
@@ -22,7 +24,8 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             menu_items.append(("/admin/logs", "logs", "fa-clock-rotate-left", "Журнал подій"))
         menu_items.append(("/admin/settings", "set", "fa-gear", "Конфігурація"))
         menu_items.append(("/admin/chats", "chats", "fa-comments", "Комунікації"))
-        if user.business and user.business.has_ai_bot:
+        
+        if user.role in ["owner", "admin", "manager"]:
             menu_items.append(("/admin/bot-integration", "bot", "fa-robot", "AI Асистенти"))
         menu_items.append(("/admin/updates", "upd", "fa-bullhorn", "Оновлення"))
         menu_items.append(("/admin/help", "help", "fa-circle-question", "Підтримка"))

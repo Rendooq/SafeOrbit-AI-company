@@ -31,7 +31,7 @@ import logging
 router = APIRouter(prefix="/superadmin", tags=["Superadmin"])
 
 
-@router.get("", response_class=HTMLResponse)
+@router.get("", response_class=HTMLResponse, include_in_schema=False)
 async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin": return RedirectResponse("/", status_code=303)
     
@@ -515,7 +515,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
     return get_layout(content, user, "super", scripts=scripts)
 
 
-@router.post("/add-sto")
+@router.post("/add-sto", include_in_schema=False)
 async def add_sto(
     name: str = Form(...),
     type: str = Form(...),
@@ -554,7 +554,7 @@ async def add_sto(
     return RedirectResponse("/superadmin?msg=added", status_code=303)
 
 
-@router.post("/approve-payment/{business_id}")
+@router.post("/approve-payment/{business_id}", include_in_schema=False)
 async def approve_payment(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -581,7 +581,7 @@ async def approve_payment(business_id: int, user: User = Depends(get_current_use
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.post("/reject-payment/{business_id}")
+@router.post("/reject-payment/{business_id}", include_in_schema=False)
 async def reject_payment(business_id: int, reason: str = Form(""), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -597,7 +597,7 @@ async def reject_payment(business_id: int, reason: str = Form(""), user: User = 
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/toggle/{business_id}")
+@router.get("/toggle/{business_id}", include_in_schema=False)
 async def toggle_business_active(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -612,7 +612,7 @@ async def toggle_business_active(business_id: int, user: User = Depends(get_curr
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/toggle-ai/{business_id}")
+@router.get("/toggle-ai/{business_id}", include_in_schema=False)
 async def toggle_business_ai(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -627,7 +627,7 @@ async def toggle_business_ai(business_id: int, user: User = Depends(get_current_
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/toggle-integration/{business_id}")
+@router.get("/toggle-integration/{business_id}", include_in_schema=False)
 async def toggle_business_integration(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -642,7 +642,7 @@ async def toggle_business_integration(business_id: int, user: User = Depends(get
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", include_in_schema=False)
 async def reset_password(id: int = Form(...), new_password: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -656,7 +656,7 @@ async def reset_password(id: int = Form(...), new_password: str = Form(...), use
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.post("/edit-business")
+@router.post("/edit-business", include_in_schema=False)
 async def edit_business(
     id: int = Form(...),
     phone: str = Form(...),
@@ -694,7 +694,7 @@ async def edit_business(
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.post("/log-payment")
+@router.post("/log-payment", include_in_schema=False)
 async def log_payment(
     id: int = Form(...),
     amount: float = Form(...),
@@ -721,7 +721,7 @@ async def log_payment(
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.post("/save-payment-settings")
+@router.post("/save-payment-settings", include_in_schema=False)
 async def save_payment_settings(
     id: int = Form(...),
     iban: Optional[str] = Form(None),
@@ -746,7 +746,7 @@ async def save_payment_settings(
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/delete/{business_id}")
+@router.get("/delete/{business_id}", include_in_schema=False)
 async def delete_business(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -791,7 +791,7 @@ async def delete_business(business_id: int, user: User = Depends(get_current_use
     return RedirectResponse("/superadmin?msg=deleted", status_code=303)
 
 
-@router.get("/delete-payment/{payment_log_id}")
+@router.get("/delete-payment/{payment_log_id}", include_in_schema=False)
 async def delete_payment_log(payment_log_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -806,7 +806,7 @@ async def delete_payment_log(payment_log_id: int, user: User = Depends(get_curre
     return RedirectResponse("/superadmin?msg=deleted", status_code=303)
 
 
-@router.post("/save-tg-settings")
+@router.post("/save-tg-settings", include_in_schema=False)
 async def save_superadmin_tg_settings(
     tg_bot_token: str = Form(None),
     tg_chat_id: str = Form(None),
@@ -824,7 +824,7 @@ async def save_superadmin_tg_settings(
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.post("/broadcast")
+@router.post("/broadcast", include_in_schema=False)
 async def broadcast_message(
     message: str = Form(...),
     user: User = Depends(get_current_user),
@@ -852,7 +852,7 @@ async def broadcast_message(
     return RedirectResponse("/superadmin?msg=broadcast_sent", status_code=303)
 
 
-@router.get("/global-payment-settings", response_class=HTMLResponse)
+@router.get("/global-payment-settings", response_class=HTMLResponse, include_in_schema=False)
 async def global_payment_settings_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -973,7 +973,7 @@ async def global_payment_settings_page(user: User = Depends(get_current_user), d
     return get_layout(content, user, "super", scripts="")
 
 
-@router.post("/save-global-payment-settings")
+@router.post("/save-global-payment-settings", include_in_schema=False)
 async def save_global_payment_settings(
     request: Request,
     user: User = Depends(get_current_user),
@@ -1027,7 +1027,7 @@ async def save_global_payment_settings(
     return RedirectResponse("/superadmin/global-payment-settings?msg=saved", status_code=303)
 
 
-@router.get("/export-payments")
+@router.get("/export-payments", include_in_schema=False)
 async def export_payments(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -1055,7 +1055,7 @@ async def export_payments(user: User = Depends(get_current_user), db: AsyncSessi
     response.headers["Content-Disposition"] = "attachment; filename=payments_export.csv"
     return response
 
-@router.post("/add-update")
+@router.post("/add-update", include_in_schema=False)
 async def add_update(title: str = Form(...), content: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -1063,7 +1063,7 @@ async def add_update(title: str = Form(...), content: str = Form(...), user: Use
     await db.commit()
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
-@router.post("/edit-update")
+@router.post("/edit-update", include_in_schema=False)
 async def edit_update(id: int = Form(...), title: str = Form(...), content: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -1074,7 +1074,7 @@ async def edit_update(id: int = Form(...), title: str = Form(...), content: str 
         await db.commit()
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
-@router.post("/delete-update")
+@router.post("/delete-update", include_in_schema=False)
 async def delete_update(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)

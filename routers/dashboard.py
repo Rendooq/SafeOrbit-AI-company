@@ -27,7 +27,7 @@ router = APIRouter(tags=["Admin Panel"])
 
 @router.get("/admin", response_class=HTMLResponse)
 async def owner_dash(request: Request, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user or user.role not in ["owner", "master"]: return RedirectResponse("/", status_code=303)
+    if not user or user.role not in ["owner", "admin", "manager", "master"]: return RedirectResponse("/", status_code=303)
     
     is_limited_master = False
     if user.role == "master":

@@ -245,7 +245,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         <div class="tab-pane fade" id="pills-api">
             <div class="glass-card p-4 p-md-5" style="max-width: 800px;">
                 <h5 class="fw-800 text-white mb-4">REST API для розробників</h5>
-                <p class="small text-muted mb-4">Керуйте API ключами для інтеграції вашої CRM з іншими сервісами. Повна документація доступна за посиланням <a href="/docs" target="_blank" class="text-info">/docs</a>.</p>
+                <p class="small text-muted mb-4">Керуйте API ключами для інтеграції вашої CRM з іншими сервісами. Повна документація доступна за посиланням <a href="/api-docs" target="_blank" class="text-info">документація</a>.</p>
                 <div class="mb-4">
                     <h6 class="fw-bold text-white mb-3">Ваші ключі</h6>
                     {api_keys_html if api_keys else "<p class='text-muted small mb-4'>API ключі ще не створено. Створіть перший ключ нижче.</p>"}

@@ -141,23 +141,23 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
         }}
         
         .input-modern {{ 
-            background: rgba(255, 255, 255, 0.02) !important;
-            border: 0.5px solid var(--glass-border); 
-            border-radius: 20px; 
-            padding: 1.05rem 1.15rem; 
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid var(--glass-border); 
+            border-radius: 12px; 
+            padding: 12px 16px; 
             width: 100%; 
-            transition: all 0.3s; 
-            font-weight: 600; 
+            transition: all 0.25s ease-in-out; 
+            font-weight: 500; 
             color: #ffffff !important; 
             appearance: none; 
-            font-size: 1rem; 
+            font-size: 14px; 
             outline: none;
         }}
         .input-modern::placeholder {{ color: rgba(255, 255, 255, 0.45) !important; font-weight: 600; }}
         .input-modern:focus {{ 
-            background: rgba(255, 255, 255, 0.04) !important;
-            border-color: rgba(175, 133, 255, 0.4); 
-            box-shadow: 0 0 30px rgba(175, 133, 255, 0.08), inset 0 1px 2px rgba(0,0,0,0.05); 
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: var(--accent-primary) !important; 
+            box-shadow: 0 0 0 3px rgba(187, 134, 252, 0.2) !important; 
         }}
         
         .section-title {{ font-weight: 800; font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; color: #ffffff !important; letter-spacing: -0.01em; }}
@@ -222,18 +222,17 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
             background: linear-gradient(135deg, var(--accent-primary), var(--accent-pink)); 
             color: white !important; 
             border: none; 
-            border-radius: 24px; 
-            padding: 1.2rem; 
-            font-size: 1.1rem; 
-            font-weight: 800; 
+            border-radius: 12px; 
+            padding: 12px 24px; 
+            font-size: 14px; 
+            font-weight: 700; 
             width: 100%; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
-            box-shadow: 0 10px 30px rgba(175, 133, 255, 0.35); 
-            letter-spacing: -0.01em; 
+            transition: all 0.25s ease-in-out; 
+            box-shadow: 0 4px 15px rgba(187, 134, 252, 0.3); 
             margin-top: 1rem; 
         }}
-        .btn-super:active {{ transform: scale(0.96); }}
-        .btn-super:hover {{ transform: translateY(-3px); box-shadow: 0 15px 35px rgba(139, 92, 241, 0.6); }}
+        .btn-super:active {{ transform: translateY(1px); }}
+        .btn-super:hover {{ transform: translateY(-2px); box-shadow: 0 8px 25px rgba(187, 134, 252, 0.5); }}
         
         .loader-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; justify-content: center; align-items: center; z-index: 9999; transition: opacity 0.5s ease; opacity: 1; pointer-events: none; }}
         .loader-overlay.hidden {{ opacity: 0; }}

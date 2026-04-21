@@ -27,12 +27,13 @@ from models import (
 from dependencies import get_current_user
 from exceptions import APIError
 from middleware import LoggingMiddleware, RateLimitMiddleware
-from routers import admin, api_v1, auth, dashboard, educational_api, superadmin, webhooks, widget, api_schools
+from routers import admin, api_v1, auth, dashboard, superadmin, webhooks, widget, api_schools
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
                                        nps_collection_loop, reminder_loop,
                                        rfm_segmentation_loop)
-from utils import hash_password # hash_api_key is removed
+from utils.security import hash_password
+from fastapi.openapi.utils import get_openapi
 from ui import get_api_docs_html
 import logging
 
@@ -43,8 +44,36 @@ if is_sqlite_db():
 if not GROQ_API_KEY:
     logger.warning("GROQ_API_KEY не задано — AI-відповіді та пов’язані функції недоступні. Додайте ключ у .env або змінні оточення.")
 
-# Ховаємо стандартний Swagger UI та залишаємо його лише за адресою /dev-docs (для розробника)
-app = FastAPI(docs_url="/dev-docs", redoc_url=None)
+tags_metadata = [
+    {"name": "Auth", "description": "Авторизація API ключів"},
+    {"name": "Customers", "description": "Керування клієнтами"},
+    {"name": "Appointments", "description": "Керування записами"},
+    {"name": "API Keys", "description": "Генерація та відкликання API ключів."},
+    {"name": "Webhooks", "description": "Отримання подій у реальному часі."}
+]
+
+app = FastAPI(
+    title="SafeOrbit API",
+    description="""
+🚀 Production-ready REST API для інтеграції CRM SafeOrbit.
+
+## Возможности:
+- Управление клиентами
+- Создание записей (appointments)
+- API ключи
+- Webhooks
+
+## Аутентификация:
+Используйте заголовок:
+`X-API-Key: sk_live_...`
+""",
+    version="1.0.0",
+    contact={
+        "name": "SafeOrbit Support",
+        "email": "support@safeorbit.com",
+    },
+    openapi_tags=tags_metadata,
+)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=False, same_site="lax")
 
 # Add custom middlewares
@@ -75,15 +104,36 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
-app.include_router(auth.router)
-app.include_router(dashboard.router)
-app.include_router(superadmin.router)
-app.include_router(admin.router)
-app.include_router(widget.router)
-app.include_router(webhooks.router)
+app.include_router(auth.router, include_in_schema=False)
+app.include_router(dashboard.router, include_in_schema=False)
+app.include_router(superadmin.router, include_in_schema=False)
+app.include_router(admin.router, include_in_schema=False)
+app.include_router(widget.router, include_in_schema=False)
+app.include_router(webhooks.router, include_in_schema=False)
 app.include_router(api_v1.router)
-app.include_router(educational_api.router)
-app.include_router(api_schools.router) # REST API Шкіл та ізольованих філій
+app.include_router(api_schools.router, include_in_schema=False) 
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        contact=app.contact,
+        routes=app.routes,
+        tags=app.openapi_tags
+    )
+    
+    paths = openapi_schema.get("paths", {})
+    keys_to_remove = [key for key in paths if not key.startswith("/api/v1")]
+    for key in keys_to_remove:
+        del paths[key]
+        
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 
 @app.get("/api-docs", include_in_schema=False)

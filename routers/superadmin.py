@@ -22,7 +22,8 @@ from models import (ActionLog, Appointment, Business, ChatLog, Customer,
                     MonthlyPaymentLog, NPSReview, Product, Service, User,
                     AppointmentConfirmation, SystemUpdate)
 from ui import get_layout # verify_password is removed
-from utils import hash_password, log_action
+from utils.security import hash_password
+from utils.logger import log_action
 from database import get_db, AsyncSessionLocal
 from config import UA_TZ
 import httpx

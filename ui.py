@@ -78,7 +78,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             --warning: #FFB300; /* More vibrant yellow */
             --danger: #EF4444;
             --info: #3B82F6;
-            --blur: 16px; /* Зменшуємо розмиття для оптимізації продуктивності */
+        --blur: 4px; /* Значно зменшуємо розмиття для високої швидкості рендеру */
         }}
         
         /* Tailwind-like Utility Classes */
@@ -110,15 +110,6 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             position: relative;
         }}
 
-        .w-full {{ width: 100% !important; }}
-        .overflow-x-auto {{ overflow-x: auto !important; }}
-        .overflow-y-auto {{ overflow-y: auto !important; }}
-        .whitespace-nowrap {{ white-space: nowrap !important; }}
-        .block {{ display: block !important; }}
-        .max-w-md {{ max-width: 540px !important; }}
-        .mx-auto {{ margin-left: auto !important; margin-right: auto !important; }}
-        .max-h-85vh {{ max-height: 85vh !important; }}
-
         /* Premium Mesh Background */
         body::before {{
             content: '';
@@ -137,7 +128,6 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         .sidebar {{
             width: 280px;
             background: linear-gradient(180deg, rgba(12, 5, 26, 0.75), rgba(24, 12, 51, 0.75)); /* Gradient for depth */
-            backdrop-filter: blur(var(--blur));
             border-right: 1px solid var(--glass-border);
             padding: 40px 20px;
             position: fixed;
@@ -387,35 +377,19 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
 
         .glass-card {{
             background: var(--glass-bg); /* Use rgba with transparency */
-            backdrop-filter: blur(var(--blur)) saturate(180%); /* Stronger blur, saturation */
+            backdrop-filter: blur(var(--blur));
             border: 1px solid var(--glass-border);
             border-radius: 28px;
             padding: 32px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255,255,255,0.08); /* Softer, layered shadow */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             position: relative;
             overflow: hidden;
         }}
         
-        .glass-card::after {{
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.02), transparent);
-            transition: 0.6s;
-        }}
-
         .glass-card:hover {{
             transform: translateY(-6px);
             border-color: rgba(255, 255, 255, 0.12);
-            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45); /* Enhanced hover shadow */
-        }}
-
-        .glass-card:hover::after {{
-            left: 100%;
         }}
 
         /* Tabs & Nav Pills Premium */
@@ -466,7 +440,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             background: rgba(255, 255, 255, 0.02);
             border-radius: 24px;
             border: 1px solid var(--glass-border);
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: transform 0.2s;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }}
 
@@ -486,22 +460,8 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             justify-content: center;
             font-size: 22px;
             flex-shrink: 0;
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: all 0.2s;
             position: relative;
-        }}
-
-        .stat-icon::after {{
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: inherit;
-            background: inherit;
-            filter: blur(12px);
-            opacity: 0.3;
-            z-index: -1;
         }}
 
         .stat-card:hover .stat-icon {{
@@ -542,51 +502,45 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         }}
 
         /* Buttons & Actions */
-        .btn-glass {{
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--glass-border);
-            color: #FFFFFF !important;
-            padding: 10px 18px;
-            border-radius: 14px;
-            font-weight: 700;
-            font-size: 13px;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none !important;
-        }}
-
-        .btn-glass:hover {{
-            background: #FFFFFF;
-            color: #000000 !important;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-        }}
-
-        .btn-glass i {{
-            font-size: 14px;
-        }}
-
-        .btn-primary-glow {{
-            background: linear-gradient(135deg, var(--accent-primary), var(--accent-pink));
-            border: none;
-            color: white !important;
-            border-radius: 16px;
-            padding: 16px 32px;
-            font-weight: 700;
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-            box-shadow: 0 12px 30px rgba(157, 78, 221, 0.4);
+        button, .btn, .btn-glass, .btn-primary-glow, .btn-secondary-glass, .primary-btn, .secondary-btn, .btn-super {{
+            border-radius: 12px !important;
+            padding: 10px 16px !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            text-decoration: none !important;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
         }}
         
-        .btn-primary-glow:hover {{
-            transform: translateY(-3px) scale(1.02);
-            box-shadow: 0 18px 45px rgba(157, 78, 221, 0.55);
+        button:hover:not(:disabled), .btn:hover:not(:disabled), .btn-glass:hover:not(:disabled) {{
+            transform: scale(1.03) !important;
+        }}
+
+        .btn-primary-glow, .primary-btn, .btn-super {{
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-pink)) !important;
+            color: #FFFFFF !important;
+            box-shadow: 0 4px 15px rgba(187, 134, 252, 0.3) !important;
+        }}
+
+        .btn-secondary-glass, .btn-glass, .secondary-btn {{
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid var(--glass-border) !important;
+            color: #ffffff !important;
+        }}
+
+        .icon-btn {{
+            width: 40px !important;
+            height: 40px !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: 10px !important;
+            flex-shrink: 0;
         }}
 
         .user-pill {{
@@ -909,17 +863,16 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         /* Forms iOS 26 */
         .glass-input, .form-control, .form-select {{
             width: 100%;
-            padding: 12px 18px !important;
-            background: rgba(255, 255, 255, 0.02) !important;
-            backdrop-filter: blur(20px) saturate(180%);
-            border: 0.5px solid var(--glass-border) !important;
-            border-radius: 16px !important;
+            padding: 12px 16px !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid var(--glass-border) !important;
+            border-radius: 12px !important;
             color: #ffffff !important;
             font-size: 14px !important;
             font-weight: 500 !important;
             outline: none !important;
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+            transition: all 0.25s ease-in-out !important;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
             word-break: break-word !important;
             overflow-wrap: break-word !important;
             min-width: 0 !important;
@@ -993,10 +946,9 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         }}
         
         .glass-input:focus, .form-control:focus, .form-select:focus {{
-            background: rgba(255, 255, 255, 0.04) !important;
-            border-color: rgba(157, 78, 221, 0.5) !important;
-            box-shadow: 0 0 30px rgba(157, 78, 221, 0.15), inset 0 1px 2px rgba(0,0,0,0.05) !important;
-            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: var(--accent-primary) !important;
+            box-shadow: 0 0 0 3px rgba(187, 134, 252, 0.2) !important;
         }}
         
         .form-label, label {{
@@ -1013,13 +965,19 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         }}
 
         /* Modals iOS 26 */
+        .modal {{
+            z-index: 1055 !important;
+            background: rgba(10, 10, 15, 0.95) !important; /* ВАЖНО: прибираємо blur для усунення лагів FPS */
+            backdrop-filter: none !important;
+        }}
         .modal-content {{
-            background: rgba(20, 20, 25, 0.7) !important;
-            backdrop-filter: blur(var(--blur)) saturate(180%) !important;
-            -webkit-backdrop-filter: blur(var(--blur)) saturate(180%) !important;
-            border: 0.5px solid var(--glass-border) !important;
-            border-radius: 40px !important;
-            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6) !important;
+            background: #1e1e2f !important;
+            border: 1px solid var(--glass-border) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8) !important;
+            pointer-events: auto !important;
+            z-index: 1056 !important;
+            padding: 16px !important;
         }}
         
         .modal-header {{
@@ -1034,6 +992,10 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         .modal-footer {{
             border-top: 0.5px solid var(--glass-border) !important;
             padding: 24px 32px 32px !important;
+        }}
+        
+        .modal-backdrop {{
+            display: none !important; /* УБИВАЕТ БАГ БЕСКОНЕЧНЫХ ПЕРЕКРЫТИЙ И ЛАГОВ! */
         }}
 
         /* Badges */
@@ -1488,10 +1450,11 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
                 min-height: 44px !important;
                 font-size: 16px !important;
                 padding: 12px 16px !important;
-                border-radius: 16px !important;
+                border-radius: 12px !important;
             }}
 
             button, .btn, .btn-glass, .btn-primary-glow {{
+                border-radius: 12px !important;
                 width: 100% !important;
                 min-height: 44px !important;
                 font-size: 14px !important;
@@ -1587,6 +1550,12 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             .row > * {{
                 padding-left: 0 !important;
                 padding-right: 0 !important;
+            }}
+            
+            button:disabled, .btn.disabled, .btn-primary-glow:disabled, .btn-glass:disabled {{
+                opacity: 0.6 !important;
+                pointer-events: none !important;
+                cursor: not-allowed !important;
             }}
 
         .sidebar .nav-link span {{
@@ -1794,6 +1763,48 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
             input.type = "password"; // Hide again
             showToast('API ключ скопійовано!', 'success');
         }}
+        
+        // --- GLOBAL STATE MANAGEMENT & PERFORMANCE OPTIMIZATIONS ---
+        document.addEventListener('DOMContentLoaded', () => {{
+            const path = window.location.pathname;
+            
+            // 1. Відновлення активної вкладки (Запобігає скиданню після перезавантаження/збереження)
+            const savedTab = localStorage.getItem('activeTab_' + path);
+            if (savedTab) {{
+                const tabBtn = document.querySelector(`[data-bs-target="${{savedTab}}"]`);
+                if (tabBtn) {{
+                    const tab = new bootstrap.Tab(tabBtn);
+                    tab.show();
+                }}
+            }}
+
+            // 2. Збереження стану вкладки
+            const tabElements = document.querySelectorAll('button[data-bs-toggle="tab"], button[data-bs-toggle="pill"]');
+            tabElements.forEach(el => {{
+                el.addEventListener('shown.bs.tab', event => {{
+                    const target = event.target.getAttribute('data-bs-target');
+                    if(target) localStorage.setItem('activeTab_' + path, target);
+                }});
+            }});
+
+            // 3. Глобальний Loading State для запобігання подвійних submit та зависань UI
+            document.querySelectorAll('form').forEach(form => {{
+                if(!form.hasAttribute('onsubmit')) {{
+                    form.addEventListener('submit', function(e) {{
+                        const btn = this.querySelector('button[type="submit"], button:not([type="button"])');
+                        if (btn && !btn.disabled) {{
+                            // Дозволяємо формі відправитись, але блокуємо UI
+                            setTimeout(() => {{
+                                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Завантаження...';
+                                btn.disabled = true;
+                                btn.style.opacity = '0.7';
+                                btn.style.pointerEvents = 'none';
+                            }}, 10);
+                        }}
+                    }});
+                }}
+            }});
+        }});
     </script>
     {scripts}</body></html>"""
 
@@ -2219,29 +2230,80 @@ fetch(`${BASE_URL}/appointments`, {
 
         <!-- WEBHOOKS ENDPOINTS -->
         <h2 id="endpoints-webhooks">🔗 Вебхуки (Webhooks)</h2>
-        <p>Webhooks дозволяють отримувати сповіщення про події в системі в режимі реального часу (наприклад, створення запису через ШІ-асистента).</p>
+        <p>Webhooks дозволяють вашому серверу миттєво реагувати на події в CRM (наприклад, <code>appointment.created</code>). Наша система забезпечує надійну доставку з 3 спробами (Retry: 1s, 5s, 15s).</p>
         
         <div class="endpoint-block">
             <div class="endpoint-header">
                 <span class="method post">POST</span>
-                <span class="url">Ваш_Сервер/webhooks/events</span>
+                <span class="url">/api/v1/webhooks</span>
             </div>
-            <p>Для перевірки достовірності події, ми надсилаємо заголовок <code>X-Webhook-Signature</code>, який є HMAC SHA-256 хешем тіла запиту, підписаним вашим Webhook Secret.</p>
-            
-            <h4>Payload Example</h4>
+            <p>Реєстрація вашого Webhook URL. У відповідь ви отримаєте унікальний <code>secret</code>, який необхідний для перевірки цифрового підпису подій.</p>
             <div class="code-container">
                 <div class="code-header"><div class="mac-dots"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
                 <pre><code class="language-json">{
-  "event_type": "appointment.created",
-  "payload": {
-    "id": 1025,
-    "customer_id": 42,
-    "service_type": "Стрижка",
-    "appointment_time": "2026-04-21T11:00:00",
-    "cost": 400.0
-  },
-  "timestamp": "2026-04-18T10:05:22"
+  "url": "https://your-server.com/api/webhooks"
 }</code></pre>
+            </div>
+        </div>
+
+        <h3>Структура події (Payload)</h3>
+        <p>Ми будемо відправляти <code>POST</code> запит на ваш URL з наступною структурою:</p>
+        <div class="code-container">
+            <div class="code-header"><div class="mac-dots"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <pre><code class="language-json">{
+  "event_type": "appointment.created",
+  "timestamp": "2026-04-21T10:00:00",
+  "data": {
+    "id": 123,
+    "customer_id": 42,
+    "service": "Манікюр",
+    "time": "2026-04-22T14:00:00"
+  },
+}</code></pre>
+        </div>
+        
+        <h3>Доступні події</h3>
+        <ul>
+            <li><code>appointment.created</code> — створено новий запис</li>
+            <li><code>appointment.updated</code> — оновлено статус або час запису</li>
+            <li><code>customer.created</code> — створено нового клієнта</li>
+            <li><code>customer.updated</code> — оновлено дані клієнта</li>
+        </ul>
+
+        <h3>🔒 Валідація цифрового підпису (Python Example)</h3>
+        <p>Для захисту від підробки запитів, кожна подія містить HTTP заголовок <code>X-Webhook-Signature</code> (HMAC SHA256). Ви <strong>зобов'язані</strong> перевіряти його на своєму сервері.</p>
+        <div class="code-container">
+            <div class="code-header"><div class="mac-dots"><div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div></div><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+            <pre><code class="language-python">import hmac
+import hashlib
+from fastapi import FastAPI, Request, HTTPException
+
+app = FastAPI()
+WEBHOOK_SECRET = "whsec_ваший_отриманий_секрет"
+
+def verify_signature(payload: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode('utf-8'),
+        payload,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+@app.post("/api/webhooks")
+async def handle_webhook(request: Request):
+    signature = request.headers.get("X-Webhook-Signature")
+    if not signature:
+        raise HTTPException(status_code=401, detail="Missing signature")
+        
+    raw_body = await request.body()
+    
+    if not verify_signature(raw_body, signature, WEBHOOK_SECRET):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+        
+    event = await request.json()
+    print(f"Отримано безпечну подію: {event['event_type']}")
+    
+    return {"status": "success"}</code></pre>
             </div>
         </div>
 

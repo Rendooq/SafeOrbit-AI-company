@@ -9,12 +9,11 @@ from typing import List, Optional
 import urllib.parse, secrets
 
 import httpx
-import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy import and_, delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from config import LABELS, UA_TZ
 from database import get_db
@@ -23,7 +22,8 @@ from models import (ActionLog, Appointment, AppointmentConfirmation, Business, C
                     CustomerSegment, GlobalPaymentSettings, Master, MasterService,
                     MonthlyPaymentLog, NPSReview, Product, Service, User, SystemUpdate, Integration, ApiKey, ApiRequestLog)
 from ui import get_layout
-from utils import hash_password, log_action
+from utils.logger import log_action
+from utils.security import hash_password, generate_api_key
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -36,7 +36,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
     models = [("llama-3.3-70b-versatile", "AI-5.0.0-expert-version")]
     model_options = "".join([f'<option value="{m[0]}" {"selected" if biz.ai_model == m[0] else ""}>{m[1]}</option>' for m in models])
 
-    masters = (await db.execute(select(Master).options(joinedload(Master.services)).where(Master.business_id == user.business_id))).unique().scalars().all()
+    masters = (await db.execute(select(Master).options(selectinload(Master.services)).where(Master.business_id == user.business_id))).scalars().all()
     services = (await db.execute(select(Service).where(Service.business_id == user.business_id))).scalars().all()
 
     master_users = (await db.execute(select(User).where(and_(User.business_id == user.business_id, User.role == 'master')))).scalars().all()
@@ -219,8 +219,8 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
                     <strong class='text-white'>{html.escape(key.name)}</strong> {status_badge}<br>
                     <div class="input-group mt-2">
                         <input type="password" class="glass-input" value="{html.escape(key.api_key or '')}" readonly id="apiKeyInput_{key.id}" style="border-radius: 12px 0 0 12px;">
-                        <button class="btn btn-glass" type="button" onclick="toggleApiKeyVisibility('apiKeyInput_{key.id}', this)" style="border-radius: 0; border-left: none; border-right: none;" title="Показати/Приховати ключ"><i class="fas fa-eye text-info"></i></button>
-                        <button class="btn btn-glass" type="button" onclick="copyApiKey('apiKeyInput_{key.id}')" style="border-radius: 0 12px 12px 0;" title="Скопіювати ключ"><i class="fas fa-copy text-success"></i></button>
+                        <button class="btn btn-glass icon-btn" type="button" onclick="toggleApiKeyVisibility('apiKeyInput_{key.id}', this)" style="border-radius: 0; border-left: none; border-right: none;" title="Показати/Приховати ключ"><i class="fas fa-eye text-info"></i></button>
+                        <button class="btn btn-glass icon-btn" type="button" onclick="copyApiKey('apiKeyInput_{key.id}')" style="border-radius: 0 12px 12px 0;" title="Скопіювати ключ"><i class="fas fa-copy text-success"></i></button>
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2">
                         <small class='text-muted'>Останнє використання: {last_used}</small>
@@ -518,7 +518,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
     function createMasterAccount(id, name) {
         document.getElementById('accMasterId').value = id;
         document.getElementById('accMasterName').innerText = name;
-        new bootstrap.Modal(document.getElementById('createAccountModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('createAccountModal')).show();
     }
     
     async function showApiKeyLogs(keyId, keyName) {
@@ -526,7 +526,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
         const tbody = document.getElementById('apiKeyLogsTableBody');
         tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Завантаження...</td></tr>';
         
-        new bootstrap.Modal(document.getElementById('apiKeyLogsModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('apiKeyLogsModal')).show();
         
         try {
             const res = await fetch(`/admin/api/api-key-logs/${keyId}`);
@@ -1150,11 +1150,11 @@ async def update_master_profile(
     return RedirectResponse("/admin/settings?msg=saved", status_code=303)
 
 @router.post("/create-api-key")
-async def create_first_api_key(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def create_first_api_key(name: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role not in ["owner", "admin"]:
         return RedirectResponse("/", status_code=303)
 
-    new_api_key_value = f"sk_live_{secrets.token_hex(32)}"
+    new_api_key_value = generate_api_key()
     
     new_api_key = ApiKey(
         business_id=user.business_id,
@@ -1292,7 +1292,7 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
         document.getElementById('editCustPhone').value = phone;
         document.getElementById('editCustDiscount').value = discount;
         document.getElementById('editCustNotes').value = notes;
-        new bootstrap.Modal(document.getElementById('editCustomerModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editCustomerModal')).show();
     }
     </script>
     """
@@ -1994,9 +1994,13 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
         renderCatalog(document.getElementById('intSearch').value);
     }
     
+    let intSearchTimeout;
     function filterIntegrations() {
-        const q = document.getElementById('intSearch').value;
-        renderCatalog(q);
+        clearTimeout(intSearchTimeout);
+        intSearchTimeout = setTimeout(() => {
+            const q = document.getElementById('intSearch').value;
+            renderCatalog(q);
+        }, 300);
     }
     
     function openNewConfig(providerId, providerName) {
@@ -2553,8 +2557,12 @@ async def help_page(user: User = Depends(get_current_user)):
         renderFaqs(document.getElementById('faqSearch').value);
     }
 
+    let faqSearchTimeout;
     function searchFaq() {
-        renderFaqs(document.getElementById('faqSearch').value);
+        clearTimeout(faqSearchTimeout);
+        faqSearchTimeout = setTimeout(() => {
+            renderFaqs(document.getElementById('faqSearch').value);
+        }, 300);
     }
 
     document.addEventListener('DOMContentLoaded', () => renderFaqs());

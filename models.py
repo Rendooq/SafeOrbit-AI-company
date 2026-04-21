@@ -359,3 +359,23 @@ class IdempotencyKey(Base):
     status_code: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime) # Keys should expire
+
+class WebhookEndpoint(Base):
+    __tablename__ = "webhook_endpoints"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
+    url: Mapped[str] = mapped_column(Text)
+    secret: Mapped[str] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+class WebhookEventLog(Base):
+    __tablename__ = "webhook_event_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    endpoint_id: Mapped[int] = mapped_column(ForeignKey("webhook_endpoints.id", ondelete="CASCADE"))
+    event_type: Mapped[str] = mapped_column(Text)
+    payload: Mapped[str] = mapped_column(Text) # JSON string
+    status: Mapped[str] = mapped_column(Text, default="pending") # pending, sent, failed
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())

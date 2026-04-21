@@ -12,12 +12,11 @@ from sqlalchemy.orm import joinedload
 from config import LABELS, UA_TZ, DEFAULT_SMS_SENDER
 from database import get_db
 from dependencies import get_current_user
-from models import User, Appointment, Master, Service, Customer, Business, ActionLog, ChatLog # get_altegio_free_slots, get_beauty_pro_free_slots are removed
+from models import User, Appointment, Master, Service, Customer, Business, ActionLog, ChatLog
 from ui import get_layout
-from utils import log_action
-from services.ai_service import process_ai_request, get_altegio_free_slots, get_beauty_pro_free_slots
-from services.integrations import push_to_beauty_pro, push_to_cleverbox, push_to_integrica, push_to_luckyfit, push_to_uspacy
-from services.notifications import send_new_appointment_notifications
+from utils.logger import log_action
+from sqlalchemy import case
+from services.ai_service import process_ai_request
 import httpx
 import logging
 
@@ -44,10 +43,18 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     if is_limited_master:
         filters.append(Appointment.master_id == user.master_id)
 
-    c_day = await db.scalar(select(func.count(Appointment.id)).where(and_(*filters, Appointment.status != 'cancelled', Appointment.appointment_time >= today_start, Appointment.appointment_time < today_start + timedelta(days=1))))
-    c_month = await db.scalar(select(func.count(Appointment.id)).where(and_(*filters, Appointment.status != 'cancelled', Appointment.appointment_time >= month_start)))
-    rev_month = await db.scalar(select(func.sum(Appointment.cost)).where(and_(*filters, Appointment.status == 'completed', Appointment.appointment_time >= month_start))) or 0
-    rev_total = await db.scalar(select(func.sum(Appointment.cost)).where(and_(*filters, Appointment.status == 'completed'))) or 0
+    agg_stmt = select(
+        func.sum(case((and_(Appointment.status != 'cancelled', Appointment.appointment_time >= today_start, Appointment.appointment_time < today_start + timedelta(days=1)), 1), else_=0)),
+        func.sum(case((and_(Appointment.status != 'cancelled', Appointment.appointment_time >= month_start), 1), else_=0)),
+        func.sum(case((and_(Appointment.status == 'completed', Appointment.appointment_time >= month_start), Appointment.cost), else_=0)),
+        func.sum(case((Appointment.status == 'completed', Appointment.cost), else_=0))
+    ).where(and_(*filters))
+    agg_res = await db.execute(agg_stmt)
+    agg_row = agg_res.first()
+    c_day = int(agg_row[0] or 0) if agg_row else 0
+    c_month = int(agg_row[1] or 0) if agg_row else 0
+    rev_month = agg_row[2] or 0 if agg_row else 0
+    rev_total = agg_row[3] or 0 if agg_row else 0
 
     biz_type = user.business.type if user.business else "barbershop"
     l = LABELS.get(biz_type, LABELS["generic"])
@@ -73,8 +80,13 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     master_options = "".join([f'<option value="{m.id}">{m.name}</option>' for m in masters])
     service_options = "".join([f'<option value="{s.name}" data-id="{s.id}">{s.name} ({s.price} грн)</option>' for s in services])
 
-    ai_count = await db.scalar(select(func.count(Appointment.id)).where(and_(*filters, Appointment.source == 'ai'))) or 0
-    manual_count = await db.scalar(select(func.count(Appointment.id)).where(and_(*filters, Appointment.source == 'manual'))) or 0
+    src_stmt = select(
+        func.sum(case((Appointment.source == 'ai', 1), else_=0)),
+        func.sum(case((Appointment.source == 'manual', 1), else_=0))
+    ).where(and_(*filters))
+    src_row = (await db.execute(src_stmt)).first()
+    ai_count = int(src_row[0] or 0) if src_row else 0
+    manual_count = int(src_row[1] or 0) if src_row else 0
     
     top_services = (await db.execute(select(Appointment.service_type, func.count(Appointment.id)).where(and_(*filters)).group_by(Appointment.service_type).order_by(desc(func.count(Appointment.id))).limit(5))).all()
     
@@ -142,9 +154,9 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
             <td class="fw-bold">{a.cost} грн</td>
             <td>{badge}</td>
             <td class="text-end">
-                <button class="btn-glass btn-sm me-1" onclick="editApp({a.id}, '{d_str}', '{t_str}', '{a.status}', {a.cost}, '{a.master_id or ''}', '{html.escape(a.delivery_address or '')}', '{html.escape(a.ttn or '')}', '{a.delivery_status or 'pending'}')"><i class="fas fa-edit"></i></button>
-                <button class="btn-glass btn-sm me-1" onclick="openNotify('{a.customer.phone_number}', '{d_str}', '{t_str}')"><i class="fas fa-bell"></i></button>
-                <a href="/admin/receipt/{a.id}" target="_blank" class="btn-glass btn-sm"><i class="fas fa-print"></i></a>
+                <button class="btn-glass icon-btn me-1" onclick="editApp({a.id}, '{d_str}', '{t_str}', '{a.status}', {a.cost}, '{a.master_id or ''}', '{html.escape(a.delivery_address or '')}', '{html.escape(a.ttn or '')}', '{a.delivery_status or 'pending'}')"><i class="fas fa-edit"></i></button>
+                <button class="btn-glass icon-btn me-1" onclick="openNotify('{a.customer.phone_number}', '{d_str}', '{t_str}')"><i class="fas fa-bell"></i></button>
+                <a href="/admin/receipt/{a.id}" target="_blank" class="btn-glass icon-btn"><i class="fas fa-print"></i></a>
             </td>
         </tr>
         """
@@ -205,8 +217,8 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     <div class="glass-card mb-4 p-2 dash-tabs-bar">
         <ul class="nav nav-pills" id="dashTabs" role="tablist" style="gap: 8px;">
             <li class="nav-item"><button class="nav-link active rounded-pill px-4 fw-600" data-bs-toggle="tab" data-bs-target="#tab-list"><i class="fas fa-list me-2"></i>Список</button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="tab" data-bs-target="#tab-calendar" onclick="initCalendar()"><i class="fas fa-calendar-days me-2"></i>Календар</button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="tab" data-bs-target="#tab-analytics" onclick="initCharts()"><i class="fas fa-chart-pie me-2"></i>Аналітика</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="tab" data-bs-target="#tab-calendar"><i class="fas fa-calendar-days me-2"></i>Календар</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="tab" data-bs-target="#tab-analytics"><i class="fas fa-chart-pie me-2"></i>Аналітика</button></li>
         </ul>
     </div>
 
@@ -218,7 +230,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-800 text-white m-0">{l['new_appt']}</h5>
                             <div class="d-flex gap-2">
-                                <button type="button" class="btn-glass py-2" style="font-size: 12px; background: rgba(175, 133, 255, 0.1); color: var(--accent-primary) !important; border-color: rgba(175, 133, 255, 0.3);" onclick="new bootstrap.Modal(document.getElementById('aiModal')).show()">
+                                <button type="button" class="btn-glass py-2" style="font-size: 12px; background: rgba(175, 133, 255, 0.1); color: var(--accent-primary) !important; border-color: rgba(175, 133, 255, 0.3);" onclick="bootstrap.Modal.getOrCreateInstance(document.getElementById('aiModal')).show()">
                                     <i class="fas fa-robot me-1"></i> ШІ
                                 </button>
                                 <a href="/widget/{user.business_id}" target="_blank" class="btn-glass py-2" style="font-size: 12px;"><i class="fas fa-external-link-alt me-1"></i>Віджет</a>
@@ -390,6 +402,10 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
     
+    // Lazy Load прапорці (для усунення перерендеру)
+    let calendarInitialized = false;
+    let chartsInitialized = false;
+    
     function updatePrice() {{
         const sel = document.getElementById('serviceSelect');
         const costIn = document.getElementById('costInput');
@@ -411,7 +427,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         let d = document.getElementById('editDelivery'); if(d) d.value = deliveryAddress || '';
         let t = document.getElementById('editTtn'); if(t) t.value = ttn || '';
         let ds = document.getElementById('editDelStatus'); if(ds) ds.value = delStatus || 'pending';
-        new bootstrap.Modal(document.getElementById('editModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
     }}
 
     async function askAI() {{
@@ -467,7 +483,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         document.getElementById('btnWa').href = `https://wa.me/${{cleanPhone}}?text=${{encodeURIComponent(msg)}}`;
         document.getElementById('btnViber').href = `viber://chat?number=%2B${{cleanPhone}}`;
         document.getElementById('btnTg').href = `https://t.me/+${{cleanPhone}}`;
-        new bootstrap.Modal(document.getElementById('notifyModal')).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('notifyModal')).show();
     }}
 
     async function sendSMS() {{
@@ -484,6 +500,9 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     }}
 
     async function initCalendar() {{
+        if (calendarInitialized) return;
+        calendarInitialized = true;
+        
         const res = await fetch('/admin/calendar-data');
         calendarData = await res.json();
         renderCalendar();
@@ -564,6 +583,9 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     }}
 
     function initCharts() {{
+        if (chartsInitialized) return;
+        chartsInitialized = true;
+        
         const ctxS = document.getElementById('chartSource').getContext('2d');
         new Chart(ctxS, {{
             type: 'doughnut',
@@ -623,9 +645,18 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     }}
 
     document.addEventListener('DOMContentLoaded', () => {{
-        if(window.location.hash === '#calendar') {{
-            bootstrap.Tab.getOrCreateInstance(document.querySelector('[data-bs-target="#tab-calendar"]')).show();
-            initCalendar();
+        const calTab = document.querySelector('[data-bs-target="#tab-calendar"]');
+        const analyticsTab = document.querySelector('[data-bs-target="#tab-analytics"]');
+        
+        // Асинхронний рендер графіків ТІЛЬКИ після повної анімації відкриття вкладки (щоб не лагало)
+        if (calTab) {{
+            calTab.addEventListener('shown.bs.tab', initCalendar);
+            // Якщо вкладка була збережена як активна в localStorage - ініціалізуємо
+            if (calTab.classList.contains('active')) initCalendar();
+        }}
+        if (analyticsTab) {{
+            analyticsTab.addEventListener('shown.bs.tab', initCharts);
+            if (analyticsTab.classList.contains('active')) initCharts();
         }}
     }});
     </script>
@@ -735,201 +766,6 @@ async def update_appointment(
 
 @router.post("/admin/delete-appointment")
 
-async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return RedirectResponse("/", status_code=303)
-    
-    appt_to_delete = await db.get(Appointment, id)
-    if appt_to_delete and appt_to_delete.business_id == user.business_id:
-        customer_id = appt_to_delete.customer_id
-        await db.delete(appt_to_delete)
-        await log_action(db, user.business_id, user.id, "Видалено запис", f"ID запису: {id}")
-        await db.commit()
-
-    return RedirectResponse("/admin?msg=deleted", status_code=303)
-
-@router.get("/admin/receipt/{id}", response_class=HTMLResponse)
-async def generate_receipt(id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return RedirectResponse("/", status_code=303)
-    appt = await db.get(Appointment, id)
-    if not appt or appt.business_id != user.business_id:
-        return HTMLResponse("Помилка доступу", status_code=403)
-    
-    biz = await db.get(Business, appt.business_id)
-    master = await db.get(Master, appt.master_id) if appt.master_id else None
-    customer = await db.get(Customer, appt.customer_id)
-    master_name = master.name if master else "Система"
-    delivery_info = f'<div class="d-flex"><span style="white-space:nowrap;margin-right:8px;">Доставка:</span><span class="text-end fw-bold">{html.escape(appt.delivery_address)}</span></div><div class="border-bottom"></div>' if appt.delivery_address else ""
-    
-    return f"""<!DOCTYPE html>
-    <html lang="uk">
-    <head>
-        <meta charset="utf-8">
-        <title>Чек #{appt.id}</title>
-        <style>
-            body {{ font-family: 'Courier New', Courier, monospace; background: #e5e7eb; display: flex; justify-content: center; padding: 2rem; margin: 0; }}
-            .receipt {{ background: white; padding: 2rem; width: 320px; border-radius: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); color: #000; }}
-            .text-center {{ text-align: center; }}
-            .fw-bold {{ font-weight: 700; }}
-            .border-bottom {{ border-bottom: 2px dashed #000; margin: 1rem 0; }}
-            .d-flex {{ display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; }}
-            @media print {{
-                body {{ background: white; padding: 0; }}
-                .receipt {{ width: 100%; box-shadow: none; padding: 0; margin: 0; }}
-                .no-print {{ display: none !important; }}
-            }}
-            .btn {{ display: block; width: 100%; background: #4f46e5; color: white; text-align: center; padding: 0.8rem; text-decoration: none; border-radius: 8px; font-family: sans-serif; font-weight: 600; margin-top: 2rem; cursor: pointer; border: none; font-size: 1rem; }}
-            .btn:hover {{ background: #4338ca; }}
-        </style>
-    </head>
-    <body>
-        <div class="receipt">
-            <div class="text-center fw-bold" style="font-size: 1.4rem; margin-bottom: 0.5rem;">{html.escape(biz.name)}</div>
-            <div class="text-center" style="font-size: 0.85rem; margin-bottom: 1rem;">{html.escape(biz.address or 'Адреса не вказана')}</div>
-            <div class="border-bottom"></div>
-            <div class="d-flex"><span>Чек №:</span><span>{appt.id}</span></div>
-            <div class="d-flex"><span>Дата:</span><span>{appt.appointment_time.strftime('%d.%m.%Y %H:%M')}</span></div>
-            <div class="d-flex"><span>Профіль гостя:</span><span>{html.escape(customer.name or 'Гість')}</span></div>
-            <div class="d-flex"><span>Касир:</span><span>{html.escape(master_name)}</span></div>
-            <div class="border-bottom"></div>
-            {delivery_info}
-            <div class="fw-bold mb-2">Послуга:</div>
-            <div class="d-flex"><span>{html.escape(appt.service_type)}</span><span>{appt.cost:.2f} грн</span></div>
-            <div class="border-bottom"></div>
-            <div class="d-flex fw-bold" style="font-size: 1.2rem;"><span>СУМА ДО СПЛАТИ:</span><span>{appt.cost:.2f} грн</span></div>
-            <div class="border-bottom"></div>
-            <div class="text-center" style="font-size: 0.85rem;">Дякуємо за візит!<br>Чекаємо на вас знову.</div>
-            <button class="btn no-print" onclick="window.print()">🖨️ Зберегти PDF / Друк</button>
-        </div>
-    </body>
-    </html>"""
-
-@router.post("/admin/send-sms")
-async def send_sms_endpoint(phone: str = Form(...), message: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return {"ok": False, "msg": "Потрібна авторизація"}
-    
-    biz = await db.get(Business, user.business_id)
-    sender = biz.sms_sender_id or DEFAULT_SMS_SENDER
-    token = biz.sms_token
-
-    if not token:
-        return {"ok": False, "msg": "Помилка: Не вказано SMS токен в налаштуваннях!"}
-
-    url = "https://api.turbosms.ua/message/send.json"
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    payload = {
-        "recipients": [phone],
-        "sms": {
-            "sender": sender,
-            "text": message
-        }
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
-            data = resp.json()
-            
-            # Перевірка успішності (TurboSMS повертає response_code: 0 або список результатів)
-            if data.get("response_code") == 0 or (data.get("response_result") and data["response_result"][0].get("response_code") == 0):
-                 return {"ok": True, "msg": "SMS успішно відправлено!"}
-            else:
-                 error_msg = data.get("response_status") or (data.get("response_result") and data["response_result"][0].get("response_status")) or "Невідома помилка"
-                 return {"ok": False, "msg": f"Помилка провайдера: {error_msg}"}
-        except Exception as e:
-            logger.error(f"SMS Error: {e}")
-            return {"ok": False, "msg": f"Помилка мережі: {str(e)}"}
-
-@router.get("/admin/api/calendar-events")
-async def get_calendar_events(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return []
-    
-    is_limited_master = False
-    if user.role == "master":
-        m_record = await db.get(Master, user.master_id)
-        if not m_record or m_record.role == "Експерт":
-            is_limited_master = True
-
-    filters = [Appointment.business_id == user.business_id, Appointment.status != 'cancelled']
-    if is_limited_master:
-        filters.append(Appointment.master_id == user.master_id)
-
-    stmt = select(Appointment).options(joinedload(Appointment.customer)).where(and_(*filters))
-    res = await db.execute(stmt)
-    appts = res.scalars().all()
-    
-    events = []
-    for a in appts:
-        end_time = a.appointment_time + timedelta(minutes=90)
-        color = "#10b981" if a.status == 'completed' else "#4f46e5"
-        title = f"{a.customer.name or 'Клієнт'} ({a.service_type})"
-        
-        events.append({
-            "id": a.id, 
-            "title": title, 
-            "start": a.appointment_time.isoformat(), 
-            "end": end_time.isoformat(), 
-            "color": color,
-            "extendedProps": {
-                "id": a.id,
-                "status": a.status,
-                "cost": a.cost,
-                "master_id": str(a.master_id) if a.master_id else "",
-                "delivery_address": a.delivery_address or "",
-                "ttn": a.ttn or "",
-                "delivery_status": a.delivery_status or "pending",
-                "date": a.appointment_time.strftime('%Y-%m-%d'),
-                "time": a.appointment_time.strftime('%H:%M')
-            }
-        })
-    
-    return events
-
-@router.post("/admin/ask-ai")
-async def ask_ai(question: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return {"answer": "Помилка доступу"}
-    answer, _ = await process_ai_request(user.business_id, question, db, f"web_{user.id}")
-    if not answer: answer = "AI-Асистент тимчасово недоступний або вимкнено в налаштуваннях."
-    return {"answer": answer.replace("\n", "<br>")}
-
-
-@router.post("/api/update-appointment-time")
-async def api_update_appt_time(id: int = Form(...), date: str = Form(...), time: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return {"ok": False}
-    res = await db.execute(select(Appointment).where(and_(Appointment.id == id, Appointment.business_id == user.business_id)))
-    appt = res.scalar_one_or_none()
-    if appt:
-        try:
-            appt.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-            await db.commit()
-            return {"ok": True}
-        except ValueError: pass
-    return RedirectResponse("/admin?msg=saved", status_code=303)
-
-@router.post("/admin/update-appointment")
-async def update_appointment(
-    id: int = Form(...),
-    date: str = Form(...),
-    time: str = Form(...),
-    cost: float = Form(0.0),
-    master_id: Optional[int] = Form(None),
-    delivery_address: Optional[str] = Form(None),
-    ttn: Optional[str] = Form(None),
-    delivery_status: Optional[str] = Form(None),
-    status: str = Form(...),
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    if not user: return RedirectResponse("/", status_code=303)
-    app = await db.get(Appointment, id)
-    if app and app.business_id == user.business_id:
-        app.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-        app.cost, app.master_id, app.delivery_address = cost, master_id, delivery_address
-        app.ttn, app.delivery_status, app.status = ttn, delivery_status, status
-        await db.commit()
-        await log_action(db, user.business_id, user.id, "Оновлено запис", f"Запис #{id} оновлено")
-    return RedirectResponse("/admin?msg=saved", status_code=303)
-
-@router.post("/admin/delete-appointment")
 async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: return RedirectResponse("/", status_code=303)
     

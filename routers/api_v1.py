@@ -4,8 +4,10 @@ import json
 import secrets
 from datetime import datetime, timedelta
 from typing import List, Optional
+import logging
 
-from fastapi import APIRouter, Body, Depends, Header, Request, Response, status
+from fastapi import APIRouter, Body, Depends, Header, Request, Response, status, BackgroundTasks
+from fastapi.security.api_key import APIKeyHeader
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,14 +16,19 @@ from database import get_db
 from dependencies import get_tenant_context
 from exceptions import (APIError, IdempotencyKeyError, InvalidApiKeyError,
                         NotFoundError, WebhookSignatureError)
-from models import ApiKey, Appointment, Business, Customer, IdempotencyKey
-from schemas import (ApiKeyCreate, ApiKeyFullResponse, ApiKeyResponse, CustomerCreate, CustomerResponse, CustomerUpdate,
+from models import ApiKey, Appointment, Business, Customer, IdempotencyKey, WebhookEndpoint
+from schemas import (ApiKeyCreate, ApiKeyFullResponse, ApiKeyResponse, CustomerCreate, CustomerResponse, CustomerUpdate, WebhookEndpointCreate, WebhookEndpointResponse,
                      AppointmentCreate, AppointmentResponse, AppointmentUpdate,
-                     HealthCheckResponse, IdempotencyKeyHeader, WebhookEvent)
+                     HealthCheckResponse, WebhookEvent)
+from utils.security import generate_api_key
 from services.idempotency import (create_idempotency_key, get_idempotency_key,
                                   update_idempotency_key)
+from services.webhooks import dispatch_webhooks
 
-router = APIRouter(prefix="/api/v1", tags=["API v1"])
+logger = logging.getLogger(__name__)
+
+api_key_header = APIKeyHeader(name="X-API-Key")
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(api_key_header)])
 
 # --- API Key Endpoints ---
 
@@ -29,19 +36,16 @@ router = APIRouter(prefix="/api/v1", tags=["API v1"])
     "/api-keys",
     response_model=ApiKeyFullResponse,
     status_code=status.HTTP_200_OK, # Changed to 200 OK as per Stripe's API for key creation
-    summary="Create a new API key",
-    description="Generates a new secret API key for the current business. The full key is only returned once.",
-    responses={
-        201: {"description": "API key created successfully"},
-        401: {"description": "Invalid API key"},
-    }
+    tags=["API Keys"],
+    summary="Згенерувати новий API ключ",
+    description="Створює новий Stripe-like секретний ключ (`sk_live_...`) для доступу до API. Збережіть його, оскільки він повертається лише один раз.",
 )
 async def create_api_key(
     api_key_data: ApiKeyCreate,
     business_id: int = Depends(get_tenant_context), # This now works correctly
     db: AsyncSession = Depends(get_db)
 ):
-    new_api_key_value = f"sk_live_{secrets.token_hex(32)}"
+    new_api_key_value = generate_api_key()
     
     new_api_key = ApiKey(
         business_id=business_id,
@@ -53,39 +57,31 @@ async def create_api_key(
     db.add(new_api_key)
     await db.commit()
     await db.refresh(new_api_key)
-    # Return the full ApiKey object, which now includes the 'api_key' field
-    return ApiKeyFullResponse(**new_api_key.model_dump())
+    return new_api_key
 
 
 @router.get(
     "/api-keys",
     response_model=List[ApiKeyResponse],
-    summary="List API keys",
-    description="Retrieves a list of all API keys associated with the current business (excluding the full key).",
-    responses={
-        200: {"description": "List of API keys"},
-        401: {"description": "Invalid API key"},
-    }
+    tags=["API Keys"],
+    summary="Список API ключів",
+    description="Отримує список усіх активних та неактивних API ключів вашого бізнесу.",
 )
 async def list_api_keys(
     business_id: int = Depends(get_tenant_context), # This now works correctly
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(ApiKey).where(ApiKey.business_id == business_id)
-    api_keys = (await db.execute(stmt)).scalars().all() # All keys are now fully visible
-    return [ApiKeyResponse(**key.model_dump()) for key in api_keys] # Pydantic will handle the 'api_key' field
+    api_keys = (await db.execute(stmt)).scalars().all() 
+    return api_keys 
 
 
 @router.delete(
     "/api-keys/{key_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Revoke an API key",
-    description="Deactivates an API key, making it unusable for future requests.",
-    responses={
-        204: {"description": "API key revoked successfully"},
-        401: {"description": "Invalid API key"},
-        404: {"description": "API key not found"},
-    }
+    tags=["API Keys"],
+    summary="Відкликати API ключ",
+    description="Миттєво деактивує API ключ, роблячи його недійсним для майбутніх запитів.",
 )
 async def revoke_api_key(
     key_id: int,
@@ -100,17 +96,76 @@ async def revoke_api_key(
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+# --- Webhooks Management Endpoints ---
+
+@router.post(
+    "/webhooks",
+    response_model=WebhookEndpointResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Webhooks"],
+    summary="Створити Webhook Endpoint",
+    description="Реєструє новий URL для отримання подій в реальному часі. Повертає `secret` для перевірки підпису.",
+)
+async def create_webhook_endpoint(
+    endpoint_data: WebhookEndpointCreate,
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    secret = f"whsec_{secrets.token_hex(24)}"
+    new_endpoint = WebhookEndpoint(
+        business_id=business_id,
+        url=endpoint_data.url,
+        secret=secret
+    )
+    db.add(new_endpoint)
+    await db.commit()
+    await db.refresh(new_endpoint)
+    return new_endpoint
+
+@router.get(
+    "/webhooks",
+    response_model=List[WebhookEndpointResponse],
+    tags=["Webhooks"],
+    summary="Список Webhook Endpoints",
+)
+async def list_webhook_endpoints(
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    endpoints = (await db.execute(select(WebhookEndpoint).where(WebhookEndpoint.business_id == business_id))).scalars().all()
+    return endpoints
+
+@router.delete(
+    "/webhooks/{endpoint_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Webhooks"],
+    summary="Видалити Webhook Endpoint",
+)
+async def delete_webhook_endpoint(
+    endpoint_id: int,
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    endpoint = await db.get(WebhookEndpoint, endpoint_id)
+    if not endpoint or endpoint.business_id != business_id:
+        raise NotFoundError("Webhook endpoint not found")
+    await db.delete(endpoint)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 # --- Appointments Endpoints ---
 
 @router.get(
     "/appointments",
     response_model=List[AppointmentResponse],
-    summary="List appointments",
-    description="Retrieves a list of appointments for the current business, optionally filtered by status.",
-    responses={
-        200: {"description": "List of appointments"},
-        401: {"description": "Invalid API key"},
-    }
+    tags=["Appointments"],
+    summary="Отримати список записів",
+    description="""
+Повертає всі записи (appointments).
+Можна фільтрувати за статусом:
+- `status=confirmed`
+- `status=completed`
+""",
 )
 async def list_appointments(
     status: Optional[str] = None,
@@ -122,29 +177,25 @@ async def list_appointments(
         stmt = stmt.where(Appointment.status == status)
     
     appointments = (await db.execute(stmt)).scalars().all()
-    return [AppointmentResponse(**appt.model_dump()) for appt in appointments]
+    return appointments
 
 
 @router.post(
     "/appointments",
     response_model=AppointmentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create an appointment",
-    description="Creates a new appointment for the current business. Supports idempotency via `Idempotency-Key` header.",
-    responses={
-        201: {"description": "Appointment created successfully"},
-        401: {"description": "Invalid API key"},
-        409: {"description": "Idempotency key mismatch or already processed"},
-    }
+    tags=["Appointments"],
+    summary="Створити новий запис",
+    description="Створює новий запис (appointment). Підтримує ідемпотентність через заголовок `Idempotency-Key`.",
 )
 async def create_appointment(
     appointment_data: AppointmentCreate,
+    background_tasks: BackgroundTasks,
     business_id: int = Depends(get_tenant_context), # This now works correctly
     db: AsyncSession = Depends(get_db),
-    idempotency_key_header: Optional[IdempotencyKeyHeader] = Header(None, alias="Idempotency-Key")
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
-    if idempotency_key_header and idempotency_key_header.idempotency_key:
-        idempotency_key = idempotency_key_header.idempotency_key
+    if idempotency_key:
         existing_idempotency_record = await get_idempotency_key(db, idempotency_key)
         
         request_payload_hash = hashlib.sha256(
@@ -180,26 +231,27 @@ async def create_appointment(
     await db.commit()
     await db.refresh(new_appointment)
 
-    response_data = AppointmentResponse(**new_appointment.model_dump()).model_dump_json()
-    
-    if idempotency_key_header and idempotency_key_header.idempotency_key:
-        idempotency_record = await get_idempotency_key(db, idempotency_key_header.idempotency_key)
+    if idempotency_key:
+        idempotency_record = await get_idempotency_key(db, idempotency_key)
         if idempotency_record:
-            await update_idempotency_key(db, idempotency_record, json.loads(response_data), status.HTTP_201_CREATED)
+            await update_idempotency_key(db, idempotency_record, {"id": new_appointment.id, "status": new_appointment.status}, status.HTTP_201_CREATED)
 
-    return Response(content=response_data, status_code=status.HTTP_201_CREATED, media_type="application/json")
+    # Trigger webhook in background
+    background_tasks.add_task(
+        dispatch_webhooks,
+        business_id,
+        "appointment.created",
+        {"id": new_appointment.id, "customer_id": new_appointment.customer_id, "service": new_appointment.service_type, "time": new_appointment.appointment_time.isoformat()}
+    )
+    return new_appointment
 
 
 @router.get(
     "/appointments/{appointment_id}",
     response_model=AppointmentResponse,
-    summary="Retrieve an appointment",
-    description="Retrieves a specific appointment by its ID.",
-    responses={
-        200: {"description": "Appointment details"},
-        401: {"description": "Invalid API key"},
-        404: {"description": "Appointment not found"},
-    }
+    tags=["Appointments"],
+    summary="Отримати запис за ID",
+    description="Повертає деталі конкретного запису за його ідентифікатором.",
 )
 async def retrieve_appointment(
     appointment_id: int,
@@ -209,23 +261,20 @@ async def retrieve_appointment(
     appointment = await db.get(Appointment, appointment_id)
     if not appointment or appointment.business_id != business_id:
         raise NotFoundError("Appointment not found")
-    return AppointmentResponse(**appointment.model_dump())
+    return appointment
 
 
 @router.put(
     "/appointments/{appointment_id}",
     response_model=AppointmentResponse,
-    summary="Update an appointment",
-    description="Updates an existing appointment by its ID.",
-    responses={
-        200: {"description": "Appointment updated successfully"},
-        401: {"description": "Invalid API key"},
-        404: {"description": "Appointment not found"},
-    }
+    tags=["Appointments"],
+    summary="Оновити запис",
+    description="Оновлює існуючий запис. Усі поля є опціональними, оновлюються лише передані.",
 )
 async def update_appointment(
     appointment_id: int,
     appointment_data: AppointmentUpdate,
+    background_tasks: BackgroundTasks,
     business_id: int = Depends(get_tenant_context), # This now works correctly
     db: AsyncSession = Depends(get_db)
 ):
@@ -238,19 +287,22 @@ async def update_appointment(
     
     await db.commit()
     await db.refresh(appointment)
-    return AppointmentResponse(**appointment.model_dump())
+
+    background_tasks.add_task(
+        dispatch_webhooks,
+        business_id,
+        "appointment.updated",
+        {"id": appointment.id, "status": appointment.status, "service": appointment.service_type, "time": appointment.appointment_time.isoformat()}
+    )
+    return appointment
 
 
 @router.delete(
     "/appointments/{appointment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete an appointment",
-    description="Deletes an appointment by its ID.",
-    responses={
-        204: {"description": "Appointment deleted successfully"},
-        401: {"description": "Invalid API key"},
-        404: {"description": "Appointment not found"},
-    }
+    tags=["Appointments"],
+    summary="Видалити запис",
+    description="Повністю видаляє запис з бази даних.",
 )
 async def delete_appointment(
     appointment_id: int,
@@ -271,11 +323,13 @@ async def delete_appointment(
     "/customers",
     response_model=CustomerResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a customer",
-    description="Creates a new customer for the current business.",
+    tags=["Customers"],
+    summary="Створити клієнта",
+    description="Створює нового клієнта у вашій базі. Номер телефону має бути унікальним.",
 )
 async def create_customer(
     customer_data: CustomerCreate,
+    background_tasks: BackgroundTasks,
     business_id: int = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db)
 ):
@@ -295,14 +349,22 @@ async def create_customer(
     db.add(new_customer)
     await db.commit()
     await db.refresh(new_customer)
-    return CustomerResponse(**new_customer.model_dump())
+
+    background_tasks.add_task(
+        dispatch_webhooks,
+        business_id,
+        "customer.created",
+        {"id": new_customer.id, "name": new_customer.name, "phone_number": new_customer.phone_number}
+    )
+    return new_customer
 
 
 @router.get(
     "/customers",
     response_model=List[CustomerResponse],
-    summary="List customers",
-    description="Retrieves a list of customers for the current business.",
+    tags=["Customers"],
+    summary="Список клієнтів",
+    description="Повертає список усіх клієнтів вашого бізнесу.",
 )
 async def list_customers(
     business_id: int = Depends(get_tenant_context),
@@ -310,14 +372,15 @@ async def list_customers(
 ):
     stmt = select(Customer).where(Customer.business_id == business_id)
     customers = (await db.execute(stmt)).scalars().all()
-    return [CustomerResponse(**cust.model_dump()) for cust in customers]
+    return customers
 
 
 @router.get(
     "/customers/{customer_id}",
     response_model=CustomerResponse,
-    summary="Retrieve a customer",
-    description="Retrieves a specific customer by their ID.",
+    tags=["Customers"],
+    summary="Отримати клієнта за ID",
+    description="Повертає детальну інформацію про клієнта.",
 )
 async def retrieve_customer(
     customer_id: int,
@@ -327,18 +390,20 @@ async def retrieve_customer(
     customer = await db.get(Customer, customer_id)
     if not customer or customer.business_id != business_id:
         raise NotFoundError("Customer not found")
-    return CustomerResponse(**customer.model_dump())
+    return customer
 
 
 @router.put(
     "/customers/{customer_id}",
     response_model=CustomerResponse,
-    summary="Update a customer",
-    description="Updates an existing customer by their ID.",
+    tags=["Customers"],
+    summary="Оновити дані клієнта",
+    description="Оновлює картку клієнта (знижки, нотатки, статус блокування).",
 )
 async def update_customer_api(
     customer_id: int,
     customer_data: CustomerUpdate,
+    background_tasks: BackgroundTasks,
     business_id: int = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db)
 ):
@@ -351,14 +416,22 @@ async def update_customer_api(
 
     await db.commit()
     await db.refresh(customer)
-    return CustomerResponse(**customer.model_dump())
+
+    background_tasks.add_task(
+        dispatch_webhooks,
+        business_id,
+        "customer.updated",
+        {"id": customer.id, "name": customer.name, "phone_number": customer.phone_number}
+    )
+    return customer
 
 
 @router.delete(
     "/customers/{customer_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a customer",
-    description="Deletes a customer by their ID. This is a destructive action and will fail if the customer has associated appointments.",
+    tags=["Customers"],
+    summary="Видалити клієнта",
+    description="Видаляє клієнта. Зверніть увагу: дія неможлива, якщо у клієнта є прив'язані записи.",
 )
 async def delete_customer(
     customer_id: int,
@@ -380,12 +453,9 @@ async def delete_customer(
 @router.get(
     "/health",
     response_model=HealthCheckResponse,
-    summary="Health check",
-    description="Checks the health and status of the API and its dependencies.",
-    responses={
-        200: {"description": "API is healthy"},
-        500: {"description": "API is unhealthy"},
-    }
+    tags=["System"],
+    summary="Перевірка статусу системи",
+    description="Перевіряє доступність API та підключення до бази даних.",
 )
 async def health_check(db: AsyncSession = Depends(get_db)):
     db_status = "disconnected"
@@ -411,12 +481,9 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 @router.post(
     "/webhooks/events",
     status_code=status.HTTP_200_OK,
-    summary="Receive webhook events",
-    description="Endpoint for receiving and processing webhook events from external services.",
-    responses={
-        200: {"description": "Webhook event received and processed"},
-        401: {"description": "Invalid webhook signature"},
-    }
+    tags=["Webhooks"],
+    summary="Отримати Webhook події",
+    description="Ендпоінт для отримання подій (наприклад, `appointment.created`). Запит має містити коректний `X-Webhook-Signature`.",
 )
 async def receive_webhook_event(
     request: Request,
@@ -469,6 +536,6 @@ async def receive_webhook_event(
     # await message_queue.publish("webhook_events", webhook_event.model_dump_json())
     
     # For now, we'll just log it.
-    print(f"Received and verified webhook event: {webhook_event.event_type} for business_id (if extracted): N/A")
+    logger.info(f"Received and verified webhook event: {webhook_event.event_type}")
     
     return {"message": "Webhook event received and processed successfully"}

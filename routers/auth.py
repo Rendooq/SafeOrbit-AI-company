@@ -4,6 +4,7 @@ import json
 import shutil
 from datetime import datetime, timedelta
 from typing import Optional
+import logging
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -15,8 +16,9 @@ from sqlalchemy.orm import joinedload
 from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID, UA_TZ
 from database import get_db
 from models import Business, GlobalPaymentSettings, User
-from utils import hash_password, verify_password
+from utils.security import hash_password, verify_password
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
 
 
@@ -183,22 +185,22 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     }}
 
     .form-control, .form-select {{ 
-        background: rgba(255, 255, 255, 0.01) !important; 
-        border: 0.5px solid var(--glass-border) !important; 
-        border-radius: 22px !important; 
-        padding: 1.1rem 1.4rem !important; 
+        background: rgba(255, 255, 255, 0.04) !important; 
+        border: 1px solid var(--glass-border) !important; 
+        border-radius: 12px !important; 
+        padding: 12px 16px !important; 
         color: white !important; 
         font-weight: 500 !important;
-        font-size: 16px !important;
-        transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.2) !important;
+        font-size: 14px !important;
+        transition: all 0.25s ease-in-out !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1) !important;
     }}
 
     .form-control:focus, .form-select:focus {{ 
-        background: rgba(255, 255, 255, 0.035) !important;
-        border-color: rgba(187, 134, 252, 0.5) !important; /* Updated border focus */
-        box-shadow: 0 0 40px rgba(187, 134, 252, 0.15), inset 0 1px 2px rgba(0,0,0,0.1) !important; /* Updated shadow */
-        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: var(--accent-primary) !important; 
+        box-shadow: 0 0 0 3px rgba(187, 134, 252, 0.2) !important; 
+        outline: none !important;
     }}
 
     select option {{
@@ -270,28 +272,28 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
         background: linear-gradient(135deg, var(--accent-primary), var(--accent-pink));
         border: none;
         color: white !important;
-        padding: 1.2rem !important;
-        border-radius: 18px !important; /* Slightly less rounded */
+        padding: 12px 24px !important;
+        border-radius: 12px !important; 
         font-weight: 800 !important;
-        font-size: 18px !important;
-        box-shadow: 0 20px 40px rgba(175, 133, 255, 0.35);
-        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        font-size: 14px !important;
+        box-shadow: 0 4px 15px rgba(187, 134, 252, 0.3) !important;
+        transition: all 0.25s ease-in-out !important;
     }} 
 
     .btn-primary-glow:hover:not(:disabled) {{
-        transform: translateY(-5px) scale(1.02);
-        box-shadow: 0 30px 60px rgba(175, 133, 255, 0.5);
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(187, 134, 252, 0.5) !important;
     }}
 
     .btn-secondary-glass {{
-        background: rgba(255, 255, 255, 0.025);
+        background: rgba(255, 255, 255, 0.05);
         border: 0.5px solid var(--glass-border);
         color: white;
-        padding: 12px 20px; /* Slightly reduced */
-        border-radius: 18px;
+        padding: 10px 20px; 
+        border-radius: 12px;
         font-weight: 600;
         font-size: 14px;
-        transition: all 0.4s;
+        transition: all 0.25s ease-in-out;
         text-decoration: none !important;
     }}
 
@@ -681,8 +683,7 @@ async def register_post(name: str = Form(...), phone: str = Form(...), password:
             async with httpx.AsyncClient() as client_tg:
                 await client_tg.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", json={"chat_id": chat_id, "text": msg})
         except Exception as e:
-            # In a real app, you'd have proper logging here
-            print(f"Superadmin TG Notify Error: {e}")
+            logger.error(f"Superadmin TG Notify Error: {e}")
             
     return RedirectResponse(f"/pending-activation/{nb.id}", status_code=303)
 
@@ -841,22 +842,22 @@ async def login_page():
     }
 
     .form-control { 
-        background: rgba(255, 255, 255, 0.01) !important; 
-        border: 0.5px solid var(--glass-border) !important; 
-        border-radius: 22px !important; 
-        padding: 1.2rem 1.5rem !important; 
+        background: rgba(255, 255, 255, 0.04) !important; 
+        border: 1px solid var(--glass-border) !important; 
+        border-radius: 12px !important; 
+        padding: 12px 16px !important; 
         color: white !important; 
         font-weight: 500 !important;
-        font-size: 16px !important;
-        transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.2) !important;
+        font-size: 14px !important;
+        transition: all 0.25s ease-in-out !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1) !important;
     }
 
     .form-control:focus { 
-        background: rgba(255, 255, 255, 0.035) !important;
-        border-color: rgba(187, 134, 252, 0.5) !important; /* Updated border focus */
-        box-shadow: 0 0 40px rgba(187, 134, 252, 0.15), inset 0 1px 2px rgba(0,0,0,0.1) !important; /* Updated shadow */
-        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: var(--accent-primary) !important; 
+        box-shadow: 0 0 0 3px rgba(187, 134, 252, 0.2) !important;
+        outline: none !important;
     }
 
     .form-label { 
@@ -874,30 +875,30 @@ async def login_page():
     .btn-primary { 
         background: linear-gradient(135deg, var(--accent-primary), var(--accent-pink)) !important; 
         border: none !important; 
-        border-radius: 18px !important; /* Slightly less rounded */
-        padding: 1.1rem !important; /* Slightly smaller padding */
-        font-weight: 800 !important; 
-        box-shadow: 0 20px 40px rgba(175, 133, 255, 0.35) !important; 
+        border-radius: 12px !important; 
+        padding: 12px 24px !important; 
+        font-weight: 700 !important; 
+        box-shadow: 0 4px 15px rgba(187, 134, 252, 0.3) !important;
         color: white !important;
-        font-size: 17px !important;
-        transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        font-size: 14px !important;
+        transition: all 0.25s ease-in-out !important;
         width: 100%;
     }
 
     .btn-primary:hover {
-        transform: translateY(-5px) scale(1.02);
-        box-shadow: 0 30px 60px rgba(175, 133, 255, 0.5) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(187, 134, 252, 0.5) !important;
     }
 
     .btn-demo {
-        background: rgba(255, 255, 255, 0.02) !important;
+        background: rgba(255, 255, 255, 0.05) !important;
         border: 0.5px solid var(--glass-border) !important;
-        border-radius: 18px !important; /* Slightly less rounded */
-        padding: 1.2rem !important;
+        border-radius: 12px !important; 
+        padding: 12px 24px !important;
         color: #fff !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        transition: all 0.5s !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+        transition: all 0.25s ease-in-out !important;
         width: 100%;
         margin-top: 1.2rem;
         display: flex;

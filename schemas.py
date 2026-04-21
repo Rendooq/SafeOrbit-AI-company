@@ -8,6 +8,13 @@ from pydantic import BaseModel, Field
 class ApiKeyCreate(BaseModel):
     name: str = Field(..., description="A human-readable name for the API key")
 
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Integration Key - Website"
+            }
+        }
+
 class ApiKeyResponse(BaseModel):
     id: int
     api_key: str = Field(..., description="The full API key") # Now includes the full key
@@ -37,7 +44,16 @@ class AppointmentBase(BaseModel):
     delivery_status: str = Field("pending", description="Status of the delivery")
 
 class AppointmentCreate(AppointmentBase):
-    pass
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "customer_id": 42,
+                "master_id": 5,
+                "appointment_time": "2026-04-20T14:30:00",
+                "service_type": "Манікюр",
+                "cost": 550.0
+            }
+        }
 
 class AppointmentUpdate(BaseModel):
     customer_id: Optional[int] = None
@@ -71,7 +87,15 @@ class CustomerBase(BaseModel):
     is_blocked: bool = Field(False, description="Whether the customer is blocked from booking")
 
 class CustomerCreate(CustomerBase):
-    pass
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Олена Коваленко",
+                "phone_number": "+380501234567",
+                "notes": "VIP клієнт",
+                "discount_percent": 10.0
+            }
+        }
 
 class CustomerUpdate(BaseModel):
     name: Optional[str] = None
@@ -95,6 +119,27 @@ class WebhookEvent(BaseModel):
     payload: dict = Field(..., description="Event-specific data")
     timestamp: datetime = Field(..., description="Timestamp when the event occurred")
     # Add any other common fields expected in your webhook events
+
+class WebhookEndpointCreate(BaseModel):
+    url: str = Field(..., description="HTTPS URL to receive webhook events")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "url": "https://your-server.com/api/webhooks"
+            }
+        }
+
+class WebhookEndpointResponse(BaseModel):
+    id: int
+    business_id: int
+    url: str
+    secret: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 # --- Generic Error Response ---
 

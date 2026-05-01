@@ -110,6 +110,7 @@ app.include_router(superadmin.router, include_in_schema=False)
 app.include_router(admin.router, include_in_schema=False)
 app.include_router(widget.router, include_in_schema=False)
 app.include_router(webhooks.router, include_in_schema=False)
+app.include_router(api_v1.public_chat_router)
 app.include_router(api_v1.router)
 app.include_router(api_schools.router, include_in_schema=False) 
 

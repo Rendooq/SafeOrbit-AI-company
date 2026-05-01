@@ -8,15 +8,17 @@ import logging
 
 from fastapi import APIRouter, Body, Depends, Header, Request, Response, status, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
+from fastapi.responses import HTMLResponse
 
 from config import WEBHOOK_SIGNING_SECRET, UA_TZ
 from database import get_db
 from dependencies import get_tenant_context
 from exceptions import (APIError, IdempotencyKeyError, InvalidApiKeyError,
                         NotFoundError, WebhookSignatureError)
-from models import ApiKey, Appointment, Business, Customer, IdempotencyKey, WebhookEndpoint
+from models import ApiKey, Appointment, Business, Customer, IdempotencyKey, WebhookEndpoint, ChatLog
 from schemas import (ApiKeyCreate, ApiKeyFullResponse, ApiKeyResponse, CustomerCreate, CustomerResponse, CustomerUpdate, WebhookEndpointCreate, WebhookEndpointResponse,
                      AppointmentCreate, AppointmentResponse, AppointmentUpdate,
                      HealthCheckResponse, WebhookEvent)
@@ -24,8 +26,42 @@ from utils.security import generate_api_key
 from services.idempotency import (create_idempotency_key, get_idempotency_key,
                                   update_idempotency_key)
 from services.webhooks import dispatch_webhooks
+from ui import get_chat_widget_html
 
 logger = logging.getLogger(__name__)
+
+class ChatCustomer(BaseModel):
+    id: Optional[int] = None
+    name: str
+    phone: Optional[str] = None
+
+class ChatMessageBase(BaseModel):
+    text: str
+    sender_type: str
+    created_at: datetime
+
+class ChatMessageResponse(ChatMessageBase):
+    id: str
+
+class ChatConversation(BaseModel):
+    id: str
+    customer: Optional[ChatCustomer] = None
+    channel: str
+    last_message: Optional[ChatMessageBase] = None
+    unread_count: int = 0
+    updated_at: datetime
+
+class ChatConversationDetail(ChatConversation):
+    messages: List[ChatMessageResponse] = []
+
+class SendMessageRequest(BaseModel):
+    conversation_id: str
+    text: str
+
+class IncomingWebhookRequest(BaseModel):
+    channel: str
+    chat_id: str
+    text: str
 
 api_key_header = APIKeyHeader(name="X-API-Key")
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(api_key_header)])
@@ -539,3 +575,220 @@ async def receive_webhook_event(
     logger.info(f"Received and verified webhook event: {webhook_event.event_type}")
     
     return {"message": "Webhook event received and processed successfully"}
+
+# --- Chat / Messaging Endpoints ---
+
+@router.get(
+    "/chat/conversations",
+    response_model=List[ChatConversation],
+    tags=["Chat API"],
+    summary="Список діалогів",
+    description="Повертає список всіх діалогів (розмов) бізнесу, відсортований за часом останнього оновлення."
+)
+async def list_conversations(
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(ChatLog).where(ChatLog.business_id == business_id).order_by(desc(ChatLog.created_at))
+    logs = (await db.execute(stmt)).scalars().all()
+    
+    conversations_map = {}
+    for log in logs:
+        uid = log.user_identifier
+        if uid not in conversations_map:
+            conversations_map[uid] = {
+                "id": uid,
+                "channel": "telegram" if uid.startswith("tg_") else ("viber" if uid.startswith("vb_") else "web"),
+                "last_message": {
+                    "text": log.content,
+                    "sender_type": "client" if log.role == "user" else "business",
+                    "created_at": log.created_at
+                },
+                "unread_count": 0,
+                "updated_at": log.created_at,
+                "customer": None
+            }
+            
+    customers = (await db.execute(select(Customer).where(Customer.business_id == business_id))).scalars().all()
+    tg_map = {getattr(c, 'telegram_id', ''): c for c in customers if getattr(c, 'telegram_id', None)}
+    
+    result = []
+    for uid, conv in conversations_map.items():
+        cust = None
+        if uid.startswith("tg_"):
+            cust = tg_map.get(uid.replace("tg_", ""))
+        
+        if cust:
+            conv["customer"] = {
+                "id": cust.id,
+                "name": cust.name or "Клієнт",
+                "phone": cust.phone_number
+            }
+        result.append(conv)
+        
+    return sorted(result, key=lambda x: x["updated_at"], reverse=True)
+
+@router.get(
+    "/chat/conversations/{conversation_id}",
+    response_model=ChatConversationDetail,
+    tags=["Chat API"],
+    summary="Відкрити діалог",
+    description="Отримує деталі конкретного діалогу разом з його історією повідомлень."
+)
+async def get_conversation_detail(
+    conversation_id: str,
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(ChatLog).where(
+        and_(ChatLog.business_id == business_id, ChatLog.user_identifier == conversation_id)
+    ).order_by(desc(ChatLog.created_at))
+    logs = (await db.execute(stmt)).scalars().all()
+    
+    if not logs:
+        raise NotFoundError("Conversation not found")
+        
+    messages = []
+    for log in logs:
+        messages.append({
+            "id": str(log.id),
+            "text": log.content,
+            "sender_type": "client" if log.role == "user" else "business",
+            "created_at": log.created_at
+        })
+        
+    cust = None
+    if conversation_id.startswith("tg_"):
+        tg_id = conversation_id.replace("tg_", "")
+        cust = (await db.execute(select(Customer).where(
+            and_(Customer.business_id == business_id, Customer.telegram_id == tg_id)
+        ))).scalar_one_or_none()
+        
+    conv = {
+        "id": conversation_id,
+        "channel": "telegram" if conversation_id.startswith("tg_") else ("viber" if conversation_id.startswith("vb_") else "web"),
+        "updated_at": logs[0].created_at,
+        "unread_count": 0,
+        "last_message": {
+            "text": logs[0].content,
+            "sender_type": "client" if logs[0].role == "user" else "business",
+            "created_at": logs[0].created_at
+        },
+        "customer": {"id": cust.id, "name": cust.name or "Клієнт", "phone": cust.phone_number} if cust else None,
+        "messages": messages[::-1]
+    }
+    return conv
+
+@router.get(
+    "/chat/conversations/{conversation_id}/messages",
+    response_model=List[ChatMessageResponse],
+    tags=["Chat API"],
+    summary="Історія повідомлень діалогу",
+    description="Отримати список повідомлень з можливістю підвантаження старих повідомлень (пагінація)."
+)
+async def get_conversation_messages(
+    conversation_id: str,
+    limit: int = 50,
+    before: Optional[datetime] = None,
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(ChatLog).where(
+        and_(ChatLog.business_id == business_id, ChatLog.user_identifier == conversation_id)
+    )
+    if before:
+        stmt = stmt.where(ChatLog.created_at < before)
+        
+    stmt = stmt.order_by(desc(ChatLog.created_at)).limit(limit)
+    logs = (await db.execute(stmt)).scalars().all()
+    
+    return [{
+        "id": str(log.id),
+        "text": log.content,
+        "sender_type": "client" if log.role == "user" else "business",
+        "created_at": log.created_at
+    } for log in logs]
+
+@router.post(
+    "/chat/send",
+    response_model=ChatMessageResponse,
+    tags=["Chat API"],
+    summary="Відправити повідомлення клієнту",
+    description="Відправляє повідомлення у відповідний канал (Telegram, Viber, Web) і зберігає в історію діалогу."
+)
+async def send_chat_message(
+    request: SendMessageRequest,
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    chat_log = ChatLog(
+        business_id=business_id,
+        user_identifier=request.conversation_id,
+        role="assistant",
+        content=request.text
+    )
+    db.add(chat_log)
+    await db.commit()
+    await db.refresh(chat_log)
+    
+    if request.conversation_id.startswith("tg_"):
+        biz = await db.get(Business, business_id)
+        if biz and getattr(biz, 'telegram_token', None):
+            chat_id = request.conversation_id.replace("tg_", "")
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        f"https://api.telegram.org/bot{biz.telegram_token}/sendMessage", 
+                        json={"chat_id": chat_id, "text": request.text}
+                    )
+            except Exception:
+                pass
+                
+    return {
+        "id": str(chat_log.id),
+        "text": chat_log.content,
+        "sender_type": "business",
+        "created_at": chat_log.created_at
+    }
+
+@router.post(
+    "/webhooks/chat",
+    tags=["Chat API"],
+    summary="Вебхук для вхідних повідомлень",
+    description="Використовується зовнішніми CRM чи сервісами для передачі нових вхідних повідомлень від клієнта до нашої системи."
+)
+async def incoming_chat_webhook(
+    payload: IncomingWebhookRequest,
+    business_id: int = Depends(get_tenant_context),
+    db: AsyncSession = Depends(get_db)
+):
+    prefix = "tg_" if payload.channel == "telegram" else ("vb_" if payload.channel == "viber" else "web_")
+    user_identifier = f"{prefix}{payload.chat_id}"
+    
+    chat_log = ChatLog(
+        business_id=business_id,
+        user_identifier=user_identifier,
+        role="user",
+        content=payload.text
+    )
+    db.add(chat_log)
+    await db.commit()
+    await db.refresh(chat_log)
+    
+    return {"status": "success", "message_id": chat_log.id}
+
+# --- Public Chat Widget Router (No Global Header Requirement) ---
+# Цей роутер спеціально відокремлений, щоб віддавати HTML сторінку без перевірки заголовку X-API-Key.
+# (Віджети в iframe не можуть відправляти HTTP заголовки).
+public_chat_router = APIRouter(prefix="/api/v1/chat")
+
+@public_chat_router.get(
+    "/widget",
+    response_class=HTMLResponse,
+    tags=["Chat API"],
+    summary="Iframe Віджет Чату",
+    description="Віддає HTML-віджет для вбудовування в інші CRM через Iframe. Потребує параметр `?api_key=...`"
+)
+async def render_chat_widget(api_key: str):
+    return get_chat_widget_html()

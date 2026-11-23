@@ -40,10 +40,10 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     d1 = max(0, min(100, (settings.plan1_discount if settings else 0) or 0))
     d2 = max(0, min(100, (settings.plan2_discount if settings else 0) or 0))
     prices = {
-        "plan1_base": amount(round(11000 * (1 - d1 / 100))),
-        "plan1_setup": amount(round(9000 * (1 - d1 / 100))),
-        "plan2_base": amount(round(53000 * (1 - d2 / 100))),
-        "plan2_support": amount(round(1100 * (1 - d2 / 100))),
+        "plan1_base": amount(round(8250 * (1 - d1 / 100))),
+        "plan1_setup": amount(round(6750 * (1 - d1 / 100))),
+        "plan2_base": amount(round(39750 * (1 - d2 / 100))),
+        "plan2_support": amount(round(825 * (1 - d2 / 100))),
     }
     return HTMLResponse(render_template(
         "auth/register.html", payment=payment, prices=prices, global_discount=0,
@@ -160,9 +160,9 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
     if bot_token and chat_id:
         country_label = "США" if billing_country == "us" else "Україна"
         if plan_type == "plan1":
-            msg = f"🆕 Нова заявка на підключення!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: Базовий (11 000 грн/міс)"
+            msg = f"🆕 Нова заявка на підключення!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: Базовий (8 250 грн/міс)"
         else:
-            msg = f"🚀 🔥 УВАГА! НОВА VIP ЗАЯВКА!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: PRO (53 000 грн + 1 100 грн/міс) 💰\nОчікує перевірки!"
+            msg = f"🚀 🔥 УВАГА! НОВА VIP ЗАЯВКА!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: PRO (39 750 грн + 825 грн/міс) 💰\nОчікує перевірки!"
         background_tasks.add_task(notify_registration, bot_token, chat_id, msg)
             
     return RedirectResponse(f"/pending-activation/{nb.id}", status_code=303)

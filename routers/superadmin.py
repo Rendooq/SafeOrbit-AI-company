@@ -931,11 +931,11 @@ async def global_payment_settings_page(user: User = Depends(get_current_user), d
             
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="is_plan1_active" id="isPlan1Active" {plan1_check}>
-                <label class="form-check-label text-white" for="isPlan1Active">Активувати Базовий Тариф (11 000 грн/міс)</label>
+                <label class="form-check-label text-white" for="isPlan1Active">Активувати Базовий Тариф (8 250 грн/міс)</label>
             </div>
             <div class="form-check form-switch mb-5">
                 <input class="form-check-input" type="checkbox" name="is_plan2_active" id="isPlan2Active" {plan2_check}>
-                <label class="form-check-label text-white" for="isPlan2Active">Активувати PRO Тариф (53 000 грн)</label>
+                <label class="form-check-label text-white" for="isPlan2Active">Активувати PRO Тариф (39 750 грн)</label>
             </div>
 
             <div class="row g-3 mb-5">

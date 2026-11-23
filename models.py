@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Index,
+    LargeBinary,
     Text,
     func,
 )
@@ -124,6 +125,14 @@ class Business(Base):
     subscription_discount: Mapped[int] = mapped_column(Integer, default=0)
     discount_ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     webhook_secret: Mapped[Optional[str]] = mapped_column(Text)
+
+
+class ActivationDocument(Base):
+    __tablename__ = "activation_documents"
+
+    url: Mapped[str] = mapped_column(Text, primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
 
 
 class CreemPayment(Base):

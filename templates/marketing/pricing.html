@@ -7,20 +7,22 @@
   <meta name="description" content="Порівняйте тарифи SafeOrbit CRM, вартість підключення та щомісячної підписки. Перевірте можливості в безкоштовному демо.">
   <link rel="canonical" href="{{ canonical }}">
   <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
-  <link rel="stylesheet" href="/static/v2/home.css?v=access1">
-  <link rel="stylesheet" href="/static/v2/pricing.css?v=1">
+  <link rel="stylesheet" href="/static/v2/home.css?v=conversion2">
+  <link rel="stylesheet" href="/static/v2/pricing.css?v=2">
+  <script src="/static/locales/catalog.js?v=conversion2" defer></script>
+  <script src="/static/i18n.js?v=sale-locales2" defer></script>
 </head>
-<body class="marketing-v2">
+<body class="marketing-v2 marketing-secondary">
 <header class="site-nav">
   <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
-  <div class="nav-actions"><a class="button-v2 dark" href="/login-demo">Спробувати демо ↗</a></div>
+  <div class="nav-actions">{% include "partials/language-select.html" %}{% include "partials/theme-toggle.html" %}<a class="button-v2 dark" href="/login-demo">Спробувати демо ↗</a></div>
 </header>
 <main class="pricing-page">
   <header class="pricing-header">
     <h1>Тарифи SafeOrbit CRM</h1>
     <p>CRM, календар записів, клієнтська база та звіти. Створення акаунта й демо безкоштовні.</p>
   </header>
-  <div class="pricing-grid">
+  <section class="pricing-grid" aria-label="Тарифи SafeOrbit">
     {% for plan, name, description in [
       ('plan1', 'Business', 'Для щоденної роботи команди.'),
       ('plan2', 'Business Pro', 'Індивідуальне підключення та щомісячна підтримка.')
@@ -35,10 +37,15 @@
           <div><dt>Щомісячна підписка</dt><dd>€{{ '%.2f'|format(monthly / 100) }}</dd></div>
           <div><dt>Разом за перший місяць</dt><dd>€{{ '%.2f'|format((setup + monthly) / 100) }}</dd></div>
         </dl>
+        {% if plan in active_plans %}
         <a class="button-v2 primary" href="/register?plan={{ plan }}&amp;utm_source=pricing">Обрати {{ name }} ↗</a>
+        {% else %}
+        <p class="pricing-unavailable">Підключення тимчасово призупинено.</p>
+        {% endif %}
       </article>
     {% endfor %}
-  </div>
+  </section>
+  <p class="pricing-tax-note">Усі суми в євро до застосовних податків. Остаточну суму покаже Creem перед оплатою.</p>
   <section class="pricing-steps">
     <h2>Як підключитися</h2>
     <ol>

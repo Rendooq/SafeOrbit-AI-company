@@ -5,6 +5,7 @@ from uuid import uuid4
 from datetime import datetime, timedelta
 from typing import Annotated, Optional
 import logging
+import re
 
 import httpx
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, File, Form, Request, UploadFile
@@ -17,12 +18,12 @@ from sqlalchemy.orm import joinedload
 
 from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID, UA_TZ
 from database import get_db
-from models import Business, CreemPayment, GlobalPaymentSettings, User
+from models import ActivationDocument, Business, CreemPayment, GlobalPaymentSettings, User
 from utils.security import hash_password, verify_password
 from services.demo_workspace import DEMO_SESSION_KEY, demo_workspaces
 from services import creem
 from utils.templates import login_html, render_template
-from utils.auth import AttemptLimiter, normalize_username, login_limiter, registration_limiter, dummy_password_hash, save_document, remove_documents, ROOT
+from utils.auth import AttemptLimiter, normalize_username, login_limiter, registration_limiter, dummy_password_hash, read_document, save_document, remove_documents, ROOT
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
@@ -53,7 +54,7 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
     if not registration_limiter.allow(remote):
         return RedirectResponse("/register?error=rate", status_code=303)
     name, phone = name.strip(), normalize_username(phone)
-    if not name or len(name) > 160 or not phone or len(phone) > 32 or len(password) < 8 or len(password) > 1024 or type not in {"barbershop", "clinic", "carwash", "spa", "retail", "restaurant", "other"}:
+    if not name or len(name) > 160 or not re.fullmatch(r"\+?[0-9]{7,15}", phone) or len(password) < 8 or len(password) > 1024 or type not in {"barbershop", "clinic", "carwash", "spa", "retail", "restaurant", "other"}:
         return RedirectResponse("/register?error=fields", status_code=303)
     if terms_accepted != "yes":
         return RedirectResponse("/register?error=terms", status_code=303)
@@ -159,7 +160,11 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
 
     if bot_token and chat_id:
         country_label = {"us": "США", "creem": "Creem (EUR)"}.get(billing_country, "Україна")
-        if plan_type == "plan1":
+        if online:
+            plan_name = "Business" if plan_type == "plan1" else "Business Pro"
+            (_, setup), (_, monthly) = creem.PLAN_PRICES[plan_type]
+            msg = f"Нова заявка SafeOrbit\nБізнес: {name}\nТелефон: {phone}\n{plan_name} · Creem\nПідключення: €{setup / 100:.2f}\nПідписка: €{monthly / 100:.2f}/міс"
+        elif plan_type == "plan1":
             msg = f"🆕 Нова заявка на підключення!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: Базовий (8 250 грн/міс)"
         else:
             msg = f"🚀 🔥 УВАГА! НОВА VIP ЗАЯВКА!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: PRO (39 750 грн + 825 грн/міс) 💰\nОчікує перевірки!"
@@ -210,6 +215,8 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
         business_name=biz.name, message=biz.admin_message if status == "rejected" else None,
         checkout_business_id=id, outstanding=outstanding, checkout_error=payment_error == "1",
         limited=limited, payment_available=bool(available), prices=payments or available,
+        setup_paid=any(row.paid and not row.recurring for row in payments),
+        monthly_paid=any(row.paid and row.recurring for row in payments),
         plan_name="Business" if biz.plan_type == "plan1" else "Business Pro",
         contract_path="/static/contract_plan1.pdf" if biz.plan_type == "plan1" else "/static/contract_plan2.pdf",
         documents_ready=bool(biz.nda_url and biz.contract_url), document_error=payment_error == "documents",
@@ -225,19 +232,17 @@ async def submit_access_documents(id: int, request: Request, nda: UploadFile = F
     biz = await db.get(Business, id, with_for_update=True)
     if not biz or biz.billing_country != "creem" or biz.payment_status != "pending" or (biz.nda_url and biz.contract_url):
         return RedirectResponse(pending, status_code=303)
-    saved = []
     try:
+        documents = []
         for upload in (nda, contract):
-            saved.append(await save_document(upload, "documents"))
-        biz.nda_url, biz.contract_url = (f"/{path.relative_to(ROOT).as_posix()}" for path in saved)
-        await db.commit()
+            content, extension = await read_document(upload)
+            url = f"/static/uploads/documents/{uuid4().hex}{extension}"
+            documents.append(ActivationDocument(url=url, business_id=id, content=content))
     except ValueError:
-        await remove_documents(saved)
         return RedirectResponse(f"{pending}?payment_error=documents", status_code=303)
-    except Exception:
-        await db.rollback()
-        await remove_documents(saved)
-        raise
+    biz.nda_url, biz.contract_url = (document.url for document in documents)
+    db.add_all(documents)
+    await db.commit()
     return RedirectResponse(pending, status_code=303)
 
 
@@ -327,10 +332,13 @@ async def salon_landing():
 
 
 @router.get(PRICING_PAGE, response_class=HTMLResponse)
-async def public_pricing():
+async def public_pricing(db: AsyncSession = Depends(get_db)):
+    settings = await db.get(GlobalPaymentSettings, 1)
+    active_plans = {plan for plan in creem.PLAN_PRICES
+                    if settings is None or getattr(settings, f"is_{plan}_active")}
     return HTMLResponse(render_template(
         "marketing/pricing.html", canonical=PUBLIC_SITE + PRICING_PAGE,
-        plans=creem.PLAN_PRICES,
+        plans=creem.PLAN_PRICES, active_plans=active_plans,
     ))
 
 

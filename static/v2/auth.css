@@ -19,6 +19,12 @@
 .access-documents h3 { margin: 0 0 8px; font-size: .95rem; }
 .access-documents p { font-size: .85rem; }
 .access-documents .field { margin-block: 12px; }
+.access-progress { margin-block: 16px; }
+.access-progress h3 { margin: 0 0 8px; font-size: .95rem; }
+.access-progress ol { list-style: none; padding: 0; margin: 0; }
+.access-progress li { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--ui-border); font-size: .82rem; }
+.access-progress strong { text-align: end; color: var(--ui-muted); }
+.access-progress strong.done { color: var(--ui-positive); }
 
 @media (prefers-reduced-motion: no-preference) {
   .auth-card, .form-step:not([hidden]), .access-features li, .access-prices { animation: auth-appear .34s ease-out both; }

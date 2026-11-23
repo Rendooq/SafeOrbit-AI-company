@@ -8,12 +8,14 @@
   <link rel="canonical" href="{{ canonical }}">
   <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
-  <link rel="stylesheet" href="/static/v2/home.css?v=access1">
+  <link rel="stylesheet" href="/static/v2/home.css?v=conversion2">
+  <script src="/static/locales/catalog.js?v=conversion2" defer></script>
+  <script src="/static/i18n.js?v=sale-locales2" defer></script>
 </head>
-<body class="marketing-v2">
+<body class="marketing-v2 marketing-secondary">
 <header class="site-nav">
   <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
-  <div class="nav-actions"><a href="/login" class="nav-login">Увійти</a><a href="/register" class="button-v2 dark">Створити акаунт ↗</a></div>
+  <div class="nav-actions">{% include "partials/language-select.html" %}{% include "partials/theme-toggle.html" %}<a href="/login" class="nav-login">Увійти</a><a href="/register" class="button-v2 dark">Створити акаунт ↗</a></div>
 </header>
 <main>
   <section class="hero-v2">

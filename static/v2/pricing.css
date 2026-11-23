@@ -3,11 +3,13 @@
 .pricing-header h1 { margin: 0 0 10px; font-size: clamp(1.9rem, 5vw, 3.2rem); line-height: 1.1; }
 .pricing-header p { max-width: 58ch; }
 .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 16px; }
-.pricing-card, .pricing-steps { border: 1px solid var(--line, #b7b7b7); border-radius: 16px; padding: clamp(16px, 3vw, 26px); }
+.pricing-card, .pricing-steps { background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 16px; padding: clamp(16px, 3vw, 26px); }
 .pricing-card h2, .pricing-steps h2 { margin: 0 0 8px; font-size: 1.3rem; }
 .pricing-card dl { margin: 20px 0; }
 .pricing-card dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; }
 .pricing-card dd { margin: 0; font-weight: 700; text-align: end; white-space: nowrap; }
-.pricing-card dl div:last-child { border-top: 1px solid var(--line, #b7b7b7); }
+.pricing-card dl div:last-child { border-top: 1px solid var(--ui-border); }
+.pricing-card dl div:last-child dd { color: var(--ui-accent); font-size: 1.12em; }
+.pricing-tax-note, .pricing-unavailable { color: var(--ui-muted); font-size: .875rem; }
 .pricing-steps { margin-top: 18px; }
 .pricing-steps li { margin-block: 8px; }

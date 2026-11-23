@@ -61,11 +61,15 @@ def file_extension(data: bytes) -> str:
     raise ValueError("Unsupported document type")
 
 
-async def save_document(upload, directory: str) -> Path:
+async def read_document(upload) -> tuple[bytes, str]:
     content = await upload.read(MAX_UPLOAD_BYTES + 1)
     if not content or len(content) > MAX_UPLOAD_BYTES:
         raise ValueError("Document exceeds upload limit or is empty")
-    extension = file_extension(content)
+    return content, file_extension(content)
+
+
+async def save_document(upload, directory: str) -> Path:
+    content, extension = await read_document(upload)
     folder = UPLOAD_ROOT / directory
     path = folder / (uuid4().hex + extension)
     await run_in_threadpool(folder.mkdir, parents=True, exist_ok=True)

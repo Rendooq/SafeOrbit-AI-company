@@ -1,15 +1,52 @@
 import asyncio
+import io
 import json
 from unittest.mock import AsyncMock, patch
 
 from test_regressions import api
 from fastapi import BackgroundTasks
+import pytest
 from sqlalchemy import select
+from starlette.datastructures import UploadFile
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 
-from models import Business, CreemPayment, User
-from routers.auth import creem_pay, pending_activation_page, register_post
+from models import ActivationDocument, Business, CreemPayment, User
+from routers.auth import creem_pay, pending_activation_page, register_post, submit_access_documents
 from services.creem import Charge, is_paid
+from utils.static import CachedStaticFiles
+
+
+def test_activation_documents_are_atomic_and_private():
+    async def scenario():
+        pdf = b"%PDF-1.4\nactivation"
+        upload = lambda data: UploadFile(io.BytesIO(data), filename="document.pdf")
+        async with api() as (_, sessions):
+            async with sessions() as db:
+                business = await db.get(Business, 1)
+                business.billing_country = "creem"
+                business.payment_status = "pending"
+                await db.commit()
+                request = Request({"type": "http", "session": {"pending_business_id": 1}})
+                invalid = await submit_access_documents(1, request, upload(pdf), upload(b"invalid"), db)
+                assert invalid.headers["location"].endswith("payment_error=documents")
+                assert not (await db.scalars(select(ActivationDocument))).all()
+                await submit_access_documents(1, request, upload(pdf), upload(pdf), db)
+                assert (await db.get(ActivationDocument, business.nda_url)).content == pdf
+                path = business.nda_url.removeprefix("/static/")
+
+            static = CachedStaticFiles(directory="static")
+            scope = {"type": "http", "method": "GET", "session": {"pending_business_id": 2}}
+            with patch("utils.static.AsyncSessionLocal", sessions):
+                with pytest.raises(HTTPException) as forbidden:
+                    await static.get_response(path, scope)
+                assert forbidden.value.status_code == 404
+                scope["session"]["pending_business_id"] = 1
+                response = await static.get_response(path, scope)
+                assert response.body == pdf
+                assert response.headers["cache-control"] == "private, no-store"
+
+    asyncio.run(scenario())
 
 
 def test_free_registration_creates_a_restricted_workspace_without_payment_or_documents():

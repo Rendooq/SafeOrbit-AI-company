@@ -20,8 +20,8 @@ async def get_db(request: Request):
     from services.demo_workspace import DEMO_SESSION_KEY, READ_ROUTES, WRITE_ROUTES, demo_workspaces
 
     demo_key = request.scope.get("session", {}).get(DEMO_SESSION_KEY)
-    public_auth = request.url.path == "/register" or (request.method == "POST" and request.url.path == "/login")
-    if demo_key and not public_auth:
+    public_route = request.url.path in {"/register", "/taryfy"} or (request.method == "POST" and request.url.path == "/login")
+    if demo_key and not public_route:
         routes = READ_ROUTES if request.method == "GET" else WRITE_ROUTES if request.method == "POST" else ()
         route = getattr(request.scope.get("route"), "path", request.url.path)
         if route not in routes:

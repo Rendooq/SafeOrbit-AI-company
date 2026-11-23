@@ -1730,7 +1730,7 @@
   "Отримано": {
     "en": "Received",
     "ru": "Получено",
-    "pl": "Odebrano",
+    "pl": "Otrzymano",
     "zh": "已收到"
   },
   "Відмова / Повернення": {
@@ -5656,5 +5656,113 @@
     "ru": "Реакция на комплименты",
     "pl": "Reakcja na komplementy",
     "zh": "对赞美的回应"
+  },
+  "Тарифи SafeOrbit CRM": {
+    "en": "SafeOrbit CRM pricing",
+    "ru": "Тарифы SafeOrbit CRM",
+    "pl": "Cennik SafeOrbit CRM",
+    "zh": "SafeOrbit CRM 定价"
+  },
+  "Переглянути тарифи ↗": {
+    "en": "View pricing ↗",
+    "ru": "Посмотреть тарифы ↗",
+    "pl": "Zobacz cennik ↗",
+    "zh": "查看价格 ↗"
+  },
+  "Разове підключення": {
+    "en": "One-time setup",
+    "ru": "Разовое подключение",
+    "pl": "Jednorazowe wdrożenie",
+    "zh": "一次性设置"
+  },
+  "Щомісячна підписка": {
+    "en": "Monthly subscription",
+    "ru": "Ежемесячная подписка",
+    "pl": "Miesięczna subskrypcja",
+    "zh": "月度订阅"
+  },
+  "Разом за перший місяць": {
+    "en": "First month total",
+    "ru": "Итого за первый месяц",
+    "pl": "Razem za pierwszy miesiąc",
+    "zh": "首月合计"
+  },
+  "Підключення тимчасово призупинено.": {
+    "en": "Signups for this plan are paused.",
+    "ru": "Подключение временно приостановлено.",
+    "pl": "Zapisy na ten plan są chwilowo wstrzymane.",
+    "zh": "此套餐暂时停止开通。"
+  },
+  "Кроки підключення": {
+    "en": "Setup progress",
+    "ru": "Этапы подключения",
+    "pl": "Etapy uruchomienia",
+    "zh": "开通进度"
+  },
+  "Очікує оплати": {
+    "en": "Awaiting payment",
+    "ru": "Ожидает оплаты",
+    "pl": "Oczekuje na płatność",
+    "zh": "等待付款"
+  },
+  "Потрібні документи": {
+    "en": "Documents required",
+    "ru": "Нужны документы",
+    "pl": "Wymagane dokumenty",
+    "zh": "需要提交文件"
+  },
+  "Після оплати й документів": {
+    "en": "After payment and documents",
+    "ru": "После оплаты и документов",
+    "pl": "Po płatności i złożeniu dokumentów",
+    "zh": "付款并提交文件后"
+  },
+  "Активація доступу": {
+    "en": "Access activation",
+    "ru": "Активация доступа",
+    "pl": "Aktywacja dostępu",
+    "zh": "开通访问权限"
+  },
+  "Перевіряємо платіж у Creem…": {
+    "en": "Checking payment with Creem…",
+    "ru": "Проверяем платёж в Creem…",
+    "pl": "Sprawdzamy płatność w Creem…",
+    "zh": "正在 Creem 中核实付款…"
+  },
+  "Готуємо касу Creem…": {
+    "en": "Preparing Creem checkout…",
+    "ru": "Открываем кассу Creem…",
+    "pl": "Przygotowujemy płatność w Creem…",
+    "zh": "正在准备 Creem 结账…"
+  },
+  "Купити доступ · Creem": {
+    "en": "Buy access · Creem",
+    "ru": "Купить доступ · Creem",
+    "pl": "Kup dostęp · Creem",
+    "zh": "购买访问权限 · Creem"
+  },
+  "Відкрити касу Creem ↗": {
+    "en": "Open Creem checkout ↗",
+    "ru": "Открыть кассу Creem ↗",
+    "pl": "Otwórz płatność w Creem ↗",
+    "zh": "打开 Creem 结账 ↗"
+  },
+  "Якщо каса не відкриється автоматично, скористайтеся посиланням нижче.": {
+    "en": "If checkout doesn't open automatically, use the link below.",
+    "ru": "Если касса не откроется автоматически, воспользуйтесь ссылкой ниже.",
+    "pl": "Jeśli płatność nie otworzy się automatycznie, użyj poniższego linku.",
+    "zh": "如果未自动打开结账，请使用下方链接。"
+  },
+  "Не вдалося відкрити касу Creem. Спробуйте ще раз.": {
+    "en": "Creem checkout couldn't open. Try again.",
+    "ru": "Не удалось открыть кассу Creem. Попробуйте ещё раз.",
+    "pl": "Nie udało się otworzyć płatności w Creem. Spróbuj ponownie.",
+    "zh": "无法打开 Creem 结账。请重试。"
+  },
+  "Усі суми в євро до застосовних податків. Остаточну суму покаже Creem перед оплатою.": {
+    "en": "All amounts are in euros before applicable taxes. Creem shows the final amount before payment.",
+    "ru": "Все суммы в евро до применимых налогов. Creem покажет итог перед оплатой.",
+    "pl": "Wszystkie kwoty są w euro przed naliczeniem podatków. Creem pokaże ostateczną kwotę przed płatnością.",
+    "zh": "所有金额均为欧元，未含适用税费。Creem 会在付款前显示最终金额。"
   }
 }

@@ -21,3 +21,12 @@ html{scroll-behavior:smooth}.marketing-v2{background:#fff}.site-nav{max-width:13
   from { opacity: 0; transform: translateY(9px); }
   to { opacity: 1; transform: translateY(0); }
 }
+.hero-actions .mobile-pricing { display: none; }
+@media (max-width: 800px) {
+  .hero-actions .mobile-pricing { display: inline-flex; }
+}
+@media (max-width: 450px) {
+  .marketing-secondary .nav-actions .button-v2 { display: inline-flex; }
+  .marketing-secondary .site-nav { flex-wrap: wrap; gap: 8px; }
+  .marketing-secondary .nav-actions { flex-wrap: wrap; gap: 6px; }
+}

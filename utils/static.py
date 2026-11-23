@@ -1,10 +1,11 @@
 from starlette.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
+from starlette.responses import Response
 from sqlalchemy import select
 from database import AsyncSessionLocal
 from dependencies import get_current_user
-from models import Business
+from models import ActivationDocument, Business
 
 
 class CachedStaticFiles(StaticFiles):
@@ -27,6 +28,19 @@ class CachedStaticFiles(StaticFiles):
                 )
                 if not allowed:
                     raise HTTPException(status_code=404)
+                if normalized.startswith("uploads/documents/"):
+                    document = await db.get(ActivationDocument, filename)
+                    if document and document.business_id == business.id:
+                        return Response(
+                            document.content if request.method != "HEAD" else b"",
+                            media_type="application/octet-stream",
+                            headers={
+                                "Cache-Control": "private, no-store",
+                                "Content-Disposition": f'attachment; filename="{normalized.rsplit("/", 1)[-1]}"',
+                                "Content-Length": str(len(document.content)),
+                                "X-Content-Type-Options": "nosniff",
+                            },
+                        )
         if normalized.startswith(("uploads/photos/", "uploads/products/")) and not normalized.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
             raise HTTPException(status_code=404)
         response = await super().get_response(path, scope)

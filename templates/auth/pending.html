@@ -11,7 +11,15 @@
     <div class="pending-title">{{ business_name }}</div>
     <p class="pending-label">Статус: {{ status_label }}</p>
   </div>
-  <a href="/login" class="button-primary" style="text-decoration:none"><span>До сторінки входу</span><span aria-hidden="true">→</span></a>
+  {% if checkout_error %}<p role="alert" class="info-note">Не вдалося перевірити оплату. Спробуйте ще раз.</p>{% endif %}
+  {% if outstanding %}
+    <p>Далі {% if outstanding.recurring %}щомісячна підписка{% else %}разова оплата за налаштування{% endif %} · €{{ "%.2f"|format(outstanding.cents / 100) }}</p>
+    <form method="post" action="/pending-activation/{{ checkout_business_id }}/pay">
+      <button type="submit" class="button-primary"><span>{% if outstanding.checkout_id %}Перевірити або продовжити оплату{% else %}Перейти до оплати Creem{% endif %}</span><span aria-hidden="true">→</span></button>
+    </form>
+  {% else %}
+    <a href="/login" class="button-primary" style="text-decoration:none"><span>До сторінки входу</span><span aria-hidden="true">→</span></a>
+  {% endif %}
   <p class="activation-note">Якщо у вас виникли запитання, зверніться до адміністратора, з яким узгоджували підключення.</p>
 </section>
 {% endblock %}

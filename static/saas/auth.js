@@ -47,11 +47,30 @@
     });
     document.getElementById("back-registration").addEventListener("click", () => { showStep(1); });
     const country = document.getElementById("payment-country");
-    country.addEventListener("change", () => {
+    const creem = country.querySelector('option[value="creem"]');
+    const receipt = document.getElementById("payment-file");
+    const promo = document.getElementById("promo-code");
+    const updatePayment = () => {
+      if (creem) {
+        const plan = form.querySelector('input[name="plan_type"]:checked')?.value;
+        creem.disabled = !creem.dataset.plans.split(" ").includes(plan);
+        if (creem.selected && creem.disabled) country.value = "ua";
+        const online = country.value === "creem";
+        document.getElementById("creem-payment-note").hidden = !online;
+        form.querySelector(".payment-details").hidden = online;
+        receipt.closest(".field").hidden = online;
+        receipt.disabled = online;
+        receipt.required = !online;
+        promo.closest(".field").hidden = online;
+        promo.disabled = online;
+      }
       document.querySelectorAll("[data-payment-profile]").forEach(profile => {
         profile.hidden = profile.dataset.paymentProfile !== country.value;
       });
-    });
+    };
+    country.addEventListener("change", updatePayment);
+    form.querySelectorAll('input[name="plan_type"]').forEach(input => input.addEventListener("change", updatePayment));
+    updatePayment();
     form.querySelectorAll('input[type="file"]').forEach(upload => {
       upload.addEventListener("change", () => {
         upload.setCustomValidity(upload.files[0]?.size > 5 * 1024 * 1024 ? errors.file : "");
@@ -65,13 +84,13 @@
   document.querySelectorAll("form").forEach(form => {
     form.addEventListener("submit", () => {
       const button = form.querySelector('button[type="submit"]');
-      if (button) { button.disabled = true; button.setAttribute("aria-busy", "true"); button.querySelector("span").textContent = "Зачекайте…"; }
+      if (button) { button.disabled = true; button.setAttribute("aria-busy", "true"); const label = button.querySelector("span"); if (label) { button.dataset.idleLabel = label.textContent; label.textContent = "Зачекайте…"; } }
     });
   });
   window.addEventListener("pageshow", () => {
     document.querySelectorAll('button[aria-busy="true"]').forEach(button => {
       button.disabled = false; button.removeAttribute("aria-busy");
-      button.querySelector("span").textContent = button.closest("#login-form") ? "Увійти в SafeOrbit" : "Надіслати заявку";
+      if (button.dataset.idleLabel) button.querySelector("span").textContent = button.dataset.idleLabel;
     });
   });
 })();

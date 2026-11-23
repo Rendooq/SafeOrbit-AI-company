@@ -126,6 +126,19 @@ class Business(Base):
     webhook_secret: Mapped[Optional[str]] = mapped_column(Text)
 
 
+class CreemPayment(Base):
+    __tablename__ = "creem_payments"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    product_id: Mapped[str] = mapped_column(Text)
+    cents: Mapped[int] = mapped_column(Integer)
+    recurring: Mapped[bool] = mapped_column(Boolean)
+    checkout_id: Mapped[Optional[str]] = mapped_column(Text, unique=True)
+    checkout_url: Mapped[Optional[str]] = mapped_column(Text)
+    paid: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)

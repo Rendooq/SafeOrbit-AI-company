@@ -9,7 +9,7 @@ import urllib.parse
 
 
 import pandas as pd
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (HTMLResponse, RedirectResponse,
                                StreamingResponse)
 from sqlalchemy import and_, delete, desc, func, select, text
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from dependencies import get_current_user
-from models import (ActionLog, Appointment, Business, ChatLog, Customer,
+from models import (ActionLog, Appointment, Business, ChatLog, CreemPayment, Customer,
                     CustomerSegment, GlobalPaymentSettings, Master, MasterService,
                     MonthlyPaymentLog, NPSReview, Product, Service, User,
                     AppointmentConfirmation, SystemUpdate)
@@ -81,6 +81,13 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
 
     pending_bizs = [b for b in bizs if getattr(b, 'payment_status', 'approved') in ['pending', 'rejected'] and not b.parent_id]
     approved_bizs = [b for b in bizs if getattr(b, 'payment_status', 'approved') == 'approved']
+    online_ids = [b.id for b in pending_bizs if b.billing_country == "creem"]
+    online_confirmed = {}
+    if online_ids:
+        confirmed = await db.execute(select(CreemPayment.business_id, func.count()).where(
+            CreemPayment.business_id.in_(online_ids), CreemPayment.paid.is_(True),
+        ).group_by(CreemPayment.business_id))
+        online_confirmed = dict(confirmed.all())
 
     pending_rows = ""
     for b in pending_bizs:
@@ -91,6 +98,9 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
                 d_end_str = b.discount_ends_at.strftime('%d.%m.%Y') if getattr(b, 'discount_ends_at', None) else 'назавжди'
                 plan_badge += f" <span class='badge bg-danger' title='Знижка діє до {d_end_str}'>-{b.subscription_discount}%</span>"
         receipt_html = f"<a href='{b.receipt_url}' target='_blank' class='btn btn-sm btn-outline-info'><i class='fas fa-receipt'></i> Чек</a>" if getattr(b, 'receipt_url', None) else ""
+        if b.billing_country == "creem":
+            country_badge = "<span class='badge bg-info bg-opacity-10 text-info ms-1'>Creem · EUR</span>"
+            receipt_html = f"<span class='badge bg-secondary'>Creem {online_confirmed.get(b.id, 0)}/2</span>"
         nda_html = f"<a href='{b.nda_url}' target='_blank' class='btn btn-sm btn-outline-primary'><i class='fas fa-file-signature'></i> NDA</a>" if getattr(b, 'nda_url', None) else ""
         contract_html = f"<a href='{b.contract_url}' target='_blank' class='btn btn-sm btn-outline-success'><i class='fas fa-file-contract'></i> Договір</a>" if getattr(b, 'contract_url', None) else ""
         utm_info = f"<br><span class='badge bg-light text-dark mt-1' style='font-size:9px;' title='Кампанія: {html.escape(b.utm_campaign or '')}'><i class='fas fa-link'></i> {html.escape(b.utm_source)} / {html.escape(b.utm_medium or '')}</span>" if getattr(b, 'utm_source', None) else ""
@@ -564,8 +574,12 @@ async def approve_payment(business_id: int, user: User = Depends(get_current_use
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
 
-    biz = await db.get(Business, business_id)
+    biz = await db.get(Business, business_id, with_for_update=True)
     if biz:
+        if biz.billing_country == "creem":
+            payments = (await db.scalars(select(CreemPayment).where(CreemPayment.business_id == biz.id))).all()
+            if len(payments) != 2 or not all(payment.paid for payment in payments):
+                raise HTTPException(409, "Очікується підтвердження оплати від Creem.")
         biz.payment_status = "approved"
         biz.is_active = True
         await db.commit()

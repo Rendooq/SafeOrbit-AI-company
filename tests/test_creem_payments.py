@@ -89,6 +89,9 @@ def test_creem_checkout_belongs_to_the_registration_and_confirms_first_charge():
                     assert json.loads(denied.body)["location"] == "/login"
                     provider.assert_not_awaited()
                     request.session["pending_business_id"] = 1
+                    checked = await creem_pay(1, request, db, verify_only=True)
+                    assert json.loads(checked.body)["location"] == "/pending-activation/1"
+                    provider.assert_awaited_once_with("GET", "checkouts", params={"checkout_id": "ch_setup"})
                     redirect = await creem_pay(1, request, db)
 
                 assert json.loads(redirect.body)["location"] == "https://creem.io/checkout/ch_monthly"

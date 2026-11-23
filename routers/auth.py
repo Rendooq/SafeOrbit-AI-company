@@ -28,15 +28,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
 PUBLIC_SITE = "https://safeorbit.com.pl"
 SALON_PAGE = "/crm-dlia-saloniv"
+PRICING_PAGE = "/taryfy"
 
 
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     settings = await db.get(GlobalPaymentSettings, 1)
+    plan1_active = settings.is_plan1_active if settings else True
+    plan2_active = settings.is_plan2_active if settings else True
+    preferred = request.query_params.get("plan")
+    selected_plan = "plan2" if plan2_active and (preferred == "plan2" or not plan1_active) else "plan1"
     return HTMLResponse(render_template(
         "auth/register.html",
-        plan1_active=settings.is_plan1_active if settings else True,
-        plan2_active=settings.is_plan2_active if settings else True,
+        plan1_active=plan1_active, plan2_active=plan2_active, selected_plan=selected_plan,
         utm_source=request.query_params.get("utm_source", ""),
         utm_medium=request.query_params.get("utm_medium", ""),
         utm_campaign=request.query_params.get("utm_campaign", ""),
@@ -238,7 +242,8 @@ async def submit_access_documents(id: int, request: Request, nda: UploadFile = F
 
 
 @router.post("/pending-activation/{id}/pay")
-async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db),
+                    verify_only: Annotated[bool, Form()] = False):
     def respond(location: str):
         if request.headers.get("accept") == "application/json":
             return JSONResponse({"location": location})
@@ -256,7 +261,7 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
     payments = (await db.scalars(select(CreemPayment).where(
         CreemPayment.business_id == id,
     ).order_by(CreemPayment.recurring))).all()
-    if not payments:
+    if not payments and not verify_only:
         payments = [CreemPayment(id=uuid4().hex, business_id=id, product_id=charge.product_id,
                                  cents=charge.cents, recurring=charge.recurring) for charge in charges]
         db.add_all(payments)
@@ -268,12 +273,18 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
                 checkout = await creem.api("GET", "checkouts", params={"checkout_id": payment.checkout_id})
                 if creem.is_paid(checkout, payment.checkout_id, payment.product_id, payment.cents):
                     payment.paid = True
+                    if verify_only:
+                        break
                     continue
+                if verify_only:
+                    break
                 if checkout.get("status") != "expired":
                     await db.commit()
                     if checkout.get("status") != "pending":
                         return respond(f"{pending}?payment_error=1")
                     return respond(creem.checkout_url(payment.checkout_url))
+            if verify_only:
+                break
             product = await creem.get_product(payment.product_id)
             expected_type = "recurring" if payment.recurring else "onetime"
             if (product.get("id") != payment.product_id or product.get("currency") != "EUR"
@@ -284,7 +295,7 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
             checkout = await creem.api("POST", "checkouts", json={
                 "product_id": payment.product_id,
                 "request_id": payment.id,
-                "success_url": f"https://safeorbit.com.pl{pending}",
+                "success_url": f"{PUBLIC_SITE}{pending}?checkout_return=1",
             })
             new_id = checkout.get("id")
             if not isinstance(new_id, str) or not new_id.startswith("ch_"):
@@ -315,6 +326,14 @@ async def salon_landing():
     ))
 
 
+@router.get(PRICING_PAGE, response_class=HTMLResponse)
+async def public_pricing():
+    return HTMLResponse(render_template(
+        "marketing/pricing.html", canonical=PUBLIC_SITE + PRICING_PAGE,
+        plans=creem.PLAN_PRICES,
+    ))
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse)
 async def robots_txt():
     return f"User-agent: *\nAllow: /\nSitemap: {PUBLIC_SITE}/sitemap.xml\n"
@@ -326,7 +345,8 @@ async def sitemap_xml():
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
         f'<url><loc>{PUBLIC_SITE}/</loc></url>'
-        f'<url><loc>{PUBLIC_SITE}{SALON_PAGE}</loc></url></urlset>',
+        f'<url><loc>{PUBLIC_SITE}{SALON_PAGE}</loc></url>'
+        f'<url><loc>{PUBLIC_SITE}{PRICING_PAGE}</loc></url></urlset>',
         media_type="application/xml",
     )
 

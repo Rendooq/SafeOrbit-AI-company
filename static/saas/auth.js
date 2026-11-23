@@ -67,21 +67,22 @@
     const button = form.querySelector('button[type="submit"]');
     const feedback = form.querySelector("[data-checkout-feedback]");
     const checkoutLink = form.querySelector("[data-checkout-link]");
-    form.addEventListener("submit", async event => {
-      event.preventDefault();
+    const submitCheckout = async (verifyOnly = false) => {
       if (button.disabled) return;
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
-      feedback.textContent = "Готуємо касу Creem…";
+      feedback.textContent = verifyOnly ? "Перевіряємо платіж у Creem…" : "Готуємо касу Creem…";
       feedback.hidden = false;
       checkoutLink.hidden = true;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
       try {
+        const payload = new FormData(form);
+        if (verifyOnly) payload.set("verify_only", "true");
         const response = await fetch(form.action, {
           method: "POST",
           headers: { Accept: "application/json" },
-          body: new FormData(form),
+          body: payload,
           signal: controller.signal,
         });
         if (!response.ok) throw new Error("Checkout request failed");
@@ -106,7 +107,14 @@
         button.disabled = false;
         button.removeAttribute("aria-busy");
       }
+    };
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      void submitCheckout();
     });
+    if (new URLSearchParams(location.search).get("checkout_return") === "1") {
+      void submitCheckout(true);
+    }
   });
   window.addEventListener("pageshow", () => {
     document.querySelectorAll('button[aria-busy="true"]').forEach(button => {

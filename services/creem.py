@@ -13,17 +13,19 @@ class Charge:
     recurring: bool
 
 
+PLAN_PRICES = {
+    "plan1": (("BUSINESS_SETUP", 13698), ("BUSINESS_MONTHLY", 16742)),
+    "plan2": (("PRO_SETUP", 80668), ("PRO_MONTHLY", 1674)),
+}
+
+
 def charges(plan: str) -> tuple[Charge, ...]:
-    prices = {
-        "plan1": (("BUSINESS_SETUP", 13698), ("BUSINESS_MONTHLY", 16742)),
-        "plan2": (("PRO_SETUP", 80668), ("PRO_MONTHLY", 1674)),
-    }
     key = os.getenv("CREEM_API_KEY", "").strip()
     if not key or key.startswith("creem_test_") or os.getenv("CREEM_ENABLED") != "1":
         return ()
     configured = tuple(
         Charge(os.getenv(f"CREEM_{name}_PRODUCT_ID", "").strip(), cents, index == 1)
-        for index, (name, cents) in enumerate(prices.get(plan, ()))
+        for index, (name, cents) in enumerate(PLAN_PRICES.get(plan, ()))
     )
     ids = {charge.product_id for charge in configured}
     if len(ids) != 2 or not all(re.fullmatch(r"prod_[A-Za-z0-9]+", value) for value in ids):

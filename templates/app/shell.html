@@ -33,7 +33,7 @@
     <div class="workspace-switch"><span class="workspace-avatar">{{ initials }}</span><div><strong>{{ business_name }}</strong><small>{{ role_label }}</small></div><span aria-hidden="true">⌄</span></div>
     <div class="nav-kicker">WORKSPACE</div>
     <nav class="workspace-nav" aria-label="Основна навігація">{{ menu_html | safe }}</nav>
-{% if is_demo %}<div class="workspace-help"><strong>Демо SafeOrbit</strong><p>Тестові дані зберігаються до години бездіяльності.</p><a href="/register">Підключити свій бізнес ↗</a></div>{% else %}    <div class="workspace-help"><span class="help-icon" aria-hidden="true">✦</span><strong>Менше хаосу. Більше руху.</strong><p>Ваш наступний крок починається тут.</p><a href="/api-docs">Документація API ↗</a></div>{% endif %}
+{% if is_demo %}<div class="workspace-help"><strong>Демо SafeOrbit</strong><p>Тестові дані зберігаються до години бездіяльності.</p><a href="/taryfy">Тарифи для вашого бізнесу ↗</a></div>{% else %}    <div class="workspace-help"><span class="help-icon" aria-hidden="true">✦</span><strong>Менше хаосу. Більше руху.</strong><p>Ваш наступний крок починається тут.</p><a href="/api-docs">Документація API ↗</a></div>{% endif %}
     <div class="workspace-profile"><span class="profile-avatar">{{ username_initial }}</span><div><strong>{{ username }}</strong><small>{{ role_label }}</small></div><a href="/logout" aria-label="Вийти з акаунту" title="Вийти"><i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i></a></div>
   </aside>
   <div class="main-content">

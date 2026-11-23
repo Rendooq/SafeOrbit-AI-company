@@ -30,8 +30,8 @@
     <fieldset class="form-step" data-step="2">
       <legend class="sr-only">Тариф та підключення</legend>
       <div class="plan-grid">
-        {% if plan1_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan1" checked><span class="plan-top"><strong>Business</strong><span class="radio-dot"></span></span><span class="plan-desc">Для щоденної роботи команди</span><span class="plan-includes">CRM · Записи · Аналітика</span></label>{% endif %}
-        {% if plan2_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan2" {% if not plan1_active %}checked{% endif %}><span class="plan-top"><strong>Business Pro</strong><span class="radio-dot"></span></span><span class="plan-desc">Індивідуальне підключення</span><span class="plan-includes">Розширений супровід бізнесу</span></label>{% endif %}
+        {% if plan1_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan1" {% if selected_plan == "plan1" %}checked{% endif %}><span class="plan-top"><strong>Business</strong><span class="radio-dot"></span></span><span class="plan-desc">Для щоденної роботи команди</span><span class="plan-includes">CRM · Записи · Аналітика</span></label>{% endif %}
+        {% if plan2_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan2" {% if selected_plan == "plan2" %}checked{% endif %}><span class="plan-top"><strong>Business Pro</strong><span class="radio-dot"></span></span><span class="plan-desc">Індивідуальне підключення</span><span class="plan-includes">Розширений супровід бізнесу</span></label>{% endif %}
       </div>
       {% if not plan1_active and not plan2_active %}<div class="info-note">Нові підключення тимчасово призупинено. Зверніться до адміністратора.</div>{% endif %}
       <label class="consent"><input type="checkbox" name="terms_accepted" value="yes" required><span>Я ознайомився з <a href="/static/contract_plan1.pdf" target="_blank" rel="noopener">умовами Business</a> та <a href="/static/contract_plan2.pdf" target="_blank" rel="noopener">Business Pro</a> і погоджуюся з умовами обраного тарифу.</span></label>

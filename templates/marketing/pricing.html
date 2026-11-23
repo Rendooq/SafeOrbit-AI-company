@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Тарифи SafeOrbit CRM | Business і Business Pro</title>
+  <meta name="description" content="Порівняйте тарифи SafeOrbit CRM, вартість підключення та щомісячної підписки. Перевірте можливості в безкоштовному демо.">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
+  <link rel="stylesheet" href="/static/v2/home.css?v=access1">
+  <link rel="stylesheet" href="/static/v2/pricing.css?v=1">
+</head>
+<body class="marketing-v2">
+<header class="site-nav">
+  <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
+  <div class="nav-actions"><a class="button-v2 dark" href="/login-demo">Спробувати демо ↗</a></div>
+</header>
+<main class="pricing-page">
+  <header class="pricing-header">
+    <h1>Тарифи SafeOrbit CRM</h1>
+    <p>CRM, календар записів, клієнтська база та звіти. Створення акаунта й демо безкоштовні.</p>
+  </header>
+  <div class="pricing-grid">
+    {% for plan, name, description in [
+      ('plan1', 'Business', 'Для щоденної роботи команди.'),
+      ('plan2', 'Business Pro', 'Індивідуальне підключення та щомісячна підтримка.')
+    ] %}
+      {% set setup = plans[plan][0][1] %}
+      {% set monthly = plans[plan][1][1] %}
+      <article class="pricing-card">
+        <h2>{{ name }}</h2>
+        <p>{{ description }}</p>
+        <dl>
+          <div><dt>Разове підключення</dt><dd>€{{ '%.2f'|format(setup / 100) }}</dd></div>
+          <div><dt>Щомісячна підписка</dt><dd>€{{ '%.2f'|format(monthly / 100) }}</dd></div>
+          <div><dt>Разом за перший місяць</dt><dd>€{{ '%.2f'|format((setup + monthly) / 100) }}</dd></div>
+        </dl>
+        <a class="button-v2 primary" href="/register?plan={{ plan }}&amp;utm_source=pricing">Обрати {{ name }} ↗</a>
+      </article>
+    {% endfor %}
+  </div>
+  <section class="pricing-steps">
+    <h2>Як підключитися</h2>
+    <ol>
+      <li>Створіть акаунт і виберіть тариф.</li>
+      <li>Сплатіть підключення, потім оформіть підписку через Creem. Застосовні податки відображаються в касі.</li>
+      <li>Завантажте підписані NDA та договір. Адміністратор відкриє доступ після перевірки документів і платежів.</li>
+    </ol>
+    <a class="button-v2 dark" href="/login-demo">Перевірити SafeOrbit в демо ↗</a>
+  </section>
+</main>
+</body>
+</html>

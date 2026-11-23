@@ -1,0 +1,8 @@
+{% extends "auth/base.html" %}
+{% block title %}Увійти — SafeOrbit{% endblock %}
+{% block content %}
+<section class="auth-card login-card"><span class="section-kicker">ПОВЕРНІТЬСЯ ДО ГОЛОВНОГО</span><h2>З поверненням<span>.</span></h2><p class="form-description">Ваш робочий простір уже чекає.</p><div id="auth-error" class="form-alert" role="alert" hidden></div>
+<form action="/login" method="post" id="login-form"><div class="field"><label for="username">Телефон або логін</label><input id="username" name="username" type="text" placeholder="+380 00 000 00 00" autocomplete="username" maxlength="200" required autofocus></div>
+<div class="field"><label for="password">Пароль</label><div class="input-wrap no-leading"><input id="password" name="password" type="password" placeholder="Введіть пароль" autocomplete="current-password" required><button type="button" class="password-toggle" data-password-target="password" aria-label="Показати пароль" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></div></div>
+<div class="login-note"><span class="login-note-icon">✓</span> Один акаунт. Увесь ваш бізнес.</div><button type="submit" class="button-primary"><span>Увійти в SafeOrbit</span><span aria-hidden="true">↗</span></button></form><div class="signup-note"><a href="/login-demo">Спробувати демо без пароля ↗</a><br>Починаєте з нуля? <a href="/register">Створіть свій простір ↗</a></div><div class="auth-caption"><span></span> БІЗНЕС, БЕЗ ЗАЙВОГО ХАОСУ.<span></span></div></section>
+{% endblock %}

@@ -1,11 +1,14 @@
 import os
+import secrets
+from pathlib import Path
 import ssl
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 import pytz
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parent
+load_dotenv(PROJECT_ROOT / ".env")
 
 # Global labels for business types
 LABELS = {
@@ -84,6 +87,8 @@ def asyncpg_connect_args(url: str) -> dict:
     if host in ("localhost", "127.0.0.1", "::1") or not host:
         return {}
     if os.getenv("DATABASE_SSL_INSECURE", "").lower() in ("1", "true", "yes"):
+        if os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}:
+            raise RuntimeError("TLS certificate verification cannot be disabled in production")
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -97,7 +102,7 @@ def _resolve_database_url() -> str:
     raw = os.getenv("DATABASE_URL", "").strip()
     if raw:
         return _normalize_database_url(raw)
-    return "sqlite+aiosqlite:///./local.db"
+    return "sqlite+aiosqlite:///" + (PROJECT_ROOT / "local.db").as_posix()
 
 
 DATABASE_URL = _resolve_database_url()
@@ -108,7 +113,30 @@ def is_sqlite_db() -> bool:
 
 # --- API Keys and Secrets ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
-SECRET_KEY = os.getenv("SECRET_KEY", "SUPER_SECRET_KEY_PRO_999")
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
+BOOTSTRAP_ADMIN_PASSWORD = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "")
+BOOTSTRAP_ADMIN_USERNAME = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "admin")
+
+
+def _resolve_session_secret() -> str:
+    configured = os.getenv("SECRET_KEY", "").strip()
+    if configured and configured != "SUPER_SECRET_KEY_PRO_999":
+        return configured
+    if IS_PRODUCTION:
+        raise RuntimeError("Set a private SECRET_KEY before starting in production.")
+    path = PROJECT_ROOT / ".session-secret"
+    try:
+        with path.open("x", encoding="utf-8") as secret_file:
+            secret_file.write(secrets.token_urlsafe(48))
+    except FileExistsError:
+        pass
+    value = path.read_text(encoding="utf-8").strip()
+    if not value:
+        raise RuntimeError("Local session secret is empty; set SECRET_KEY.")
+    return value
+
+
+SECRET_KEY = _resolve_session_secret()
 SUPERADMIN_TG_BOT_TOKEN = os.getenv("SUPERADMIN_TG_BOT_TOKEN", "")
 SUPERADMIN_TG_CHAT_ID = os.getenv("SUPERADMIN_TG_CHAT_ID", "")
 WEBHOOK_SIGNING_SECRET = os.getenv("WEBHOOK_SIGNING_SECRET", "a_very_secret_key_for_webhooks")

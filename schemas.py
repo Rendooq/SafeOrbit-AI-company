@@ -37,7 +37,7 @@ class AppointmentBase(BaseModel):
     master_id: Optional[int] = Field(None, description="ID of the master for the appointment")
     appointment_time: datetime = Field(..., description="Scheduled time of the appointment (ISO 8601 format)")
     service_type: str = Field(..., description="Type or name of the service")
-    cost: float = Field(0.0, description="Cost of the service")
+    cost: float = Field(0.0, description="Cost of the service", ge=0, allow_inf_nan=False)
     source: str = Field("api", description="Source of the appointment (e.g., 'api', 'webhook')")
     delivery_address: Optional[str] = Field(None, description="Delivery address for retail businesses")
     ttn: Optional[str] = Field(None, description="Tracking number for delivery")
@@ -61,7 +61,7 @@ class AppointmentUpdate(BaseModel):
     appointment_time: Optional[datetime] = None
     service_type: Optional[str] = None
     status: Optional[str] = None
-    cost: Optional[float] = None
+    cost: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
     source: Optional[str] = None
     delivery_address: Optional[str] = None
     ttn: Optional[str] = None

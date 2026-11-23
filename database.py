@@ -1,3 +1,4 @@
+from fastapi import HTTPException, Request
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from config import DATABASE_URL, asyncpg_connect_args, is_sqlite_db
 
@@ -11,9 +12,24 @@ engine = create_async_engine(
 AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 
-async def get_db():
+async def get_db(request: Request):
     """
     Dependency function that yields an async session.
     """
+    # Import lazily so offline callers can keep using the standard database.
+    from services.demo_workspace import DEMO_SESSION_KEY, READ_ROUTES, WRITE_ROUTES, demo_workspaces
+
+    demo_key = request.scope.get("session", {}).get(DEMO_SESSION_KEY)
+    public_auth = request.url.path == "/register" or (request.method == "POST" and request.url.path == "/login")
+    if demo_key and not public_auth:
+        routes = READ_ROUTES if request.method == "GET" else WRITE_ROUTES if request.method == "POST" else ()
+        route = getattr(request.scope.get("route"), "path", request.url.path)
+        if route not in routes:
+            raise HTTPException(403, "Ця дія доступна у власному робочому просторі.")
+        request.state.demo_workspace = True
+        async with demo_workspaces.database(demo_key, touch=route not in {"/admin/api/unread-updates", "/api/check-notifications"}) as session:
+            yield session
+        return
+
     async with AsyncSessionLocal() as session:
         yield session

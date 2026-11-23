@@ -1,12 +1,14 @@
 import os
 import asyncio
 import secrets
+import json
 import httpx
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Depends, Request, Response
 from fastapi.responses import RedirectResponse, FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
@@ -16,6 +18,9 @@ from config import (
     SECRET_KEY,
     GROQ_API_KEY,
     UA_TZ,
+    IS_PRODUCTION,
+    BOOTSTRAP_ADMIN_PASSWORD,
+    BOOTSTRAP_ADMIN_USERNAME,
 )
 from database import engine, AsyncSessionLocal, get_db, is_sqlite_db
 from models import (
@@ -24,10 +29,16 @@ from models import (
     User,
     Appointment,
     GlobalPaymentSettings,
+    ensure_performance_indexes,
 )
 from dependencies import get_current_user
+from services.demo_workspace import demo_workspaces
 from exceptions import APIError
 from middleware import LoggingMiddleware, RateLimitMiddleware
+from utils.static import CachedStaticFiles
+from utils.localization import application_strings
+from utils.request_security import RequestSecurityMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from routers import admin, api_v1, auth, dashboard, superadmin, webhooks, widget, api_schools
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
@@ -75,7 +86,12 @@ app = FastAPI(
     },
     openapi_tags=tags_metadata,
 )
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=False, same_site="lax")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=IS_PRODUCTION, same_site="lax")
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=4)
+app.add_middleware(RequestSecurityMiddleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
+    host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,test").split(",") if host.strip()
+])
 
 # Add custom middlewares
 app.add_middleware(LoggingMiddleware)
@@ -89,7 +105,7 @@ async def api_error_exception_handler(request: Request, exc: APIError):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -97,12 +113,22 @@ app.add_middleware(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if IS_PRODUCTION:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Content-Security-Policy"] = "upgrade-insecure-requests"
+    if request.url.path in {"/", "/login", "/register"} or request.url.path.startswith("/pending-activation/"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+            "form-action 'self'; base-uri 'self'; frame-ancestors 'self'"
+        )
+    elif IS_PRODUCTION:
+        response.headers["Content-Security-Policy"] = "upgrade-insecure-requests"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if not request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "private, no-store"
     return response
 
 app.include_router(auth.router, include_in_schema=False)
@@ -113,7 +139,7 @@ app.include_router(widget.router, include_in_schema=False)
 app.include_router(webhooks.router, include_in_schema=False)
 app.include_router(api_v1.public_chat_router)
 app.include_router(api_v1.router)
-app.include_router(api_schools.router, include_in_schema=False) 
+# School integrations are simulations and must not be sold as working endpoints.
 
 _I18N_TARGETS = {
     "en": "en",
@@ -160,6 +186,8 @@ async def translate_ui_text(request: Request):
     except Exception:
         return {"translations": {}}
 
+    if not isinstance(payload, dict):
+        return {"translations": {}}
     target_lang = str(payload.get("target", "")).lower()
     if target_lang not in _I18N_TARGETS:
         return {"translations": {}}
@@ -170,8 +198,11 @@ async def translate_ui_text(request: Request):
 
     texts: list[str] = []
     seen: set[str] = set()
+    allowed = application_strings()
     for item in raw_texts:
-        text_value = " ".join(str(item).split())
+        if not isinstance(item, str) or item not in allowed:
+            continue
+        text_value = " ".join(item.split())
         if not text_value or text_value in seen or len(text_value) > 1000:
             continue
         seen.add(text_value)
@@ -179,14 +210,9 @@ async def translate_ui_text(request: Request):
         if len(texts) >= 80:
             break
 
-    semaphore = asyncio.Semaphore(8)
+    catalog = json.loads((__import__('pathlib').Path(__file__).resolve().parent / 'static/locales/catalog.json').read_text(encoding='utf-8'))
+    return {"translations": {text: catalog.get(text, {}).get(target_lang, text) for text in texts}}
 
-    async def translate_limited(text_value: str):
-        async with semaphore:
-            return text_value, await _translate_ui_text(text_value, target_lang)
-
-    pairs = await asyncio.gather(*(translate_limited(text_value) for text_value in texts))
-    return {"translations": dict(pairs)}
 
 def custom_openapi():
     if app.openapi_schema:
@@ -220,8 +246,7 @@ async def custom_api_docs():
 async def redirect_to_custom_docs():
     return RedirectResponse(url="/api-docs")
 
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", CachedStaticFiles(directory=str(os.path.join(os.path.dirname(__file__), "static"))), name="static")
 
 @app.get("/")
 async def root(request: Request):
@@ -252,6 +277,15 @@ async def startup():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            def ensure_appointment_timestamp(connection):
+                from sqlalchemy import inspect, text
+                columns = {column["name"] for column in inspect(connection).get_columns("appointments")}
+                if "created_at" not in columns:
+                    connection.execute(text("ALTER TABLE appointments ADD COLUMN created_at TIMESTAMP"))
+                    # Unknown historical creation times must not trigger new-record notifications.
+                    connection.execute(text("UPDATE appointments SET created_at = :historical WHERE created_at IS NULL"),
+                                       {"historical": datetime(1970, 1, 1)})
+            await conn.run_sync(ensure_appointment_timestamp)
                 
         # Автоматичне додавання нових колонок (кожна у власній транзакції)
         migrations = [
@@ -291,17 +325,11 @@ async def startup():
         
         async with AsyncSessionLocal() as db:
             # Create superadmin if not exists
-            if not (await db.execute(select(User).where(User.username == "admin"))).scalar_one_or_none():
-                db.add(User(username="admin", password=hash_password("admin123"), role="superadmin"))
+            if BOOTSTRAP_ADMIN_PASSWORD and not (await db.execute(select(User).where(User.username == BOOTSTRAP_ADMIN_USERNAME))).scalar_one_or_none():
+                db.add(User(username=BOOTSTRAP_ADMIN_USERNAME, password=hash_password(BOOTSTRAP_ADMIN_PASSWORD), role="superadmin"))
                 await db.commit()
             
-            # Create demo business and user if not exists
-            if not (await db.execute(select(User).where(User.username == "+380999999999"))).scalar_one_or_none():
-                demo_biz = Business(name="Демо Бізнес", is_active=True, type="barbershop")
-                db.add(demo_biz)
-                await db.flush()
-                db.add(User(username="+380999999999", password=hash_password("demo123"), role="owner", business_id=demo_biz.id))
-                await db.commit()
+
 
             # Initialize global payment settings if not exists
             if not (await db.execute(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))).scalar_one_or_none():
@@ -318,14 +346,30 @@ async def startup():
             logger.info("Database startup and migrations complete.")
 
         # Start background tasks (from services/background_tasks.py)
-        asyncio.create_task(reminder_loop())
-        asyncio.create_task(cart_abandonment_loop())
-        asyncio.create_task(no_show_protection_loop())
-        asyncio.create_task(nps_collection_loop())
-        asyncio.create_task(rfm_segmentation_loop())
+        async with engine.begin() as connection:
+            await connection.run_sync(ensure_performance_indexes)
+
+        app.state.background_tasks = [
+            asyncio.create_task(loop())
+            for loop in (
+                reminder_loop, cart_abandonment_loop, no_show_protection_loop,
+                nps_collection_loop, rfm_segmentation_loop,
+            )
+        ]
     except Exception as e:
         logger.error(f"Database startup error: {e}")
         raise
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    tasks = getattr(app.state, "background_tasks", [])
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    app.state.background_tasks = []
+    await demo_workspaces.close()
+    await engine.dispose()
 
 @app.get("/api/check-notifications")
 async def check_notifications(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

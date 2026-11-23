@@ -52,8 +52,6 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
     owner_map = {u.business_id: u.username for u in users_owners}
     
     counts = {}
-    mrr = 0
-    total_rev = 0
     active_clients = 0
     plan1_count = 0
     plan2_count = 0
@@ -64,11 +62,16 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         if b.is_active and not b.parent_id:
             active_clients += 1
             if b.plan_type == 'plan1':
-                mrr += 11000; total_rev += 9000; plan1_count += 1
+                plan1_count += 1
             else:
-                mrr += 53000; total_rev += 53000; plan2_count += 1
+                plan2_count += 1
 
     payment_logs = (await db.execute(select(MonthlyPaymentLog).options(joinedload(MonthlyPaymentLog.business)).order_by(desc(MonthlyPaymentLog.payment_date)))).scalars().all()
+    month_start = datetime.now(UA_TZ).replace(tzinfo=None, day=1, hour=0, minute=0, second=0, microsecond=0)
+    next_month = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    paid_this_month = sum(payment.amount or 0 for payment in payment_logs
+                          if month_start <= payment.payment_date < next_month)
+    paid_total = sum(payment.amount or 0 for payment in payment_logs)
     payment_rows = ""
     for pl in payment_logs:
         b_name = html.escape(pl.business.name) if pl.business else "Невідомо"
@@ -136,13 +139,13 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
                 <td><div class="d-flex flex-column gap-1 align-items-start">{ai_badge}{int_badge}</div></td>
                 <td class='text-end'>
                     <div class="btn-group">
-                        <button class='btn btn-sm btn-outline-success' onclick="openPaymentModal({b.id}, '{html.escape(b.name, quote=True)}')" title="Фіксувати оплату"><i class='fas fa-hand-holding-usd'></i></button>
-                        <button class='btn btn-sm btn-warning' onclick="editPaymentSettings({b.id}, '{iban_esc}', '{card_esc}', '{receiver_esc}', '{qr_esc}', '{html.escape(b.name, quote=True)}')" title="Реквізити для оплати"><i class='fas fa-credit-card'></i></button>
-                        <a href='/superadmin/toggle/{b.id}' class='btn btn-sm btn-outline-secondary' title="Блокувати"><i class='fas fa-power-off'></i></a>
-                        <button class='btn btn-sm btn-outline-info' onclick="editBiz({b.id}, '{phone_esc}', '{b.plan_type}', '{ctr_esc}', '{nda_esc}', {getattr(b, 'subscription_discount', 0)}, '{d_end}')" title="Редагувати клієнта"><i class='fas fa-edit'></i></button>
-                        <a href='/superadmin/toggle-ai/{b.id}' class='btn btn-sm btn-outline-primary' title="AI Асистент"><i class='fas fa-robot'></i></a>
-                        <a href='/superadmin/toggle-integration/{b.id}' class='btn btn-sm btn-outline-success' title="Увімк/Вимк CRM Інтеграції"><i class='fas fa-plug'></i></a>
-                        <button class='btn btn-sm btn-outline-warning' onclick="resetPass({b.id}, '{html.escape(b.name, quote=True)}')" title="Скинути пароль"><i class='fas fa-key'></i></button>
+                        <button class='btn btn-sm btn-outline-success' data-safe-call="openPaymentModal" data-safe-args="{html.escape(json.dumps([b.id,b.name]),quote=True)}" title="Фіксувати оплату"><i class='fas fa-hand-holding-usd'></i></button>
+                        <button class='btn btn-sm btn-warning' data-safe-call="editPaymentSettings" data-safe-args="{html.escape(json.dumps([b.id,b.payment_iban or '',b.payment_card_number or '',b.payment_receiver_name or '',b.payment_qr_url or '',b.name]),quote=True)}" title="Реквізити для оплати"><i class='fas fa-credit-card'></i></button>
+                        <form method="post" action="/superadmin/toggle/{b.id}" class="d-inline"><button type="submit" class='btn btn-sm btn-outline-secondary' title="Блокувати"><i class='fas fa-power-off'></i></button></form>
+                        <button class='btn btn-sm btn-outline-info' data-safe-call="editBiz" data-safe-args="{html.escape(json.dumps([b.id,owner_map.get(b.id,''),b.plan_type,b.contract_url or '',b.nda_url or '',getattr(b,'subscription_discount',0),d_end]),quote=True)}" title="Редагувати клієнта"><i class='fas fa-edit'></i></button>
+                        <form method="post" action="/superadmin/toggle-ai/{b.id}" class="d-inline"><button type="submit" class='btn btn-sm btn-outline-primary' title="AI Асистент"><i class='fas fa-robot'></i></button></form>
+                        <form method="post" action="/superadmin/toggle-integration/{b.id}" class="d-inline"><button type="submit" class='btn btn-sm btn-outline-success' title="Увімк/Вимк CRM Інтеграції"><i class='fas fa-plug'></i></button></form>
+                        <button class='btn btn-sm btn-outline-warning' data-safe-call="resetPass" data-safe-args="{html.escape(json.dumps([b.id,b.name]),quote=True)}" title="Скинути пароль"><i class='fas fa-key'></i></button>
                         <button class='btn btn-sm btn-outline-danger' onclick="deleteBiz({b.id})" title="Видалити"><i class='fas fa-trash'></i></button>
                     </div>
                 </td>
@@ -172,17 +175,15 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         <div class="glass-card stat-card">
             <div class="stat-icon" style="background: rgba(52, 211, 153, 0.1); color: var(--success);"><i class="fas fa-money-bill-wave"></i></div>
             <div class="stat-info">
-                <p class="stat-label">MRR (Щомісячний)</p>
-                <h3 class="stat-value">{mrr} ₴</h3>
-                <div class="stat-change text-success">+15% <i class="fas fa-arrow-up small"></i></div>
+                <p class="stat-label">Платежі за місяць</p>
+                <h3 class="stat-value">{paid_this_month:,.2f} ₴</h3>
             </div>
         </div>
         <div class="glass-card stat-card">
             <div class="stat-icon" style="background: rgba(96, 165, 250, 0.1); color: var(--info);"><i class="fas fa-coins"></i></div>
             <div class="stat-info">
-                <p class="stat-label">One-Time (Установки)</p>
-                <h3 class="stat-value">{total_rev} ₴</h3>
-                <div class="stat-change text-info">+8 нових</div>
+                <p class="stat-label">Усі зареєстровані платежі</p>
+                <h3 class="stat-value">{paid_total:,.2f} ₴</h3>
             </div>
         </div>
         <div class="glass-card stat-card">
@@ -203,21 +204,19 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         </div>
     </div>
     
-    <div class="glass-card mb-4 p-2 d-inline-flex flex-wrap" style="gap: 8px;">
-        <ul class="nav nav-pills" id="saTabs" role="tablist" style="gap: 8px;">
-            <li class="nav-item"><button class="nav-link active rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-dashboard"><i class="fas fa-chart-line me-2"></i>Аналітика</button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-pending">
+    <div class="glass-card superadmin-navigation mb-4">
+        <ul class="nav nav-pills" id="saTabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-dashboard"><i class="fas fa-chart-line me-2"></i>Аналітика</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-pending">
                 <i class="fas fa-bell me-2"></i>Заявки {pending_badge}
             </button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-clients"><i class="fas fa-building me-2"></i>Бізнес-профілі</button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-docs"><i class="fas fa-folder-open me-2"></i>Документи</button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-payments"><i class="fas fa-money-check-alt me-2"></i>Фінанси</button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-broadcast"><i class="fas fa-bullhorn me-2"></i>Розсилка</button></li>
-            <li class="nav-item"><button class="nav-link rounded-pill px-4 fw-600" data-bs-toggle="pill" data-bs-target="#sa-updates"><i class="fas fa-newspaper me-2"></i>Оновлення</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-clients"><i class="fas fa-building me-2"></i>Бізнес-профілі</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-docs"><i class="fas fa-folder-open me-2"></i>Документи</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-payments"><i class="fas fa-money-check-alt me-2"></i>Фінанси</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-broadcast"><i class="fas fa-bullhorn me-2"></i>Розсилка</button></li>
+            <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-updates"><i class="fas fa-newspaper me-2"></i>Оновлення</button></li>
         </ul>
-        <div class="ms-auto d-flex gap-2 p-1">
-            <a href="/superadmin/global-payment-settings" class="btn-glass px-4 py-2 rounded-pill text-decoration-none" style="font-size: 13px; background: rgba(175, 133, 255, 0.1); border-color: rgba(175, 133, 255, 0.2);"><i class="fas fa-globe me-2 text-primary"></i>Налаштувати тарифи</a>
-        </div>
+        <a href="/superadmin/global-payment-settings" class="btn-glass superadmin-rates text-decoration-none"><i class="fas fa-globe me-2" aria-hidden="true"></i>Налаштувати тарифи</a>
     </div>
     
     <div class="tab-content">
@@ -468,14 +467,18 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
             row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
         });
     }
+    function secureSubmit(url) {
+        const form = document.createElement('form'); form.method = 'POST'; form.action = url;
+        document.body.appendChild(form); form.requestSubmit();
+    }
     function deleteBiz(id) {
-        Swal.fire({ title: 'Видалити бізнес?', text: "Це видалить всі дані, включаючи записи та клієнтів!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) window.location.href = '/superadmin/delete/' + id; });
+        Swal.fire({ title: 'Видалити бізнес?', text: "Це видалить всі дані, включаючи записи та клієнтів!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) secureSubmit('/superadmin/delete/' + id); });
     }
     function deletePayment(id) {
-        Swal.fire({ title: 'Видалити платіж?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) window.location.href = '/superadmin/delete-payment/' + id; });
+        Swal.fire({ title: 'Видалити платіж?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Так, видалити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) secureSubmit('/superadmin/delete-payment/' + id); });
     }
     function rejectPayment(id) {
-        Swal.fire({ title: 'Відхилити заявку?', input: 'textarea', inputLabel: 'Причина відмови (побачить клієнт)', inputPlaceholder: 'Наприклад: Неякісний чек / Невірні дані', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Відхилити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) { const form = document.createElement('form'); form.method = 'POST'; form.action = '/superadmin/reject-payment/' + id; const input = document.createElement('input'); input.type = 'hidden'; input.name = 'reason'; input.value = r.value || ''; form.appendChild(input); document.body.appendChild(form); form.submit(); } });
+        Swal.fire({ title: 'Відхилити заявку?', input: 'textarea', inputLabel: 'Причина відмови (побачить клієнт)', inputPlaceholder: 'Наприклад: Неякісний чек / Невірні дані', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'Відхилити', cancelButtonText: 'Скасувати', background: 'rgba(20, 20, 25, 0.95)', color: '#fff', customClass: { popup: 'glass-card' } }).then(r => { if(r.isConfirmed) { const form = document.createElement('form'); form.method = 'POST'; form.action = '/superadmin/reject-payment/' + id; const input = document.createElement('input'); input.type = 'hidden'; input.name = 'reason'; input.value = r.value || ''; form.appendChild(input); document.body.appendChild(form); form.requestSubmit(); } });
     }
     function openPaymentModal(id, name) {
         document.getElementById('paymentBizId').value = id;
@@ -599,7 +602,7 @@ async def reject_payment(business_id: int, reason: str = Form(""), user: User = 
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/toggle/{business_id}", include_in_schema=False)
+@router.post("/toggle/{business_id}", include_in_schema=False)
 async def toggle_business_active(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -614,7 +617,7 @@ async def toggle_business_active(business_id: int, user: User = Depends(get_curr
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/toggle-ai/{business_id}", include_in_schema=False)
+@router.post("/toggle-ai/{business_id}", include_in_schema=False)
 async def toggle_business_ai(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -629,7 +632,7 @@ async def toggle_business_ai(business_id: int, user: User = Depends(get_current_
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/toggle-integration/{business_id}", include_in_schema=False)
+@router.post("/toggle-integration/{business_id}", include_in_schema=False)
 async def toggle_business_integration(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -748,7 +751,7 @@ async def save_payment_settings(
     return RedirectResponse("/superadmin?msg=saved", status_code=303)
 
 
-@router.get("/delete/{business_id}", include_in_schema=False)
+@router.post("/delete/{business_id}", include_in_schema=False)
 async def delete_business(business_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)
@@ -793,7 +796,7 @@ async def delete_business(business_id: int, user: User = Depends(get_current_use
     return RedirectResponse("/superadmin?msg=deleted", status_code=303)
 
 
-@router.get("/delete-payment/{payment_log_id}", include_in_schema=False)
+@router.post("/delete-payment/{payment_log_id}", include_in_schema=False)
 async def delete_payment_log(payment_log_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role != "superadmin":
         return RedirectResponse("/", status_code=303)

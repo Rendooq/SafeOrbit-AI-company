@@ -1,0 +1,17 @@
+{% extends "auth/base.html" %}
+{% block title %}Статус підключення — SafeOrbit{% endblock %}
+{% block top_link %}<a href="/login">Повернутися до входу ↗</a>{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <span class="section-kicker">{{ kicker }}</span>
+  <h2>{{ title }}</h2>
+  <p class="form-description">{{ description }}</p>
+  {% if message %}<div class="info-note">{{ message }}</div>{% endif %}
+  <div class="pending-ticket">
+    <div class="pending-title">{{ business_name }}</div>
+    <p class="pending-label">Статус: {{ status_label }}</p>
+  </div>
+  <a href="/login" class="button-primary" style="text-decoration:none"><span>До сторінки входу</span><span aria-hidden="true">→</span></a>
+  <p class="activation-note">Якщо у вас виникли запитання, зверніться до адміністратора, з яким узгоджували підключення.</p>
+</section>
+{% endblock %}

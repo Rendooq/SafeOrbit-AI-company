@@ -12,6 +12,8 @@ from database import AsyncSessionLocal
 from models import (Appointment, AppointmentConfirmation, Business, ChatLog,
                     Customer, CustomerSegment, Master, NPSReview)
 
+from services.sms import send_sms
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,20 +36,31 @@ async def reminder_loop():
                 ))
                 appts = (await db.execute(stmt)).scalars().all()
                 
-                for a in appts:
-                    biz = await db.get(Business, a.business_id)
-                    # TODO: Integrate with a proper SMS sending function if biz.sms_enabled
-                    msg = f"Нагадуємо про візит сьогодні о {a.appointment_time.strftime('%H:%M')}. Чекаємо на вас!"
-                    
-                    if a.customer.telegram_id and biz.telegram_token:
-                        async with httpx.AsyncClient() as client:
-                            await client.post(f"https://api.telegram.org/bot{biz.telegram_token}/sendMessage", json={"chat_id": a.customer.telegram_id, "text": msg})
-                    elif biz.sms_enabled and biz.sms_token:
-                        pass 
-                    
-                    a.reminder_sent = True
-                    await db.commit()
-                    
+                async with httpx.AsyncClient() as client:
+                    for appointment in appts:
+                        business = await db.get(Business, appointment.business_id)
+                        customer = appointment.customer
+                        if not business or not business.is_active or not customer or customer.is_blocked:
+                            continue
+                        visit_time = appointment.appointment_time.strftime("%H:%M")
+                        message = f"Нагадуємо про візит сьогодні о {visit_time}. Чекаємо на вас!"
+                        delivered = False
+                        if customer.telegram_id and business.telegram_token:
+                            try:
+                                response = await client.post(
+                                    f"https://api.telegram.org/bot{business.telegram_token}/sendMessage",
+                                    json={"chat_id": customer.telegram_id, "text": message},
+                                    timeout=10,
+                                )
+                                delivered = response.is_success and response.json().get("ok") is True
+                            except (httpx.HTTPError, ValueError, AttributeError):
+                                logger.warning("Telegram reminder failed for appointment %s", appointment.id)
+                        if not delivered and business.sms_enabled and customer.phone_number:
+                            delivered, _ = await send_sms(client, business, customer.phone_number, message)
+                        if delivered:
+                            appointment.reminder_sent = True
+                            await db.commit()
+
                 # 2. РОЗУМНИЙ МАРКЕТИНГ: AI-Сеттер для скасованих записів
                 stmt_cxl = select(Appointment).options(joinedload(Appointment.customer)).where(and_(
                     Appointment.status == 'cancelled',
@@ -163,6 +176,8 @@ async def cart_abandonment_loop():
                         select(Appointment).where(
                             and_(
                                 Appointment.business_id == biz.id,
+                                Appointment.customer_id.in_(select(Customer.id).where(
+                                    Customer.business_id == biz.id, Customer.phone_number == chat.user_identifier)),
                                 Appointment.created_at > twenty_four_hours_ago
                             )
                         ).limit(1)

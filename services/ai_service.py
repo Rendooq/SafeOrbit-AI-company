@@ -140,8 +140,13 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
     ).order_by(Appointment.appointment_time).limit(50)
     
     if user_id.startswith("web_"):
-        u_id = int(user_id.split("_")[1])
+        try:
+            u_id = int(user_id.split("_")[1])
+        except (ValueError, IndexError):
+            return "Невірний користувач.", None
         u = await db.get(User, u_id)
+        if not u or u.business_id != business_id:
+            return "Недостатньо прав.", None
         if u and u.role == "master":
             stmt = stmt.where(Appointment.master_id == u.master_id)
     

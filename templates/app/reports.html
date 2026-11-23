@@ -1,0 +1,32 @@
+<section class="glass-card p-4 mb-4">
+  <h1 class="h4">Звіт за записами</h1>
+  <form class="d-flex flex-wrap align-items-end gap-3" method="get" action="/admin/reports">
+    <div><label class="form-label" for="report-start">Від</label><input class="form-control" id="report-start" name="start" type="date" value="{{ start }}" required></div>
+    <div><label class="form-label" for="report-end">До</label><input class="form-control" id="report-end" name="end" type="date" value="{{ end }}" required></div>
+    <button class="btn-grad">Застосувати</button>
+    {% if not error %}<a class="btn-glass px-3 py-2" href="/admin/reports/export?start={{ start }}&amp;end={{ end }}">Завантажити CSV</a>{% endif %}
+  </form>
+  {% if error %}<p class="text-danger mt-3 mb-0" role="alert">{{ error }}</p>{% endif %}
+</section>
+{% if not error %}
+<div class="dashboard-stats">
+  {% for label, value in metrics %}<article class="stat-card p-3"><div><p class="stat-label">{{ label }}</p><strong class="stat-value">{{ value }}</strong></div></article>{% endfor %}
+</div>
+<section class="glass-card p-4 mb-4">
+  <h2 class="h5">Послуги за період</h2>
+  {% if services %}
+  <div class="table-responsive"><table class="table"><thead><tr><th>Послуга</th><th>Записів</th><th>Завершено</th><th>Дохід, ₴</th></tr></thead>
+    <tbody>{% for row in services %}<tr><td>{{ row.name }}</td><td>{{ row.total }}</td><td>{{ row.completed }}</td><td>{{ '%.2f' | format(row.revenue) }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="text-muted mb-0">За цей період записів немає.</p>{% endif %}
+</section>
+<section class="glass-card p-4">
+  <h2 class="h5">Товари, яких залишилося 5 або менше</h2>
+  {% if stock %}
+  <div class="table-responsive"><table class="table"><thead><tr><th>Товар</th><th>Артикул</th><th>Залишок</th></tr></thead>
+    <tbody>{% for product in stock %}<tr><td>{{ product.name }}</td><td>{{ product.sku or '—' }}</td><td>{{ product.stock }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="text-muted mb-0">Товарів із таким залишком немає.</p>{% endif %}
+  <a href="/admin/finance">Відкрити склад ↗</a>
+</section>
+{% endif %}

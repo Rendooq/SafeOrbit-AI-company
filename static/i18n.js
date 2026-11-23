@@ -405,6 +405,11 @@
     ].map((row) => ({ source: row[0], en: row[1], ru: row[2], pl: row[3], zh: row[4] }));
 
     const MACHINE_CACHE_KEY = "safeorbit.i18n.machineCache.v1";
+    Object.entries(window.SafeOrbitLocaleCatalog || {}).forEach(([source, values]) => add(source, values.en, values.ru, values.pl, values.zh));
+    const normalizedMaps = Object.fromEntries(Object.keys(translations).map(lang => [lang, Object.fromEntries(Object.entries(translations[lang]).map(([key,value]) => [key.normalize('NFKC').replace(/[’ʼ]/g, "'"),value]))]));
+    const caseInsensitiveMaps = Object.fromEntries(Object.entries(normalizedMaps).map(([lang, entries]) => [
+        lang, Object.fromEntries(Object.entries(entries).map(([key, value]) => [key.toLowerCase(), value])),
+    ]));
     const textOriginals = new WeakMap();
     const machineCache = loadMachineCache();
     const pendingByLang = Object.create(null);
@@ -435,7 +440,7 @@
     }
 
     function stripKnownSymbols(text) {
-        return text.replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\s*/u, "");
+        return text.replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?\s*/u, "");
     }
 
     function translateText(sourceText, lang) {
@@ -446,13 +451,29 @@
 
         const exact = translations[lang] && translations[lang][source];
         if (exact) return exact;
+        const normalized = source.normalize('NFKC').replace(/[’ʼ]/g, "'");
+        if (normalizedMaps[lang]?.[normalized]) return normalizedMaps[lang][normalized];
+        const insensitive = caseInsensitiveMaps[lang]?.[normalized.toLowerCase()];
+        if (insensitive) return insensitive;
+        const decoration = source.match(/^([←→↗✓✦✳▦♙⌁⚙+]*\s*)(.*?)(\s*[←→↗✓✦✳▦♙⌁⚙⌄:]*)(\s*)$/u);
+        if (decoration && decoration[2] !== source) {
+            const translated = normalizedMaps[lang]?.[decoration[2].normalize('NFKC').replace(/[’ʼ]/g, "'")];
+            if (translated) return decoration[1] + translated + decoration[3] + decoration[4];
+        }
+        const quantity = source.match(/^(\d+(?:[.,]\d+)?)\s+шт\.$/u);
+        if (quantity) return quantity[1] + " " + {en:"pcs", ru:"шт.", pl:"szt.", zh:"件"}[lang];
+        const count = source.match(/^(\d+)\s+(записів|запису|клієнтів|візитів)$/u);
+        if (count) return count[1] + ' ' + ({en:count[2] === 'клієнтів' ? 'customers' : 'appointments',ru:count[2] === 'клієнтів' ? 'клиентов' : 'записей',pl:count[2] === 'клієнтів' ? 'klientów' : 'wizyt',zh:count[2] === 'клієнтів' ? '客户' : '预约'}[lang]);
+
 
         const machine = MACHINE_TRANSLATION_ENABLED && machineCache[lang] && machineCache[lang][source];
         if (machine) return machine;
 
         const withoutSymbol = stripKnownSymbols(source);
-        if (withoutSymbol !== source && translations[lang] && translations[lang][withoutSymbol]) {
-            return source.slice(0, source.length - withoutSymbol.length) + translations[lang][withoutSymbol];
+        if (withoutSymbol !== source) {
+            const plain = withoutSymbol.normalize("NFKC").replace(/[’ʼ]/g, "'");
+            const known = normalizedMaps[lang]?.[plain] || caseInsensitiveMaps[lang]?.[plain.toLowerCase()];
+            if (known) return source.slice(0, source.length - withoutSymbol.length) + known;
         }
 
         for (const item of prefixTranslations) {
@@ -468,7 +489,8 @@
     }
 
     function getStoredCurrency() {
-        const stored = localStorage.getItem(CURRENCY_STORAGE_KEY);
+        let stored;
+        try { stored = localStorage.getItem(CURRENCY_STORAGE_KEY); } catch (_) {}
         return CURRENCIES[stored] ? stored : "UAH";
     }
 
@@ -585,16 +607,24 @@
     function translateTextNode(node, lang) {
         const parent = node.parentElement;
         if (shouldIgnoreElement(parent)) return;
+        if (parent.tagName === "OPTION" && !parent.hasAttribute("value")) {
+            parent.value = parent.value;
+        }
 
         if (!textOriginals.has(node)) {
             textOriginals.set(node, node.nodeValue);
         }
 
-        const original = textOriginals.get(node);
+        let original = textOriginals.get(node);
+        if (node.safeorbitRenderedText !== undefined && node.nodeValue !== node.safeorbitRenderedText) {
+            original = node.nodeValue;
+            textOriginals.set(node, original);
+        }
         const translated = convertCurrencyText(translateText(original, lang), getStoredCurrency());
         queueMachineTranslation(original, lang);
         const whitespace = splitOuterWhitespace(original);
-        const nextValue = whitespace.leading + translated + whitespace.trailing;
+        const nextValue = translated === original ? original : whitespace.leading + translated.trim() + whitespace.trailing;
+        node.safeorbitRenderedText = nextValue;
         if (node.nodeValue !== nextValue) {
             node.nodeValue = nextValue;
         }
@@ -608,9 +638,14 @@
             element.dataset[dataName] = element.getAttribute(attribute) || "";
         }
 
+        const renderedName = "safeorbitRendered" + attribute;
+        if (element[renderedName] !== undefined && element.getAttribute(attribute) !== element[renderedName]) {
+            element.dataset[dataName] = element.getAttribute(attribute) || "";
+        }
         const original = element.dataset[dataName];
         const translated = convertCurrencyText(translateText(original, lang), getStoredCurrency());
         queueMachineTranslation(original, lang);
+        element[renderedName] = translated;
         if (translated !== element.getAttribute(attribute)) {
             element.setAttribute(attribute, translated);
         }
@@ -669,8 +704,12 @@
         }
     }
 
+    let activeLanguage;
     function getStoredLanguage() {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        if (activeLanguage) return activeLanguage;
+        let stored;
+        try { stored = localStorage.getItem(STORAGE_KEY); } catch (_) {}
+        stored ||= document.cookie.match(/(?:^|; )safeorbit_lang=([a-z]+)/)?.[1];
         return SUPPORTED[stored] ? stored : "uk";
     }
 
@@ -680,12 +719,14 @@
 
     function applyLanguage(lang) {
         const safeLang = SUPPORTED[lang] ? lang : "uk";
-        localStorage.setItem(STORAGE_KEY, safeLang);
+        activeLanguage = safeLang;
+        try { localStorage.setItem(STORAGE_KEY, safeLang); } catch (_) {}
         writeLanguageCookie(safeLang);
         document.documentElement.lang = SUPPORTED[safeLang].htmlLang;
 
-        const select = document.getElementById("safeorbit-language-select");
-        if (select && select.value !== safeLang) select.value = safeLang;
+        document.querySelectorAll("[data-language-select]").forEach(select => {
+            if (select.value !== safeLang) select.value = safeLang;
+        });
         const currencySelect = document.getElementById("safeorbit-currency-select");
         if (currencySelect && currencySelect.value !== getStoredCurrency()) {
             currencySelect.value = getStoredCurrency();
@@ -699,7 +740,7 @@
 
     function applyCurrency(currencyCode) {
         const safeCurrency = CURRENCIES[currencyCode] ? currencyCode : "UAH";
-        localStorage.setItem(CURRENCY_STORAGE_KEY, safeCurrency);
+        try { localStorage.setItem(CURRENCY_STORAGE_KEY, safeCurrency); } catch (_) {}
         const select = document.getElementById("safeorbit-currency-select");
         if (select && select.value !== safeCurrency) select.value = safeCurrency;
         applyLanguage(getStoredLanguage());
@@ -835,6 +876,7 @@
 
         const select = document.createElement("select");
         select.id = "safeorbit-language-select";
+        select.dataset.languageSelect = "";
         select.className = "so-i18n-select";
         select.setAttribute("aria-label", "Language");
 
@@ -854,7 +896,7 @@
         wrap.appendChild(currencyField);
         wrap.appendChild(languageField);
 
-        const headerActions = document.querySelector(".top-header > div:last-child");
+        const headerActions = document.querySelector(".topbar-right") || document.querySelector(".top-header > div:last-child");
         if (headerActions) {
             const userPill = headerActions.querySelector(".user-pill");
             headerActions.insertBefore(wrap, userPill || null);
@@ -894,12 +936,20 @@
 
     function init() {
         injectStyles();
-        createSwitcher();
+        if (!document.querySelector('[data-language-select]')) createSwitcher();
+        document.querySelectorAll('[data-language-select]').forEach(select => {
+            select.value = getStoredLanguage(); select.addEventListener('change', () => applyLanguage(select.value));
+        });
         applyLanguage(getStoredLanguage());
         startObserver();
     }
 
+    window.addEventListener("storage", event => {
+        if (event.key === STORAGE_KEY && SUPPORTED[event.newValue]) applyLanguage(event.newValue);
+    });
+
     window.SafeOrbitI18N = {
+        translate: (value) => translateText(String(value), getStoredLanguage()),
         setLanguage: applyLanguage,
         getLanguage: getStoredLanguage,
         apply: () => applyLanguage(getStoredLanguage()),

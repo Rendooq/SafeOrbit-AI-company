@@ -1,0 +1,57 @@
+{% extends "auth/base.html" %}
+{% block title %}Створити робочий простір — SafeOrbit{% endblock %}
+{% block body_class %}auth-page register-page{% endblock %}
+{% block story_title %}Менше хаосу.<br>Більше<br><em>вашого бізнесу.</em>{% endblock %}
+{% block story_description %}Дайте своїй команді простір.<br>Дайте своєму бізнесу наступний крок.{% endblock %}
+{% block top_link %}Вже маєте акаунт? <a href="/login">Увійти ↗</a>{% endblock %}
+{% block content %}
+<section class="auth-card register-card">
+  <span class="section-kicker">ПОЧНІМО З ГОЛОВНОГО</span>
+  <h2>Почніть по-новому<span class="title-dot">.</span></h2>
+  <p class="form-description">Розкажіть про себе. Ми підготуємо ваш робочий простір.</p>
+  <div class="steps" aria-label="Етапи реєстрації"><span class="step active" data-step-label="1"><b>1</b> Ваш бізнес</span><span class="step-line"></span><span class="step" data-step-label="2"><b>2</b> Підключення</span></div>
+  <div class="form-alert" id="auth-error" role="alert" hidden></div>
+  <form action="/register" method="post" enctype="multipart/form-data" id="register-form">
+    <input type="hidden" name="utm_source" value="{{ utm_source }}">
+    <input type="hidden" name="utm_medium" value="{{ utm_medium }}">
+    <input type="hidden" name="utm_campaign" value="{{ utm_campaign }}">
+    <fieldset class="form-step" data-step="1">
+      <legend class="sr-only">Ваш бізнес та акаунт</legend>
+      <div class="field"><label for="business-name">Назва бізнесу</label><input id="business-name" name="name" type="text" placeholder="Наприклад, Studio North" autocomplete="organization" maxlength="160" required></div>
+      <div class="field-grid">
+        <div class="field"><label for="business-type">Напрямок роботи</label><select id="business-type" name="type" required><option value="barbershop">Барбершоп / салон</option><option value="clinic">Клініка / стоматологія</option><option value="carwash">Детейлінг / СТО</option><option value="spa">SPA / масаж</option><option value="retail">Онлайн-магазин</option><option value="restaurant">Ресторан / кафе</option><option value="other">Інший бізнес</option></select></div>
+        <div class="field"><label for="register-phone">Ваш телефон</label><input id="register-phone" name="phone" type="tel" placeholder="+380 00 000 00 00" autocomplete="tel" maxlength="32" required></div>
+      </div>
+      <div class="field retail-field" id="retail-category" hidden><label for="retail-subcategory">Категорія магазину</label><select id="retail-subcategory" name="retail_subcategory"><option value="clothing">Одяг / взуття</option><option value="electronics">Електроніка</option><option value="cosmetics">Косметика</option><option value="furniture">Меблі / декор</option><option value="food">Продукти харчування</option><option value="other">Інше</option></select></div>
+      <div class="field"><label for="register-password">Створіть пароль <span class="label-hint">щонайменше 8 символів</span></label><div class="input-wrap no-leading"><input id="register-password" name="password" type="password" placeholder="Надійний пароль для вашого акаунту" autocomplete="new-password" minlength="8" maxlength="1024" required><button type="button" class="password-toggle" data-password-target="register-password" aria-label="Показати пароль" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></div></div>
+      <button class="button-primary next-step" type="button" id="continue-registration"><span>Продовжити</span><span aria-hidden="true">→</span></button>
+    </fieldset>
+    <fieldset class="form-step" data-step="2">
+      <legend class="sr-only">Тариф та підключення</legend>
+      <div class="plan-grid">
+        {% if plan1_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan1" checked><span class="plan-top"><strong>Business</strong><span class="radio-dot"></span></span><span class="plan-desc">Для щоденної роботи команди</span><span class="plan-price">{{ prices.plan1_base }} <small>₴ / міс</small></span><span class="plan-detail">+ {{ prices.plan1_setup }} ₴ налаштування</span><span class="plan-includes">CRM · Записи · Аналітика</span></label>{% endif %}
+        {% if plan2_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan2" {% if not plan1_active %}checked{% endif %}><span class="plan-top"><strong>Business Pro</strong><span class="radio-dot"></span></span><span class="plan-desc">Індивідуальне підключення</span><span class="plan-price">{{ prices.plan2_base }} <small>₴</small></span><span class="plan-detail">+ {{ prices.plan2_support }} ₴ / міс підтримка</span><span class="plan-includes">Розширений супровід бізнесу</span></label>{% endif %}
+      </div>
+      {% if not plan1_active and not plan2_active %}<div class="info-note">Нові підключення тимчасово призупинено. Зверніться до адміністратора.</div>{% endif %}
+      {% if global_discount > 0 %}<div class="info-note">Поточна знижка: {{ global_discount }}% (застосовується адміністратором під час активації).</div>{% endif %}
+      <div class="field"><label for="payment-country">Країна оплати</label><select id="payment-country" name="payment_country"><option value="ua">Україна · IBAN</option><option value="us">США · банківський переказ</option></select></div>
+      <details class="payment-details"><summary>Реквізити для оплати <span aria-hidden="true">+</span></summary>
+        <dl data-payment-profile="ua"><div><dt>Отримувач</dt><dd>{{ payment.fop }}</dd></div><div><dt>Банк</dt><dd>{{ payment.bank }}</dd></div><div><dt>IBAN</dt><dd class="monospace">{{ payment.iban }}</dd></div></dl>
+        <dl data-payment-profile="us" hidden><div><dt>Отримувач</dt><dd>{{ payment_us.receiver }}</dd></div><div><dt>Банк</dt><dd>{{ payment_us.bank }}</dd></div><div><dt>Account</dt><dd class="monospace">{{ payment_us.account }}</dd></div><div><dt>Routing</dt><dd class="monospace">{{ payment_us.routing }}</dd></div><div><dt>SWIFT</dt><dd>{{ payment_us.swift }}</dd></div></dl>
+        <p class="payment-explainer">Призначення платежу: підключення SafeOrbit, назва бізнесу та ваш телефон. Суму й умови підключення уточнює адміністратор.</p>
+      </details>
+      <div class="documents-grid">
+        <p class="payment-explainer">Підготуйте квитанцію, підписаний <a href="/static/nda.pdf" target="_blank" rel="noopener">NDA</a> та договір <a href="/static/contract_plan1.pdf" target="_blank" rel="noopener">Business</a> / <a href="/static/contract_plan2.pdf" target="_blank" rel="noopener">Business Pro</a>. Підписані документи перевіряє адміністратор.</p>
+        <div class="field"><label for="payment-file">Квитанція <span class="label-hint">PDF / JPG / PNG · до 5 МБ</span></label><input type="file" id="payment-file" name="receipt" accept="image/png,image/jpeg,application/pdf" required></div>
+        <div class="field"><label for="nda-file">Підписаний NDA <span class="label-hint"><a href="/static/nda.pdf" target="_blank" rel="noopener">Завантажити ↗</a></span></label><input type="file" id="nda-file" name="nda_file" accept="image/png,image/jpeg,application/pdf" required></div>
+        <div class="field"><label for="contract-file">Підписаний договір <span class="label-hint">PDF / JPG / PNG · до 5 МБ</span></label><input type="file" id="contract-file" name="contract_file" accept="image/png,image/jpeg,application/pdf" required></div>
+      </div>
+      <div class="field"><label for="promo-code">Промокод <span class="label-hint">якщо є</span></label><input id="promo-code" name="applied_promo" type="text" maxlength="80" placeholder="Введіть код"></div>
+      <label class="consent"><input type="checkbox" name="terms_accepted" value="yes" required><span>Я ознайомився з <a href="/static/contract_plan1.pdf" target="_blank" rel="noopener">умовами Business</a> та <a href="/static/contract_plan2.pdf" target="_blank" rel="noopener">Business Pro</a> і погоджуюся з умовами обраного тарифу.</span></label>
+      <div class="button-row"><button type="button" class="button-secondary" id="back-registration">← Назад</button><button class="button-primary" type="submit" {% if not plan1_active and not plan2_active %}disabled{% endif %}><span>Надіслати заявку</span><span aria-hidden="true">↗</span></button></div>
+      <p class="activation-note">Після перевірки заявки адміністратор активує ваш простір. Автоматичних списань немає.</p>
+    </fieldset>
+    <noscript><style>.next-step,#back-registration{display:none}</style><p class="info-note">Заповніть обидва розділи форми нижче.</p></noscript>
+  </form>
+</section>
+{% endblock %}

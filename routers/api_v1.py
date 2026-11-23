@@ -5,10 +5,12 @@ import secrets
 from datetime import datetime, timedelta
 from typing import List, Optional
 import logging
+from utils.network import validate_public_url
 
 from fastapi import APIRouter, Body, Depends, Header, Request, Response, status, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader
 from sqlalchemy import and_, select, desc
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse
@@ -18,13 +20,13 @@ from database import get_db
 from dependencies import get_tenant_context
 from exceptions import (APIError, IdempotencyKeyError, InvalidApiKeyError,
                         NotFoundError, WebhookSignatureError)
-from models import ApiKey, Appointment, Business, Customer, IdempotencyKey, WebhookEndpoint, ChatLog
+from models import ApiKey, Appointment, Business, Customer, Master, IdempotencyKey, WebhookEndpoint, ChatLog
 from schemas import (ApiKeyCreate, ApiKeyFullResponse, ApiKeyResponse, CustomerCreate, CustomerResponse, CustomerUpdate, WebhookEndpointCreate, WebhookEndpointResponse,
                      AppointmentCreate, AppointmentResponse, AppointmentUpdate,
                      HealthCheckResponse, WebhookEvent)
 from utils.security import generate_api_key
 from services.idempotency import (create_idempotency_key, get_idempotency_key,
-                                  update_idempotency_key)
+                                  update_idempotency_key, scoped_idempotency_key)
 from services.webhooks import dispatch_webhooks
 from ui import get_chat_widget_html
 
@@ -143,6 +145,10 @@ async def create_webhook_endpoint(
     business_id: int = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db)
 ):
+    try:
+        await validate_public_url(endpoint_data.url)
+    except ValueError as error:
+        raise APIError(code="unsafe_url", message=str(error))
     secret = f"whsec_{secrets.token_hex(24)}"
     new_endpoint = WebhookEndpoint(
         business_id=business_id,
@@ -227,11 +233,14 @@ async def create_appointment(
     db: AsyncSession = Depends(get_db),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
+    idempotency_record = None
+    request_payload = appointment_data.model_dump(mode="json")
     if idempotency_key:
+        idempotency_key = scoped_idempotency_key(business_id, idempotency_key)
         existing_idempotency_record = await get_idempotency_key(db, idempotency_key)
         
         request_payload_hash = hashlib.sha256(
-            json.dumps(appointment_data.model_dump(), sort_keys=True).encode('utf-8')
+            json.dumps(request_payload, sort_keys=True).encode('utf-8')
         ).hexdigest()
 
         if existing_idempotency_record:
@@ -247,22 +256,35 @@ async def create_appointment(
                 )
             else:
                 raise IdempotencyKeyError("Request with this idempotency key is already being processed or failed.")
-        else:
-            await create_idempotency_key(db, idempotency_key, business_id, appointment_data.model_dump())
 
     customer = await db.get(Customer, appointment_data.customer_id)
     if not customer or customer.business_id != business_id:
         raise APIError(code="invalid_customer", message="Customer not found or does not belong to this business")
 
-    new_appointment = Appointment(business_id=business_id, **appointment_data.model_dump())
-    db.add(new_appointment)
-    await db.commit()
-    await db.refresh(new_appointment)
+    if appointment_data.master_id is not None:
+        master = await db.get(Master, appointment_data.master_id)
+        if not master or master.business_id != business_id:
+            raise APIError(code="invalid_master", message="Master not found or does not belong to this business")
 
     if idempotency_key:
-        idempotency_record = await get_idempotency_key(db, idempotency_key)
-        if idempotency_record:
-            await update_idempotency_key(db, idempotency_record, {"id": new_appointment.id, "status": new_appointment.status}, status.HTTP_201_CREATED)
+        try:
+            idempotency_record = await create_idempotency_key(db, idempotency_key, business_id, request_payload)
+        except IntegrityError:
+            await db.rollback()
+            existing = await get_idempotency_key(db, idempotency_key)
+            if existing and existing.request_hash == request_payload_hash and existing.response_data:
+                return Response(content=existing.response_data, status_code=existing.status_code, media_type="application/json")
+            raise IdempotencyKeyError("Idempotency key is already used or being processed.")
+
+    new_appointment = Appointment(business_id=business_id, **appointment_data.model_dump())
+    db.add(new_appointment)
+    await db.flush()
+    await db.refresh(new_appointment)
+
+    if idempotency_record:
+        response_data = AppointmentResponse.model_validate(new_appointment).model_dump(mode="json")
+        await update_idempotency_key(db, idempotency_record, response_data, status.HTTP_201_CREATED)
+    await db.commit()
 
     background_tasks.add_task(
         dispatch_webhooks,
@@ -309,7 +331,20 @@ async def update_appointment(
     if not appointment or appointment.business_id != business_id:
         raise NotFoundError("Appointment not found")
     
-    for field, value in appointment_data.model_dump(exclude_unset=True).items():
+    update_data = appointment_data.model_dump(exclude_unset=True)
+    if "customer_id" in update_data:
+        customer = await db.get(Customer, update_data["customer_id"]) if update_data["customer_id"] is not None else None
+        if not customer or customer.business_id != business_id:
+            raise APIError(code="invalid_customer", message="Customer not found or does not belong to this business")
+    if update_data.get("master_id") is not None:
+        master = await db.get(Master, update_data["master_id"])
+        if not master or master.business_id != business_id:
+            raise APIError(code="invalid_master", message="Master not found or does not belong to this business")
+    for field in ("appointment_time", "service_type", "status", "cost", "source", "delivery_status"):
+        if field in update_data and update_data[field] is None:
+            raise APIError(code="invalid_appointment", message=f"{field} cannot be null")
+
+    for field, value in update_data.items():
         setattr(appointment, field, value)
     
     await db.commit()
@@ -484,7 +519,7 @@ async def delete_customer(
     summary="Перевірка статусу системи",
     description="Перевіряє доступність API та підключення до бази даних.",
 )
-async def health_check(db: AsyncSession = Depends(get_db)):
+async def health_check(db: AsyncSession = Depends(get_db), business_id: int = Depends(get_tenant_context)):
     db_status = "disconnected"
     try:
         # Try to execute a simple query to check DB connection
@@ -495,7 +530,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
     # In a real app, you'd check MQ, cache, etc.
     return HealthCheckResponse(
-        status="ok",
+        status="ok" if db_status == "connected" else "degraded",
         database=db_status,
         message_queue="not_configured", # Placeholder
         cache="not_configured", # Placeholder
@@ -515,7 +550,8 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 async def receive_webhook_event(
     request: Request,
     x_webhook_signature: Optional[str] = Header(None, alias="X-Webhook-Signature"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    business_id: int = Depends(get_tenant_context),
 ):
     # Read raw body for signature verification
     body = await request.body()

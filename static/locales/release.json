@@ -1,0 +1,2726 @@
+{
+  "Бізнес-профілі": {
+    "en": "Business profiles",
+    "ru": "Бизнес-профили",
+    "pl": "Profile firm",
+    "zh": "企业资料"
+  },
+  "Заявки": {
+    "en": "Applications",
+    "ru": "Заявки",
+    "pl": "Wnioski",
+    "zh": "申请"
+  },
+  "Налаштувати тарифи": {
+    "en": "Configure plans",
+    "ru": "Настроить тарифы",
+    "pl": "Konfiguruj plany",
+    "zh": "配置套餐"
+  },
+  "MRR (Щомісячний)": {
+    "en": "Monthly recurring revenue",
+    "ru": "Ежемесячный доход",
+    "pl": "Miesięczny przychód cykliczny",
+    "zh": "月度经常性收入"
+  },
+  "One-Time (Установки)": {
+    "en": "One-time setup revenue",
+    "ru": "Доход от подключения",
+    "pl": "Przychód z wdrożeń",
+    "zh": "一次性部署收入"
+  },
+  "Всього клієнтів": {
+    "en": "Total customers",
+    "ru": "Всего клиентов",
+    "pl": "Klienci ogółem",
+    "zh": "客户总数"
+  },
+  "Активні Бізнеси": {
+    "en": "Active businesses",
+    "ru": "Активные бизнесы",
+    "pl": "Aktywne firmy",
+    "zh": "活跃企业"
+  },
+  "Ваша команда": {
+    "en": "Your team",
+    "ru": "Ваша команда",
+    "pl": "Twój zespół",
+    "zh": "您的团队"
+  },
+  "Ваш день.": {
+    "en": "Your day.",
+    "ru": "Ваш день.",
+    "pl": "Twój dzień.",
+    "zh": "您的日常。"
+  },
+  "Ваш": {
+    "en": "Your",
+    "ru": "Ваш",
+    "pl": "Twoja",
+    "zh": "您的"
+  },
+  "контроль.": {
+    "en": "control.",
+    "ru": "контроль.",
+    "pl": "kontrola.",
+    "zh": "掌控。"
+  },
+  "Записи за місяць": {
+    "en": "Appointments this month",
+    "ru": "Записи за месяц",
+    "pl": "Wizyty w tym miesiącu",
+    "zh": "本月预约"
+  },
+  "Дохід за місяць": {
+    "en": "Revenue this month",
+    "ru": "Доход за месяц",
+    "pl": "Przychód w tym miesiącu",
+    "zh": "本月收入"
+  },
+  "За завершеними записами": {
+    "en": "From completed appointments",
+    "ru": "По завершённым записям",
+    "pl": "Z zakończonych wizyt",
+    "zh": "来自已完成预约"
+  },
+  "Без скасованих записів": {
+    "en": "Excluding cancelled appointments",
+    "ru": "Без отменённых записей",
+    "pl": "Bez anulowanych wizyt",
+    "zh": "不含取消的预约"
+  },
+  "База клієнтів": {
+    "en": "Customer database",
+    "ru": "База клиентов",
+    "pl": "Baza klientów",
+    "zh": "客户数据库"
+  },
+  "Ритм вашого бізнесу": {
+    "en": "Your business activity",
+    "ru": "Ритм вашего бизнеса",
+    "pl": "Aktywność Twojej firmy",
+    "zh": "业务动态"
+  },
+  "Останні 7 днів": {
+    "en": "Last 7 days",
+    "ru": "Последние 7 дней",
+    "pl": "Ostatnie 7 dni",
+    "zh": "最近7天"
+  },
+  "Стан записів": {
+    "en": "Appointment status",
+    "ru": "Статус записей",
+    "pl": "Status wizyt",
+    "zh": "预约状态"
+  },
+  "Останні записи": {
+    "en": "Recent appointments",
+    "ru": "Последние записи",
+    "pl": "Ostatnie wizyty",
+    "zh": "最近预约"
+  },
+  "Клієнт": {
+    "en": "Customer",
+    "ru": "Клиент",
+    "pl": "Klient",
+    "zh": "客户"
+  },
+  "Клієнти": {
+    "en": "Customers",
+    "ru": "Клиенты",
+    "pl": "Klienci",
+    "zh": "客户"
+  },
+  "Дата та час": {
+    "en": "Date and time",
+    "ru": "Дата и время",
+    "pl": "Data i godzina",
+    "zh": "日期和时间"
+  },
+  "Сума": {
+    "en": "Amount",
+    "ru": "Сумма",
+    "pl": "Kwota",
+    "zh": "金额"
+  },
+  "Статус": {
+    "en": "Status",
+    "ru": "Статус",
+    "pl": "Status",
+    "zh": "状态"
+  },
+  "Очікується": {
+    "en": "Pending",
+    "ru": "Ожидается",
+    "pl": "Oczekuje",
+    "zh": "待处理"
+  },
+  "Завершено": {
+    "en": "Completed",
+    "ru": "Завершено",
+    "pl": "Zakończono",
+    "zh": "已完成"
+  },
+  "завершено": {
+    "en": "completed",
+    "ru": "завершено",
+    "pl": "zakończono",
+    "zh": "已完成"
+  },
+  "Скасовано": {
+    "en": "Cancelled",
+    "ru": "Отменено",
+    "pl": "Anulowano",
+    "zh": "已取消"
+  },
+  "Створити запис": {
+    "en": "New appointment",
+    "ru": "Создать запись",
+    "pl": "Nowa wizyta",
+    "zh": "新建预约"
+  },
+  "Переглянути клієнтів": {
+    "en": "View customers",
+    "ru": "Посмотреть клиентов",
+    "pl": "Zobacz klientów",
+    "zh": "查看客户"
+  },
+  "Перейти до клієнтів": {
+    "en": "Open customers",
+    "ru": "Перейти к клиентам",
+    "pl": "Przejdź do klientów",
+    "zh": "打开客户"
+  },
+  "Налаштування команди": {
+    "en": "Team settings",
+    "ru": "Настройки команды",
+    "pl": "Ustawienia zespołu",
+    "zh": "团队设置"
+  },
+  "Календар і додаткові інструменти": {
+    "en": "Calendar and more tools",
+    "ru": "Календарь и другие инструменты",
+    "pl": "Kalendarz i dodatkowe narzędzia",
+    "zh": "日历及更多工具"
+  },
+  "Швидкий перехід": {
+    "en": "Quick navigation",
+    "ru": "Быстрый переход",
+    "pl": "Szybka nawigacja",
+    "zh": "快速导航"
+  },
+  "Знайти сторінку…": {
+    "en": "Find a page…",
+    "ru": "Найти страницу…",
+    "pl": "Znajdź stronę…",
+    "zh": "查找页面…"
+  },
+  "Закрити пошук": {
+    "en": "Close search",
+    "ru": "Закрыть поиск",
+    "pl": "Zamknij wyszukiwanie",
+    "zh": "关闭搜索"
+  },
+  "Esc — закрити · Enter — перейти": {
+    "en": "Esc — close · Enter — open",
+    "ru": "Esc — закрыть · Enter — перейти",
+    "pl": "Esc — zamknij · Enter — otwórz",
+    "zh": "Esc — 关闭 · Enter — 打开"
+  },
+  "Відкрити меню": {
+    "en": "Open menu",
+    "ru": "Открыть меню",
+    "pl": "Otwórz menu",
+    "zh": "打开菜单"
+  },
+  "Вийти з акаунту": {
+    "en": "Sign out",
+    "ru": "Выйти из аккаунта",
+    "pl": "Wyloguj",
+    "zh": "退出登录"
+  },
+  "Додати спеціалістів": {
+    "en": "Add specialists",
+    "ru": "Добавить специалистов",
+    "pl": "Dodaj specjalistów",
+    "zh": "添加员工"
+  },
+  "Ваша історія починається тут.": {
+    "en": "Your story starts here.",
+    "ru": "Ваша история начинается здесь.",
+    "pl": "Twoja historia zaczyna się tutaj.",
+    "zh": "您的故事从这里开始。"
+  },
+  "Перший клієнт. Перший запис. Наступний крок.": {
+    "en": "First customer. First appointment. Next step.",
+    "ru": "Первый клиент. Первая запись. Следующий шаг.",
+    "pl": "Pierwszy klient. Pierwsza wizyta. Następny krok.",
+    "zh": "首位客户。首次预约。下一步。"
+  },
+  "Для великої справи потрібна команда.": {
+    "en": "Great work needs a team.",
+    "ru": "Большому делу нужна команда.",
+    "pl": "Wielkie zadania potrzebują zespołu.",
+    "zh": "成就事业需要团队。"
+  },
+  "Ваш бізнес.": {
+    "en": "Your business.",
+    "ru": "Ваш бизнес.",
+    "pl": "Twoja firma.",
+    "zh": "您的业务。"
+  },
+  "Без": {
+    "en": "Without",
+    "ru": "Без",
+    "pl": "Bez",
+    "zh": "告别"
+  },
+  "зайвого": {
+    "en": "unnecessary",
+    "ru": "лишнего",
+    "pl": "zbędnego",
+    "zh": "多余的"
+  },
+  "хаосу": {
+    "en": "chaos",
+    "ru": "хаоса",
+    "pl": "chaosu",
+    "zh": "混乱"
+  },
+  "Клієнти, команда, записи та аналітика.": {
+    "en": "Customers, team, appointments and analytics.",
+    "ru": "Клиенты, команда, записи и аналитика.",
+    "pl": "Klienci, zespół, wizyty i analityka.",
+    "zh": "客户、团队、预约和分析。"
+  },
+  "Не десять сервісів. Один SafeOrbit.": {
+    "en": "Not ten services. One SafeOrbit.",
+    "ru": "Не десять сервисов. Один SafeOrbit.",
+    "pl": "Nie dziesięć usług. Jeden SafeOrbit.",
+    "zh": "无需十个服务。只需一个SafeOrbit。"
+  },
+  "Платформа": {
+    "en": "Platform",
+    "ru": "Платформа",
+    "pl": "Platforma",
+    "zh": "平台"
+  },
+  "Можливості": {
+    "en": "Features",
+    "ru": "Возможности",
+    "pl": "Możliwości",
+    "zh": "功能"
+  },
+  "Підключення": {
+    "en": "Getting started",
+    "ru": "Подключение",
+    "pl": "Rozpocznij",
+    "zh": "开始使用"
+  },
+  "Увійти": {
+    "en": "Sign in",
+    "ru": "Войти",
+    "pl": "Zaloguj się",
+    "zh": "登录"
+  },
+  "Почати роботу": {
+    "en": "Get started",
+    "ru": "Начать работу",
+    "pl": "Rozpocznij pracę",
+    "zh": "开始使用"
+  },
+  "Створити робочий простір": {
+    "en": "Create a workspace",
+    "ru": "Создать рабочее пространство",
+    "pl": "Utwórz przestrzeń roboczą",
+    "zh": "创建工作空间"
+  },
+  "Подивитися платформу": {
+    "en": "Explore the platform",
+    "ru": "Посмотреть платформу",
+    "pl": "Zobacz platformę",
+    "zh": "了解平台"
+  },
+  "Для сервісних бізнесів і команд": {
+    "en": "For service businesses and teams",
+    "ru": "Для сервисных бизнесов и команд",
+    "pl": "Dla firm usługowych i zespołów",
+    "zh": "面向服务企业和团队"
+  },
+  "Без зайвих вкладок": {
+    "en": "Without endless tabs",
+    "ru": "Без лишних вкладок",
+    "pl": "Bez zbędnych kart",
+    "zh": "无需多余标签页"
+  },
+  "Від рутини — до результату.": {
+    "en": "From routine to results.",
+    "ru": "От рутины — к результату.",
+    "pl": "Od rutyny do rezultatów.",
+    "zh": "从日常到成果。"
+  },
+  "Працюйте в одному контексті": {
+    "en": "Work in one shared context",
+    "ru": "Работайте в одном контексте",
+    "pl": "Pracuj w jednym kontekście",
+    "zh": "共享统一工作环境"
+  },
+  "Усе на своїх місцях.": {
+    "en": "Everything in its place.",
+    "ru": "Всё на своих местах.",
+    "pl": "Wszystko na swoim miejscu.",
+    "zh": "一切井然有序。"
+  },
+  "Ваша команда. Ваші клієнти. Ваш ритм.": {
+    "en": "Your team. Your customers. Your pace.",
+    "ru": "Ваша команда. Ваши клиенты. Ваш ритм.",
+    "pl": "Twój zespół. Twoi klienci. Twój rytm.",
+    "zh": "您的团队。您的客户。您的节奏。"
+  },
+  "Сервісні команди": {
+    "en": "Service teams",
+    "ru": "Сервисные команды",
+    "pl": "Zespoły usługowe",
+    "zh": "服务团队"
+  },
+  "Клініки": {
+    "en": "Clinics",
+    "ru": "Клиники",
+    "pl": "Kliniki",
+    "zh": "诊所"
+  },
+  "Студії": {
+    "en": "Studios",
+    "ru": "Студии",
+    "pl": "Studia",
+    "zh": "工作室"
+  },
+  "Магазини": {
+    "en": "Stores",
+    "ru": "Магазины",
+    "pl": "Sklepy",
+    "zh": "商店"
+  },
+  "Ваш бізнес": {
+    "en": "Your business",
+    "ru": "Ваш бизнес",
+    "pl": "Twoja firma",
+    "zh": "您的企业"
+  },
+  "Не збирайте бізнес": {
+    "en": "Don't piece your business together",
+    "ru": "Не собирайте бизнес",
+    "pl": "Nie składaj firmy",
+    "zh": "无需拼凑业务"
+  },
+  "по": {
+    "en": "in",
+    "ru": "по",
+    "pl": "z",
+    "zh": "成"
+  },
+  "шматочках.": {
+    "en": "pieces.",
+    "ru": "кусочкам.",
+    "pl": "kawałków.",
+    "zh": "碎片。"
+  },
+  "Усе, що потрібно для щоденної роботи,": {
+    "en": "Everything you need for everyday work,",
+    "ru": "Всё, что нужно для повседневной работы,",
+    "pl": "Wszystko, czego potrzebujesz na co dzień,",
+    "zh": "日常工作所需的一切，"
+  },
+  "пов’язано в одному просторі.": {
+    "en": "connected in one workspace.",
+    "ru": "связано в одном пространстве.",
+    "pl": "połączone w jednej przestrzeni.",
+    "zh": "在同一个空间中连接。"
+  },
+  "Клієнти.": {
+    "en": "Customers.",
+    "ru": "Клиенты.",
+    "pl": "Klienci.",
+    "zh": "客户。"
+  },
+  "З повним контекстом.": {
+    "en": "With full context.",
+    "ru": "С полным контекстом.",
+    "pl": "Z pełnym kontekstem.",
+    "zh": "完整上下文。"
+  },
+  "Команда.": {
+    "en": "Team.",
+    "ru": "Команда.",
+    "pl": "Zespół.",
+    "zh": "团队。"
+  },
+  "В одному ритмі.": {
+    "en": "In sync.",
+    "ru": "В одном ритме.",
+    "pl": "W jednym rytmie.",
+    "zh": "步调一致。"
+  },
+  "Результати.": {
+    "en": "Results.",
+    "ru": "Результаты.",
+    "pl": "Rezultaty.",
+    "zh": "成果。"
+  },
+  "Не припущення.": {
+    "en": "Not assumptions.",
+    "ru": "Не предположения.",
+    "pl": "Nie przypuszczenia.",
+    "zh": "不是猜测。"
+  },
+  "Контакти, історія взаємодій та записи. Повертайтеся до розмови, а не до пошуку інформації.": {
+    "en": "Contacts, interaction history and appointments. Return to the conversation, not the search.",
+    "ru": "Контакты, история взаимодействий и записи. Возвращайтесь к разговору, а не к поиску информации.",
+    "pl": "Kontakty, historia interakcji i wizyty. Wracaj do rozmowy, nie do szukania informacji.",
+    "zh": "联系人、互动历史和预约。回到对话，而不是搜索信息。"
+  },
+  "Плануйте роботу, розподіляйте записи та керуйте доступом. Кожен бачить те, що потрібно.": {
+    "en": "Plan work, assign appointments and manage access. Everyone sees what they need.",
+    "ru": "Планируйте работу, распределяйте записи и управляйте доступом. Каждый видит нужное.",
+    "pl": "Planuj pracę, przydzielaj wizyty i zarządzaj dostępem. Każdy widzi to, czego potrzebuje.",
+    "zh": "规划工作、分配预约并管理访问权限。每个人都能看到所需内容。"
+  },
+  "Слідкуйте за записами та доходом. Зрозуміла аналітика замість нескінченних таблиць.": {
+    "en": "Track appointments and revenue. Clear analytics instead of endless spreadsheets.",
+    "ru": "Следите за записями и доходом. Понятная аналитика вместо бесконечных таблиц.",
+    "pl": "Śledź wizyty i przychód. Przejrzysta analityka zamiast niekończących się arkuszy.",
+    "zh": "跟踪预约和收入。用清晰分析代替无穷表格。"
+  },
+  "Залиште місце": {
+    "en": "Make room",
+    "ru": "Оставьте место",
+    "pl": "Zrób miejsce",
+    "zh": "留出空间"
+  },
+  "для": {
+    "en": "for",
+    "ru": "для",
+    "pl": "na",
+    "zh": "为"
+  },
+  "наступного кроку.": {
+    "en": "the next step.",
+    "ru": "следующего шага.",
+    "pl": "następny krok.",
+    "zh": "下一步。"
+  },
+  "Підключити SafeOrbit": {
+    "en": "Get SafeOrbit",
+    "ru": "Подключить SafeOrbit",
+    "pl": "Wdroż SafeOrbit",
+    "zh": "使用SafeOrbit"
+  },
+  "Створіть заявку. Узгодьте підключення. Почніть працювати.": {
+    "en": "Apply. Agree on setup. Start working.",
+    "ru": "Создайте заявку. Согласуйте подключение. Начните работать.",
+    "pl": "Złóż wniosek. Uzgodnij wdrożenie. Zacznij pracować.",
+    "zh": "提交申请。确认部署。开始工作。"
+  },
+  "Ваш бізнес. В одному просторі.": {
+    "en": "Your business. One workspace.",
+    "ru": "Ваш бизнес. В одном пространстве.",
+    "pl": "Twoja firma. W jednej przestrzeni.",
+    "zh": "您的业务。一个工作空间。"
+  },
+  "Вхід": {
+    "en": "Sign in",
+    "ru": "Вход",
+    "pl": "Logowanie",
+    "zh": "登录"
+  },
+  "З поверненням": {
+    "en": "Welcome back",
+    "ru": "С возвращением",
+    "pl": "Witaj ponownie",
+    "zh": "欢迎回来"
+  },
+  "Ваш робочий простір уже чекає.": {
+    "en": "Your workspace is ready for you.",
+    "ru": "Ваше рабочее пространство уже ждёт.",
+    "pl": "Twoja przestrzeń robocza już czeka.",
+    "zh": "您的工作空间已准备好。"
+  },
+  "Телефон або логін": {
+    "en": "Phone or username",
+    "ru": "Телефон или логин",
+    "pl": "Telefon lub login",
+    "zh": "电话或用户名"
+  },
+  "Введіть пароль": {
+    "en": "Enter your password",
+    "ru": "Введите пароль",
+    "pl": "Wpisz hasło",
+    "zh": "输入密码"
+  },
+  "Один акаунт. Увесь ваш бізнес.": {
+    "en": "One account. Your entire business.",
+    "ru": "Один аккаунт. Весь ваш бизнес.",
+    "pl": "Jedno konto. Cała Twoja firma.",
+    "zh": "一个账户。全部业务。"
+  },
+  "Увійти в SafeOrbit": {
+    "en": "Sign in to SafeOrbit",
+    "ru": "Войти в SafeOrbit",
+    "pl": "Zaloguj się do SafeOrbit",
+    "zh": "登录SafeOrbit"
+  },
+  "Починаєте з нуля?": {
+    "en": "Starting fresh?",
+    "ru": "Начинаете с нуля?",
+    "pl": "Zaczynasz od zera?",
+    "zh": "从零开始？"
+  },
+  "Створіть свій простір": {
+    "en": "Create your workspace",
+    "ru": "Создайте своё пространство",
+    "pl": "Utwórz swoją przestrzeń",
+    "zh": "创建您的空间"
+  },
+  "Немає акаунту?": {
+    "en": "No account yet?",
+    "ru": "Нет аккаунта?",
+    "pl": "Nie masz konta?",
+    "zh": "还没有账户？"
+  },
+  "Створити простір": {
+    "en": "Create workspace",
+    "ru": "Создать пространство",
+    "pl": "Utwórz przestrzeń",
+    "zh": "创建空间"
+  },
+  "До головної": {
+    "en": "Back to home",
+    "ru": "На главную",
+    "pl": "Na stronę główną",
+    "zh": "返回首页"
+  },
+  "Велика справа.": {
+    "en": "Great work.",
+    "ru": "Большое дело.",
+    "pl": "Wielkie zadania.",
+    "zh": "伟大事业。"
+  },
+  "Починається": {
+    "en": "Starts",
+    "ru": "Начинается",
+    "pl": "Zaczynają się",
+    "zh": "始于"
+  },
+  "з": {
+    "en": "with",
+    "ru": "с",
+    "pl": "od",
+    "zh": "于"
+  },
+  "порядку.": {
+    "en": "clarity.",
+    "ru": "порядка.",
+    "pl": "porządku.",
+    "zh": "秩序。"
+  },
+  "Менше рутини та перемикань.": {
+    "en": "Less routine and switching.",
+    "ru": "Меньше рутины и переключений.",
+    "pl": "Mniej rutyny i przełączania.",
+    "zh": "减少重复工作和切换。"
+  },
+  "Більше часу на те, що має значення.": {
+    "en": "More time for what matters.",
+    "ru": "Больше времени на то, что важно.",
+    "pl": "Więcej czasu na to, co ważne.",
+    "zh": "更多时间用于重要的事情。"
+  },
+  "Почніть по-новому": {
+    "en": "Start fresh",
+    "ru": "Начните по-новому",
+    "pl": "Zacznij na nowo",
+    "zh": "重新开始"
+  },
+  "Розкажіть про себе. Ми підготуємо ваш робочий простір.": {
+    "en": "Tell us about your business. We'll prepare your workspace.",
+    "ru": "Расскажите о себе. Мы подготовим ваше рабочее пространство.",
+    "pl": "Opowiedz o swojej firmie. Przygotujemy Twoją przestrzeń.",
+    "zh": "介绍您的业务。我们将准备您的工作空间。"
+  },
+  "Ваш бізнес та акаунт": {
+    "en": "Your business and account",
+    "ru": "Ваш бизнес и аккаунт",
+    "pl": "Twoja firma i konto",
+    "zh": "您的企业和账户"
+  },
+  "Напрямок роботи": {
+    "en": "Business type",
+    "ru": "Направление работы",
+    "pl": "Rodzaj działalności",
+    "zh": "业务类型"
+  },
+  "Ваш телефон": {
+    "en": "Your phone number",
+    "ru": "Ваш телефон",
+    "pl": "Twój numer telefonu",
+    "zh": "您的电话号码"
+  },
+  "Створіть пароль": {
+    "en": "Create password",
+    "ru": "Создайте пароль",
+    "pl": "Utwórz hasło",
+    "zh": "创建密码"
+  },
+  "щонайменше 8 символів": {
+    "en": "at least 8 characters",
+    "ru": "не менее 8 символов",
+    "pl": "co najmniej 8 znaków",
+    "zh": "至少8个字符"
+  },
+  "Надійний пароль для вашого акаунту": {
+    "en": "A secure password for your account",
+    "ru": "Надёжный пароль для аккаунта",
+    "pl": "Bezpieczne hasło do konta",
+    "zh": "为账户设置安全密码"
+  },
+  "Барбершоп / салон": {
+    "en": "Barbershop / salon",
+    "ru": "Барбершоп / салон",
+    "pl": "Barbershop / salon",
+    "zh": "理发店 / 美容院"
+  },
+  "Клініка / стоматологія": {
+    "en": "Clinic / dentistry",
+    "ru": "Клиника / стоматология",
+    "pl": "Klinika / stomatologia",
+    "zh": "诊所 / 牙科"
+  },
+  "Детейлінг / СТО": {
+    "en": "Detailing / auto service",
+    "ru": "Детейлинг / СТО",
+    "pl": "Detailing / serwis samochodowy",
+    "zh": "汽车美容 / 维修"
+  },
+  "SPA / масаж": {
+    "en": "Spa / massage",
+    "ru": "SPA / массаж",
+    "pl": "SPA / masaż",
+    "zh": "SPA / 按摩"
+  },
+  "Онлайн-магазин": {
+    "en": "Online store",
+    "ru": "Интернет-магазин",
+    "pl": "Sklep internetowy",
+    "zh": "网店"
+  },
+  "Ресторан / кафе": {
+    "en": "Restaurant / cafe",
+    "ru": "Ресторан / кафе",
+    "pl": "Restauracja / kawiarnia",
+    "zh": "餐厅 / 咖啡馆"
+  },
+  "Інший бізнес": {
+    "en": "Other business",
+    "ru": "Другой бизнес",
+    "pl": "Inna działalność",
+    "zh": "其他企业"
+  },
+  "Категорія магазину": {
+    "en": "Store category",
+    "ru": "Категория магазина",
+    "pl": "Kategoria sklepu",
+    "zh": "商店类别"
+  },
+  "Одяг / взуття": {
+    "en": "Clothing / footwear",
+    "ru": "Одежда / обувь",
+    "pl": "Odzież / obuwie",
+    "zh": "服装 / 鞋类"
+  },
+  "Меблі / декор": {
+    "en": "Furniture / decor",
+    "ru": "Мебель / декор",
+    "pl": "Meble / dekoracje",
+    "zh": "家具 / 装饰"
+  },
+  "Продукти харчування": {
+    "en": "Food products",
+    "ru": "Продукты питания",
+    "pl": "Produkty spożywcze",
+    "zh": "食品"
+  },
+  "Інше": {
+    "en": "Other",
+    "ru": "Другое",
+    "pl": "Inne",
+    "zh": "其他"
+  },
+  "Для щоденної роботи команди": {
+    "en": "For your team's daily work",
+    "ru": "Для ежедневной работы команды",
+    "pl": "Do codziennej pracy zespołu",
+    "zh": "用于团队日常工作"
+  },
+  "Індивідуальне підключення": {
+    "en": "Tailored setup",
+    "ru": "Индивидуальное подключение",
+    "pl": "Indywidualne wdrożenie",
+    "zh": "定制部署"
+  },
+  "Розширений супровід бізнесу": {
+    "en": "Extended business support",
+    "ru": "Расширенное сопровождение бизнеса",
+    "pl": "Rozszerzone wsparcie firmy",
+    "zh": "扩展业务支持"
+  },
+  "Країна оплати": {
+    "en": "Payment country",
+    "ru": "Страна оплаты",
+    "pl": "Kraj płatności",
+    "zh": "付款国家"
+  },
+  "Україна · IBAN": {
+    "en": "Ukraine · IBAN",
+    "ru": "Украина · IBAN",
+    "pl": "Ukraina · IBAN",
+    "zh": "乌克兰 · IBAN"
+  },
+  "США · банківський переказ": {
+    "en": "USA · bank transfer",
+    "ru": "США · банковский перевод",
+    "pl": "USA · przelew bankowy",
+    "zh": "美国 · 银行转账"
+  },
+  "Реквізити для оплати": {
+    "en": "Payment details",
+    "ru": "Реквизиты для оплаты",
+    "pl": "Dane płatności",
+    "zh": "付款信息"
+  },
+  "Отримувач": {
+    "en": "Recipient",
+    "ru": "Получатель",
+    "pl": "Odbiorca",
+    "zh": "收款人"
+  },
+  "Банк": {
+    "en": "Bank",
+    "ru": "Банк",
+    "pl": "Bank",
+    "zh": "银行"
+  },
+  "Квитанція": {
+    "en": "Receipt",
+    "ru": "Квитанция",
+    "pl": "Potwierdzenie",
+    "zh": "收据"
+  },
+  "Підписаний NDA": {
+    "en": "Signed NDA",
+    "ru": "Подписанный NDA",
+    "pl": "Podpisane NDA",
+    "zh": "签署的保密协议"
+  },
+  "Підписаний договір": {
+    "en": "Signed contract",
+    "ru": "Подписанный договор",
+    "pl": "Podpisana umowa",
+    "zh": "签署的合同"
+  },
+  "PDF / JPG / PNG · до 5 МБ": {
+    "en": "PDF / JPG / PNG · up to 5 MB",
+    "ru": "PDF / JPG / PNG · до 5 МБ",
+    "pl": "PDF / JPG / PNG · do 5 MB",
+    "zh": "PDF / JPG / PNG · 最大5 MB"
+  },
+  "Завантажити": {
+    "en": "Download",
+    "ru": "Скачать",
+    "pl": "Pobierz",
+    "zh": "下载"
+  },
+  "якщо є": {
+    "en": "if available",
+    "ru": "если есть",
+    "pl": "jeśli posiadasz",
+    "zh": "如有"
+  },
+  "Введіть код": {
+    "en": "Enter code",
+    "ru": "Введите код",
+    "pl": "Wpisz kod",
+    "zh": "输入代码"
+  },
+  "Назад": {
+    "en": "Back",
+    "ru": "Назад",
+    "pl": "Wstecz",
+    "zh": "返回"
+  },
+  "Продовжити": {
+    "en": "Continue",
+    "ru": "Продолжить",
+    "pl": "Kontynuuj",
+    "zh": "继续"
+  },
+  "Надіслати заявку": {
+    "en": "Submit application",
+    "ru": "Отправить заявку",
+    "pl": "Wyślij wniosek",
+    "zh": "提交申请"
+  },
+  "Вже маєте акаунт?": {
+    "en": "Already have an account?",
+    "ru": "Уже есть аккаунт?",
+    "pl": "Masz już konto?",
+    "zh": "已有账户？"
+  },
+  "До сторінки входу": {
+    "en": "Go to sign in",
+    "ru": "На страницу входа",
+    "pl": "Przejdź do logowania",
+    "zh": "前往登录"
+  },
+  "Статус:": {
+    "en": "Status:",
+    "ru": "Статус:",
+    "pl": "Status:",
+    "zh": "状态："
+  },
+  "На перевірці": {
+    "en": "Under review",
+    "ru": "На проверке",
+    "pl": "W trakcie weryfikacji",
+    "zh": "审核中"
+  },
+  "Ваш простір готовий.": {
+    "en": "Your workspace is ready.",
+    "ru": "Ваше пространство готово.",
+    "pl": "Twoja przestrzeń jest gotowa.",
+    "zh": "您的工作空间已就绪。"
+  },
+  "Дякуємо. Заявка вже у нас.": {
+    "en": "Thank you. We received your application.",
+    "ru": "Спасибо. Ваша заявка получена.",
+    "pl": "Dziękujemy. Otrzymaliśmy Twój wniosek.",
+    "zh": "谢谢。我们已收到您的申请。"
+  },
+  "Потрібно уточнити деталі.": {
+    "en": "Some details need clarification.",
+    "ru": "Нужно уточнить детали.",
+    "pl": "Niektóre szczegóły wymagają wyjaśnienia.",
+    "zh": "需要确认一些细节。"
+  },
+  "Швидке створення бізнесу": {
+    "en": "Quick business creation",
+    "ru": "Быстрое создание бизнеса",
+    "pl": "Szybkie tworzenie firmy",
+    "zh": "快速创建企业"
+  },
+  "Назва бізнесу": {
+    "en": "Business name",
+    "ru": "Название бизнеса",
+    "pl": "Nazwa firmy",
+    "zh": "企业名称"
+  },
+  "Контактний номер": {
+    "en": "Contact number",
+    "ru": "Контактный номер",
+    "pl": "Numer kontaktowy",
+    "zh": "联系电话"
+  },
+  "Оберіть індустрію": {
+    "en": "Select industry",
+    "ru": "Выберите отрасль",
+    "pl": "Wybierz branżę",
+    "zh": "选择行业"
+  },
+  "Створити бізнес": {
+    "en": "Create business",
+    "ru": "Создать бизнес",
+    "pl": "Utwórz firmę",
+    "zh": "创建企业"
+  },
+  "Системний Асистент": {
+    "en": "System assistant",
+    "ru": "Системный ассистент",
+    "pl": "Asystent systemowy",
+    "zh": "系统助手"
+  },
+  "Глобальна розсилка": {
+    "en": "Global broadcast",
+    "ru": "Глобальная рассылка",
+    "pl": "Globalna wysyłka",
+    "zh": "全局广播"
+  },
+  "Введіть текст оголошення...": {
+    "en": "Enter announcement text…",
+    "ru": "Введите текст объявления…",
+    "pl": "Wpisz treść ogłoszenia…",
+    "zh": "输入公告内容…"
+  },
+  "Відправити розсилку": {
+    "en": "Send broadcast",
+    "ru": "Отправить рассылку",
+    "pl": "Wyślij wiadomości",
+    "zh": "发送广播"
+  },
+  "Бізнес / Тип": {
+    "en": "Business / type",
+    "ru": "Бизнес / тип",
+    "pl": "Firma / typ",
+    "zh": "企业 / 类型"
+  },
+  "Дії": {
+    "en": "Actions",
+    "ru": "Действия",
+    "pl": "Działania",
+    "zh": "操作"
+  },
+  "Пошук бізнесу...": {
+    "en": "Search businesses…",
+    "ru": "Поиск бизнеса…",
+    "pl": "Szukaj firmy…",
+    "zh": "搜索企业…"
+  },
+  "Активний": {
+    "en": "Active",
+    "ru": "Активен",
+    "pl": "Aktywny",
+    "zh": "活跃"
+  },
+  "Вимкнений": {
+    "en": "Disabled",
+    "ru": "Отключён",
+    "pl": "Wyłączony",
+    "zh": "已停用"
+  },
+  "Налаштування": {
+    "en": "Settings",
+    "ru": "Настройки",
+    "pl": "Ustawienia",
+    "zh": "设置"
+  },
+  "Зафіксувати платіж": {
+    "en": "Record payment",
+    "ru": "Зафиксировать платёж",
+    "pl": "Zarejestruj płatność",
+    "zh": "记录付款"
+  },
+  "Історія запитів": {
+    "en": "Request history",
+    "ru": "История запросов",
+    "pl": "Historia żądań",
+    "zh": "请求历史"
+  },
+  "Тест ШІ": {
+    "en": "Test AI",
+    "ru": "Тест ИИ",
+    "pl": "Testuj AI",
+    "zh": "测试AI"
+  },
+  "Редагування Запису": {
+    "en": "Edit appointment",
+    "ru": "Редактирование записи",
+    "pl": "Edytuj wizytę",
+    "zh": "编辑预约"
+  },
+  "Редагування запису": {
+    "en": "Edit appointment",
+    "ru": "Редактирование записи",
+    "pl": "Edytuj wizytę",
+    "zh": "编辑预约"
+  },
+  "Дата": {
+    "en": "Date",
+    "ru": "Дата",
+    "pl": "Data",
+    "zh": "日期"
+  },
+  "Час": {
+    "en": "Time",
+    "ru": "Время",
+    "pl": "Godzina",
+    "zh": "时间"
+  },
+  "Експерт": {
+    "en": "Specialist",
+    "ru": "Специалист",
+    "pl": "Specjalista",
+    "zh": "员工"
+  },
+  "Видалити": {
+    "en": "Delete",
+    "ru": "Удалить",
+    "pl": "Usuń",
+    "zh": "删除"
+  },
+  "Зберегти зміни": {
+    "en": "Save changes",
+    "ru": "Сохранить изменения",
+    "pl": "Zapisz zmiany",
+    "zh": "保存更改"
+  },
+  "На цей день записів немає": {
+    "en": "No appointments on this day",
+    "ru": "На этот день записей нет",
+    "pl": "Brak wizyt tego dnia",
+    "zh": "当天没有预约"
+  },
+  "Деталі": {
+    "en": "Details",
+    "ru": "Детали",
+    "pl": "Szczegóły",
+    "zh": "详情"
+  },
+  "Послуга": {
+    "en": "Service",
+    "ru": "Услуга",
+    "pl": "Usługa",
+    "zh": "服务"
+  },
+  "Телефон": {
+    "en": "Phone",
+    "ru": "Телефон",
+    "pl": "Telefon",
+    "zh": "电话"
+  },
+  "Підтвердити бронювання": {
+    "en": "Confirm booking",
+    "ru": "Подтвердить бронирование",
+    "pl": "Potwierdź rezerwację",
+    "zh": "确认预约"
+  },
+  "Сторінок не знайдено.": {
+    "en": "No pages found.",
+    "ru": "Страницы не найдены.",
+    "pl": "Nie znaleziono stron.",
+    "zh": "未找到页面。"
+  },
+  "Чорна тема": {
+    "en": "Dark theme",
+    "ru": "Чёрная тема",
+    "pl": "Ciemny motyw",
+    "zh": "深色主题"
+  },
+  "Світла тема": {
+    "en": "Light theme",
+    "ru": "Светлая тема",
+    "pl": "Jasny motyw",
+    "zh": "浅色主题"
+  },
+  "Увімкнути чорну тему": {
+    "en": "Enable dark theme",
+    "ru": "Включить чёрную тему",
+    "pl": "Włącz ciemny motyw",
+    "zh": "启用深色主题"
+  },
+  "Увімкнути світлу тему": {
+    "en": "Enable light theme",
+    "ru": "Включить светлую тему",
+    "pl": "Włącz jasny motyw",
+    "zh": "启用浅色主题"
+  },
+  "Показати пароль": {
+    "en": "Show password",
+    "ru": "Показать пароль",
+    "pl": "Pokaż hasło",
+    "zh": "显示密码"
+  },
+  "Сховати пароль": {
+    "en": "Hide password",
+    "ru": "Скрыть пароль",
+    "pl": "Ukryj hasło",
+    "zh": "隐藏密码"
+  },
+  "Зачекайте…": {
+    "en": "Please wait…",
+    "ru": "Подождите…",
+    "pl": "Proszę czekać…",
+    "zh": "请稍候…"
+  },
+  "ВАШ БІЗНЕС. ВАШІ ПРАВИЛА.": {
+    "en": "YOUR BUSINESS. YOUR RULES.",
+    "ru": "ВАШ БИЗНЕС. ВАШИ ПРАВИЛА.",
+    "pl": "TWOJA FIRMA. TWOJE ZASADY.",
+    "zh": "您的业务。您的规则。"
+  },
+  "ЗАЛИШТЕ МІСЦЕ": {
+    "en": "MAKE ROOM",
+    "ru": "ОСТАВЬТЕ МЕСТО",
+    "pl": "ZRÓB MIEJSCE",
+    "zh": "留出空间"
+  },
+  "ДЛЯ НАСТУПНОГО КРОКУ.": {
+    "en": "FOR THE NEXT STEP.",
+    "ru": "ДЛЯ СЛЕДУЮЩЕГО ШАГА.",
+    "pl": "NA NASTĘPNY KROK.",
+    "zh": "为下一步。"
+  },
+  "Клієнти. Команда. Результат.": {
+    "en": "Customers. Team. Results.",
+    "ru": "Клиенты. Команда. Результат.",
+    "pl": "Klienci. Zespół. Rezultaty.",
+    "zh": "客户。团队。成果。"
+  },
+  "ПОВЕРНІТЬСЯ ДО ГОЛОВНОГО": {
+    "en": "BACK TO WHAT MATTERS",
+    "ru": "ВЕРНИТЕСЬ К ГЛАВНОМУ",
+    "pl": "WRÓĆ DO TEGO, CO WAŻNE",
+    "zh": "回到重要的事情"
+  },
+  "БІЗНЕС, БЕЗ ЗАЙВОГО ХАОСУ.": {
+    "en": "BUSINESS, WITHOUT THE CHAOS.",
+    "ru": "БИЗНЕС, БЕЗ ЛИШНЕГО ХАОСА.",
+    "pl": "BIZNES BEZ ZBĘDNEGO CHAOSU.",
+    "zh": "业务，告别混乱。"
+  },
+  "Менше хаосу.": {
+    "en": "Less chaos.",
+    "ru": "Меньше хаоса.",
+    "pl": "Mniej chaosu.",
+    "zh": "更少混乱。"
+  },
+  "Більше": {
+    "en": "More",
+    "ru": "Больше",
+    "pl": "Więcej",
+    "zh": "更多"
+  },
+  "вашого бізнесу.": {
+    "en": "of your business.",
+    "ru": "вашего бизнеса.",
+    "pl": "Twojej firmy.",
+    "zh": "您的业务。"
+  },
+  "Дайте своїй команді простір.": {
+    "en": "Give your team a workspace.",
+    "ru": "Дайте своей команде пространство.",
+    "pl": "Daj zespołowi przestrzeń.",
+    "zh": "给团队一个空间。"
+  },
+  "Дайте своєму бізнесу наступний крок.": {
+    "en": "Give your business its next step.",
+    "ru": "Дайте своему бизнесу следующий шаг.",
+    "pl": "Daj firmie następny krok.",
+    "zh": "让业务迈出下一步。"
+  },
+  "ПОЧНІМО З ГОЛОВНОГО": {
+    "en": "LET'S START WITH WHAT MATTERS",
+    "ru": "НАЧНЁМ С ГЛАВНОГО",
+    "pl": "ZACZNIJMY OD TEGO, CO WAŻNE",
+    "zh": "从重要的事情开始"
+  },
+  "ПОРЯДОК У БІЗНЕСІ. ПРОСТІР ДЛЯ ЗРОСТАННЯ.": {
+    "en": "CLARITY IN BUSINESS. ROOM TO GROW.",
+    "ru": "ПОРЯДОК В БИЗНЕСЕ. ПРОСТРАНСТВО ДЛЯ РОСТА.",
+    "pl": "PORZĄDEK W FIRMIE. MIEJSCE NA ROZWÓJ.",
+    "zh": "业务井然有序。为成长留空间。"
+  },
+  "СТВОРЕНО ДЛЯ ТИХ, ХТО РОБИТЬ СПРАВУ.": {
+    "en": "BUILT FOR PEOPLE WHO GET THINGS DONE.",
+    "ru": "СОЗДАНО ДЛЯ ТЕХ, КТО ДЕЛАЕТ ДЕЛО.",
+    "pl": "DLA TYCH, KTÓRZY DZIAŁAJĄ.",
+    "zh": "为实干者而打造。"
+  },
+  "МЕНШЕ ПЕРЕМИКАНЬ. БІЛЬШЕ РУХУ.": {
+    "en": "LESS SWITCHING. MORE PROGRESS.",
+    "ru": "МЕНЬШЕ ПЕРЕКЛЮЧЕНИЙ. БОЛЬШЕ ДВИЖЕНИЯ.",
+    "pl": "MNIEJ PRZEŁĄCZANIA. WIĘCEJ POSTĘPU.",
+    "zh": "减少切换。增加进展。"
+  },
+  "CRM & ВЗАЄМОДІЇ": {
+    "en": "CRM & INTERACTIONS",
+    "ru": "CRM И ВЗАИМОДЕЙСТВИЯ",
+    "pl": "CRM I INTERAKCJE",
+    "zh": "CRM和互动"
+  },
+  "ПЛАНУВАННЯ & КОМАНДА": {
+    "en": "PLANNING & TEAM",
+    "ru": "ПЛАНИРОВАНИЕ И КОМАНДА",
+    "pl": "PLANOWANIE I ZESPÓŁ",
+    "zh": "规划和团队"
+  },
+  "АНАЛІТИКА & КОНТРОЛЬ": {
+    "en": "ANALYTICS & CONTROL",
+    "ru": "АНАЛИТИКА И КОНТРОЛЬ",
+    "pl": "ANALITYKA I KONTROLA",
+    "zh": "分析和控制"
+  },
+  "ПРИБЕРІТЬ ЗАЙВЕ.": {
+    "en": "REMOVE THE NOISE.",
+    "ru": "УБЕРИТЕ ЛИШНЕЕ.",
+    "pl": "USUŃ ZBĘDNE RZECZY.",
+    "zh": "去除多余内容。"
+  },
+  "ПРИКЛАД ІНТЕРФЕЙСУ": {
+    "en": "INTERFACE EXAMPLE",
+    "ru": "ПРИМЕР ИНТЕРФЕЙСА",
+    "pl": "PRZYKŁAD INTERFEJSU",
+    "zh": "界面示例"
+  },
+  "ВАШ РОБОЧИЙ ПРОСТІР": {
+    "en": "YOUR WORKSPACE",
+    "ru": "ВАШЕ РАБОЧЕЕ ПРОСТРАНСТВО",
+    "pl": "TWOJA PRZESTRZEŃ",
+    "zh": "您的工作空间"
+  },
+  "Новий запис · 14:30": {
+    "en": "New appointment · 14:30",
+    "ru": "Новая запись · 14:30",
+    "pl": "Nowa wizyta · 14:30",
+    "zh": "新预约 · 14:30"
+  },
+  "01—07 листопада": {
+    "en": "November 01–07",
+    "ru": "01—07 ноября",
+    "pl": "01–07 listopada",
+    "zh": "11月1日至7日"
+  },
+  "ЗАПИСІВ СЬОГОДНІ": {
+    "en": "APPOINTMENTS TODAY",
+    "ru": "ЗАПИСЕЙ СЕГОДНЯ",
+    "pl": "WIZYTY DZISIAJ",
+    "zh": "今日预约"
+  },
+  "Зосередьтеся на головному.": {
+    "en": "Focus on what matters.",
+    "ru": "Сосредоточьтесь на главном.",
+    "pl": "Skup się na tym, co ważne.",
+    "zh": "专注重要的事情。"
+  },
+  "ТРИМАЙТЕ РУКУ НА ПУЛЬСІ": {
+    "en": "KEEP YOUR FINGER ON THE PULSE",
+    "ru": "ДЕРЖИТЕ РУКУ НА ПУЛЬСЕ",
+    "pl": "TRZYMAJ RĘKĘ NA PULSIE",
+    "zh": "掌握业务动态"
+  },
+  "ПРОГРЕС, БЕЗ ПРИПУЩЕНЬ": {
+    "en": "PROGRESS, NOT ASSUMPTIONS",
+    "ru": "ПРОГРЕСС, НЕ ПРЕДПОЛОЖЕНИЯ",
+    "pl": "POSTĘP, NIE PRZYPUSZCZENIA",
+    "zh": "进步，而非猜测"
+  },
+  "ЛЮДИ ТА НАСТУПНІ КРОКИ": {
+    "en": "PEOPLE AND NEXT STEPS",
+    "ru": "ЛЮДИ И СЛЕДУЮЩИЕ ШАГИ",
+    "pl": "LUDZIE I NASTĘPNE KROKI",
+    "zh": "人员和下一步"
+  },
+  "РУХАЄМОСЯ РАЗОМ": {
+    "en": "MOVING FORWARD TOGETHER",
+    "ru": "ДВИЖЕМСЯ ВМЕСТЕ",
+    "pl": "IDZIEMY RAZEM",
+    "zh": "共同前进"
+  },
+  "Телефон або пароль не збігаються. Перевірте дані та спробуйте ще раз.": {
+    "en": "Incorrect phone or password. Check your details and try again.",
+    "ru": "Телефон или пароль неверны. Проверьте данные и попробуйте снова.",
+    "pl": "Nieprawidłowy telefon lub hasło. Sprawdź dane i spróbuj ponownie.",
+    "zh": "电话或密码不正确。请检查后重试。"
+  },
+  "API та інтеграції": {
+    "en": "API and integrations",
+    "ru": "API и интеграции",
+    "pl": "API i integracje",
+    "zh": "API和集成"
+  },
+  "Робочий простір": {
+    "en": "Workspace",
+    "ru": "Рабочее пространство",
+    "pl": "Przestrzeń robocza",
+    "zh": "工作空间"
+  },
+  "Огляд бізнесу": {
+    "en": "Business overview",
+    "ru": "Обзор бизнеса",
+    "pl": "Przegląd firmy",
+    "zh": "企业概览"
+  },
+  "Власник бізнесу": {
+    "en": "Business owner",
+    "ru": "Владелец бизнеса",
+    "pl": "Właściciel firmy",
+    "zh": "企业所有者"
+  },
+  "Адміністратор платформи": {
+    "en": "Platform administrator",
+    "ru": "Администратор платформы",
+    "pl": "Administrator platformy",
+    "zh": "平台管理员"
+  },
+  "Спеціаліст": {
+    "en": "Specialist",
+    "ru": "Специалист",
+    "pl": "Specjalista",
+    "zh": "员工"
+  },
+  "У складі команди": {
+    "en": "Team member",
+    "ru": "В составе команды",
+    "pl": "Członek zespołu",
+    "zh": "团队成员"
+  },
+  "Менше хаосу. Більше руху.": {
+    "en": "Less chaos. More progress.",
+    "ru": "Меньше хаоса. Больше движения.",
+    "pl": "Mniej chaosu. Więcej postępu.",
+    "zh": "更少混乱。更多进展。"
+  },
+  "Ваш наступний крок починається тут.": {
+    "en": "Your next step starts here.",
+    "ru": "Ваш следующий шаг начинается здесь.",
+    "pl": "Twój następny krok zaczyna się tutaj.",
+    "zh": "您的下一步从这里开始。"
+  },
+  "Документація API": {
+    "en": "API documentation",
+    "ru": "Документация API",
+    "pl": "Dokumentacja API",
+    "zh": "API文档"
+  },
+  "Панель адміністратора": {
+    "en": "Admin dashboard",
+    "ru": "Панель администратора",
+    "pl": "Panel administratora",
+    "zh": "管理员面板"
+  },
+  "Перейти до вмісту": {
+    "en": "Skip to content",
+    "ru": "Перейти к содержимому",
+    "pl": "Przejdź do treści",
+    "zh": "跳至内容"
+  },
+  "Назад до входу": {
+    "en": "Back to sign in",
+    "ru": "Назад ко входу",
+    "pl": "Wróć do logowania",
+    "zh": "返回登录"
+  },
+  "записів": {
+    "en": "appointments",
+    "ru": "записей",
+    "pl": "wizyt",
+    "zh": "预约"
+  },
+  "₴ / міс": {
+    "en": "₴ / month",
+    "ru": "₴ / мес",
+    "pl": "₴ / miesiąc",
+    "zh": "₴ / 月"
+  },
+  "₴ налаштування": {
+    "en": "₴ setup",
+    "ru": "₴ настройка",
+    "pl": "₴ konfiguracja",
+    "zh": "₴ 设置"
+  },
+  "₴ / міс підтримка": {
+    "en": "₴ / month support",
+    "ru": "₴ / мес поддержка",
+    "pl": "₴ / miesiąc wsparcia",
+    "zh": "₴ / 月支持"
+  },
+  "Записи": {
+    "en": "Appointments",
+    "ru": "Записи",
+    "pl": "Wizyty",
+    "zh": "预约"
+  },
+  "Нові Заявки": {
+    "en": "New applications",
+    "ru": "Новые заявки",
+    "pl": "Nowe wnioski",
+    "zh": "新申请"
+  },
+  "Заявки на активацію": {
+    "en": "Activation requests",
+    "ru": "Заявки на активацию",
+    "pl": "Wnioski o aktywację",
+    "zh": "激活申请"
+  },
+  "Нових заявок немає": {
+    "en": "No new applications",
+    "ru": "Новых заявок нет",
+    "pl": "Brak nowych wniosków",
+    "zh": "没有新申请"
+  },
+  "Немає відгуків": {
+    "en": "No reviews",
+    "ru": "Нет отзывов",
+    "pl": "Brak opinii",
+    "zh": "没有评价"
+  },
+  "Подій ще немає": {
+    "en": "No activity yet",
+    "ru": "Событий пока нет",
+    "pl": "Brak aktywności",
+    "zh": "尚无活动"
+  },
+  "Новин ще немає": {
+    "en": "No news yet",
+    "ru": "Новостей пока нет",
+    "pl": "Brak wiadomości",
+    "zh": "暂无新闻"
+  },
+  "Платежів ще не було": {
+    "en": "No payments yet",
+    "ru": "Платежей пока нет",
+    "pl": "Brak płatności",
+    "zh": "暂无付款"
+  },
+  "Оновлення та Поради": {
+    "en": "Updates and tips",
+    "ru": "Обновления и советы",
+    "pl": "Aktualizacje i porady",
+    "zh": "更新和建议"
+  },
+  "Історія оновлень": {
+    "en": "Update history",
+    "ru": "История обновлений",
+    "pl": "Historia aktualizacji",
+    "zh": "更新历史"
+  },
+  "Історія щомісячних платежів за підписку": {
+    "en": "Subscription payment history",
+    "ru": "История платежей за подписку",
+    "pl": "Historia płatności za abonament",
+    "zh": "订阅付款历史"
+  },
+  "Заголовок": {
+    "en": "Title",
+    "ru": "Заголовок",
+    "pl": "Tytuł",
+    "zh": "标题"
+  },
+  "Заголовок та Дата": {
+    "en": "Title and date",
+    "ru": "Заголовок и дата",
+    "pl": "Tytuł i data",
+    "zh": "标题和日期"
+  },
+  "Опублікувати новину": {
+    "en": "Publish news",
+    "ru": "Опубликовать новость",
+    "pl": "Opublikuj wiadomość",
+    "zh": "发布新闻"
+  },
+  "Опублікувати": {
+    "en": "Publish",
+    "ru": "Опубликовать",
+    "pl": "Opublikuj",
+    "zh": "发布"
+  },
+  "Потребують уваги": {
+    "en": "Needs attention",
+    "ru": "Требуют внимания",
+    "pl": "Wymaga uwagi",
+    "zh": "需要关注"
+  },
+  "Активувати Базовий Тариф (11 000 грн/міс)": {
+    "en": "Activate Basic (11,000 UAH/month)",
+    "ru": "Активировать базовый тариф (11 000 грн/мес)",
+    "pl": "Aktywuj Basic (11 000 UAH/miesiąc)",
+    "zh": "激活基础套餐（11000 UAH/月）"
+  },
+  "Активувати PRO Тариф (53 000 грн)": {
+    "en": "Activate Pro (53,000 UAH)",
+    "ru": "Активировать PRO (53 000 грн)",
+    "pl": "Aktywuj Pro (53 000 UAH)",
+    "zh": "激活专业套餐（53000 UAH）"
+  },
+  "Глобальні Налаштування Оплати": {
+    "en": "Global payment settings",
+    "ru": "Глобальные настройки оплаты",
+    "pl": "Globalne ustawienia płatności",
+    "zh": "全局付款设置"
+  },
+  "Зберегти Глобальні Налаштування": {
+    "en": "Save global settings",
+    "ru": "Сохранить глобальные настройки",
+    "pl": "Zapisz ustawienia globalne",
+    "zh": "保存全局设置"
+  },
+  "Номер картки": {
+    "en": "Card number",
+    "ru": "Номер карты",
+    "pl": "Numer karty",
+    "zh": "卡号"
+  },
+  "Отримувач США": {
+    "en": "US recipient",
+    "ru": "Получатель в США",
+    "pl": "Odbiorca w USA",
+    "zh": "美国收款人"
+  },
+  "Назва банку": {
+    "en": "Bank name",
+    "ru": "Название банка",
+    "pl": "Nazwa banku",
+    "zh": "银行名称"
+  },
+  "Назва банку США": {
+    "en": "US bank name",
+    "ru": "Название банка в США",
+    "pl": "Nazwa banku w USA",
+    "zh": "美国银行名称"
+  },
+  "URL QR-коду": {
+    "en": "QR code URL",
+    "ru": "URL QR-кода",
+    "pl": "URL kodu QR",
+    "zh": "二维码链接"
+  },
+  "URL QR-коду США": {
+    "en": "US QR code URL",
+    "ru": "URL QR-кода США",
+    "pl": "URL kodu QR w USA",
+    "zh": "美国二维码链接"
+  },
+  "Примітка для оплати США": {
+    "en": "US payment note",
+    "ru": "Примечание для оплаты в США",
+    "pl": "Informacja o płatności w USA",
+    "zh": "美国付款说明"
+  },
+  "Знижка": {
+    "en": "Discount",
+    "ru": "Скидка",
+    "pl": "Rabat",
+    "zh": "折扣"
+  },
+  "Знижка (%)": {
+    "en": "Discount (%)",
+    "ru": "Скидка (%)",
+    "pl": "Rabat (%)",
+    "zh": "折扣（%）"
+  },
+  "Знижка на PRO Тариф (%)": {
+    "en": "Pro plan discount (%)",
+    "ru": "Скидка на PRO (%)",
+    "pl": "Rabat planu Pro (%)",
+    "zh": "专业套餐折扣（%）"
+  },
+  "Знижка на Базовий Тариф (%)": {
+    "en": "Basic plan discount (%)",
+    "ru": "Скидка на базовый тариф (%)",
+    "pl": "Rabat planu Basic (%)",
+    "zh": "基础套餐折扣（%）"
+  },
+  "Діє до": {
+    "en": "Valid until",
+    "ru": "Действует до",
+    "pl": "Ważne do",
+    "zh": "有效期至"
+  },
+  "Діє до (дата)": {
+    "en": "Valid until (date)",
+    "ru": "Действует до (дата)",
+    "pl": "Ważne do (data)",
+    "zh": "有效期至（日期）"
+  },
+  "Діє міс. (0=назавжди)": {
+    "en": "Months valid (0=unlimited)",
+    "ru": "Месяцев (0=навсегда)",
+    "pl": "Liczba miesięcy (0=bez limitu)",
+    "zh": "月数（0=不限）"
+  },
+  "Промокод": {
+    "en": "Promo code",
+    "ru": "Промокод",
+    "pl": "Kod promocyjny",
+    "zh": "促销码"
+  },
+  "Додати Промокод": {
+    "en": "Add promo code",
+    "ru": "Добавить промокод",
+    "pl": "Dodaj kod promocyjny",
+    "zh": "添加促销码"
+  },
+  "Логін (Телефон)": {
+    "en": "Username (phone)",
+    "ru": "Логин (телефон)",
+    "pl": "Login (telefon)",
+    "zh": "用户名（电话）"
+  },
+  "Новий пароль": {
+    "en": "New password",
+    "ru": "Новый пароль",
+    "pl": "Nowe hasło",
+    "zh": "新密码"
+  },
+  "Оновити пароль": {
+    "en": "Update password",
+    "ru": "Обновить пароль",
+    "pl": "Zaktualizuj hasło",
+    "zh": "更新密码"
+  },
+  "Заблоковано": {
+    "en": "Blocked",
+    "ru": "Заблокировано",
+    "pl": "Zablokowano",
+    "zh": "已封锁"
+  },
+  "Відхилено": {
+    "en": "Rejected",
+    "ru": "Отклонено",
+    "pl": "Odrzucono",
+    "zh": "已拒绝"
+  },
+  "Відправлено": {
+    "en": "Sent",
+    "ru": "Отправлено",
+    "pl": "Wysłano",
+    "zh": "已发送"
+  },
+  "Зберегти налаштування": {
+    "en": "Save settings",
+    "ru": "Сохранить настройки",
+    "pl": "Zapisz ustawienia",
+    "zh": "保存设置"
+  },
+  "Зберегти реквізити": {
+    "en": "Save payment details",
+    "ru": "Сохранить реквизиты",
+    "pl": "Zapisz dane płatności",
+    "zh": "保存付款信息"
+  },
+  "Редагувати профіль": {
+    "en": "Edit profile",
+    "ru": "Редактировать профиль",
+    "pl": "Edytuj profil",
+    "zh": "编辑资料"
+  },
+  "Редагувати клієнта": {
+    "en": "Edit customer",
+    "ru": "Редактировать клиента",
+    "pl": "Edytuj klienta",
+    "zh": "编辑客户"
+  },
+  "Скинути пароль": {
+    "en": "Reset password",
+    "ru": "Сбросить пароль",
+    "pl": "Zresetuj hasło",
+    "zh": "重置密码"
+  },
+  "Фіксувати оплату": {
+    "en": "Record payment",
+    "ru": "Зафиксировать оплату",
+    "pl": "Zarejestruj płatność",
+    "zh": "记录付款"
+  },
+  "Завантажити NDA": {
+    "en": "Download NDA",
+    "ru": "Скачать NDA",
+    "pl": "Pobierz NDA",
+    "zh": "下载保密协议"
+  },
+  "Завантажити Договір": {
+    "en": "Download contract",
+    "ru": "Скачать договор",
+    "pl": "Pobierz umowę",
+    "zh": "下载合同"
+  },
+  "Договір": {
+    "en": "Contract",
+    "ru": "Договор",
+    "pl": "Umowa",
+    "zh": "合同"
+  },
+  "Чек": {
+    "en": "Receipt",
+    "ru": "Чек",
+    "pl": "Potwierdzenie",
+    "zh": "收据"
+  },
+  "Мій Профіль": {
+    "en": "My profile",
+    "ru": "Мой профиль",
+    "pl": "Mój profil",
+    "zh": "我的资料"
+  },
+  "Клієнтів ще немає": {
+    "en": "No customers yet",
+    "ru": "Клиентов пока нет",
+    "pl": "Brak klientów",
+    "zh": "暂无客户"
+  },
+  "Профілі гостей відсутні": {
+    "en": "No guest profiles",
+    "ru": "Нет профилей гостей",
+    "pl": "Brak profili gości",
+    "zh": "没有访客资料"
+  },
+  "Нотатки": {
+    "en": "Notes",
+    "ru": "Заметки",
+    "pl": "Notatki",
+    "zh": "备注"
+  },
+  "Коментар": {
+    "en": "Comment",
+    "ru": "Комментарий",
+    "pl": "Komentarz",
+    "zh": "评论"
+  },
+  "Номер телефону": {
+    "en": "Phone number",
+    "ru": "Номер телефона",
+    "pl": "Numer telefonu",
+    "zh": "电话号码"
+  },
+  "Назва товару": {
+    "en": "Product name",
+    "ru": "Название товара",
+    "pl": "Nazwa produktu",
+    "zh": "产品名称"
+  },
+  "Артикул": {
+    "en": "SKU",
+    "ru": "Артикул",
+    "pl": "SKU",
+    "zh": "商品编号"
+  },
+  "Артикул (SKU)": {
+    "en": "SKU",
+    "ru": "Артикул (SKU)",
+    "pl": "SKU",
+    "zh": "商品编号"
+  },
+  "Ціна": {
+    "en": "Price",
+    "ru": "Цена",
+    "pl": "Cena",
+    "zh": "价格"
+  },
+  "Ціна (грн)": {
+    "en": "Price (UAH)",
+    "ru": "Цена (грн)",
+    "pl": "Cena (UAH)",
+    "zh": "价格（UAH）"
+  },
+  "Ціна продажу (грн)": {
+    "en": "Sale price (UAH)",
+    "ru": "Цена продажи (грн)",
+    "pl": "Cena sprzedaży (UAH)",
+    "zh": "销售价格（UAH）"
+  },
+  "Додати новий товар": {
+    "en": "Add product",
+    "ru": "Добавить товар",
+    "pl": "Dodaj produkt",
+    "zh": "添加产品"
+  },
+  "Варіанти товару (колір, розмір, кількість)": {
+    "en": "Product variants (color, size, quantity)",
+    "ru": "Варианты товара (цвет, размер, количество)",
+    "pl": "Warianty produktu (kolor, rozmiar, ilość)",
+    "zh": "产品规格（颜色、尺寸、数量）"
+  },
+  "Варіанти": {
+    "en": "Variants",
+    "ru": "Варианты",
+    "pl": "Warianty",
+    "zh": "规格"
+  },
+  "Додати варіант": {
+    "en": "Add variant",
+    "ru": "Добавить вариант",
+    "pl": "Dodaj wariant",
+    "zh": "添加规格"
+  },
+  "Логістика": {
+    "en": "Logistics",
+    "ru": "Логистика",
+    "pl": "Logistyka",
+    "zh": "物流"
+  },
+  "Адреса доставки (відділення пошти, місто)": {
+    "en": "Delivery address (branch, city)",
+    "ru": "Адрес доставки (отделение, город)",
+    "pl": "Adres dostawy (oddział, miasto)",
+    "zh": "配送地址（网点、城市）"
+  },
+  "Очікує відправки": {
+    "en": "Awaiting shipment",
+    "ru": "Ожидает отправки",
+    "pl": "Oczekuje na wysyłkę",
+    "zh": "等待发货"
+  },
+  "Обіг": {
+    "en": "Turnover",
+    "ru": "Оборот",
+    "pl": "Obrót",
+    "zh": "营业额"
+  },
+  "Дохід": {
+    "en": "Revenue",
+    "ru": "Доход",
+    "pl": "Przychód",
+    "zh": "收入"
+  },
+  "Цінність клієнтів": {
+    "en": "Customer value",
+    "ru": "Ценность клиентов",
+    "pl": "Wartość klientów",
+    "zh": "客户价值"
+  },
+  "Популярні послуги": {
+    "en": "Popular services",
+    "ru": "Популярные услуги",
+    "pl": "Popularne usługi",
+    "zh": "热门服务"
+  },
+  "Записів ще немає": {
+    "en": "No appointments yet",
+    "ru": "Записей пока нет",
+    "pl": "Brak wizyt",
+    "zh": "暂无预约"
+  },
+  "Запитайте щось про ваші записи...": {
+    "en": "Ask about your appointments…",
+    "ru": "Спросите о ваших записях…",
+    "pl": "Zapytaj o swoje wizyty…",
+    "zh": "询问您的预约…"
+  },
+  "Шукаю відповідь...": {
+    "en": "Looking for an answer…",
+    "ru": "Ищу ответ…",
+    "pl": "Szukam odpowiedzi…",
+    "zh": "正在寻找答案…"
+  },
+  "Індивідуальний запит": {
+    "en": "Custom request",
+    "ru": "Индивидуальный запрос",
+    "pl": "Indywidualne żądanie",
+    "zh": "自定义请求"
+  },
+  "Надіслати нагадування": {
+    "en": "Send reminder",
+    "ru": "Отправить напоминание",
+    "pl": "Wyślij przypomnienie",
+    "zh": "发送提醒"
+  },
+  "Прайс-лист": {
+    "en": "Price list",
+    "ru": "Прайс-лист",
+    "pl": "Cennik",
+    "zh": "价格表"
+  },
+  "Додати послугу": {
+    "en": "Add service",
+    "ru": "Добавить услугу",
+    "pl": "Dodaj usługę",
+    "zh": "添加服务"
+  },
+  "Додати співробітника": {
+    "en": "Add employee",
+    "ru": "Добавить сотрудника",
+    "pl": "Dodaj pracownika",
+    "zh": "添加员工"
+  },
+  "Додати філію": {
+    "en": "Add branch",
+    "ru": "Добавить филиал",
+    "pl": "Dodaj oddział",
+    "zh": "添加分支"
+  },
+  "Додати Email": {
+    "en": "Add email",
+    "ru": "Добавить email",
+    "pl": "Dodaj email",
+    "zh": "添加邮箱"
+  },
+  "Додати Chat ID": {
+    "en": "Add chat ID",
+    "ru": "Добавить Chat ID",
+    "pl": "Dodaj ID czatu",
+    "zh": "添加聊天ID"
+  },
+  "Акаунт співробітника": {
+    "en": "Employee account",
+    "ru": "Аккаунт сотрудника",
+    "pl": "Konto pracownika",
+    "zh": "员工账户"
+  },
+  "Акаунт для входу у філію": {
+    "en": "Branch login account",
+    "ru": "Аккаунт для входа в филиал",
+    "pl": "Konto do logowania w oddziale",
+    "zh": "分支登录账户"
+  },
+  "Акаунт для входу (менеджер)": {
+    "en": "Login account (manager)",
+    "ru": "Аккаунт для входа (менеджер)",
+    "pl": "Konto logowania (menedżer)",
+    "zh": "登录账户（经理）"
+  },
+  "Користувач": {
+    "en": "User",
+    "ru": "Пользователь",
+    "pl": "Użytkownik",
+    "zh": "用户"
+  },
+  "Вийти": {
+    "en": "Sign out",
+    "ru": "Выйти",
+    "pl": "Wyloguj",
+    "zh": "退出"
+  },
+  "Навички / Послуги": {
+    "en": "Skills / services",
+    "ru": "Навыки / услуги",
+    "pl": "Umiejętności / usługi",
+    "zh": "技能 / 服务"
+  },
+  "Email для сповіщень": {
+    "en": "Notification email",
+    "ru": "Email для уведомлений",
+    "pl": "Email do powiadomień",
+    "zh": "通知邮箱"
+  },
+  "Telegram Chat ID для сповіщень": {
+    "en": "Telegram notification chat ID",
+    "ru": "Telegram Chat ID для уведомлений",
+    "pl": "Telegram ID czatu powiadomień",
+    "zh": "Telegram通知聊天ID"
+  },
+  "Отримуйте миттєві сповіщення, коли клієнт записується через ШІ-асистента.": {
+    "en": "Get instant alerts when a customer books through the AI assistant.",
+    "ru": "Получайте уведомления о записи клиента через ИИ.",
+    "pl": "Otrzymuj powiadomienia o rezerwacjach przez AI.",
+    "zh": "客户通过AI预约时立即通知。"
+  },
+  "API ключі ще не створено.": {
+    "en": "No API keys yet.",
+    "ru": "API-ключи ещё не созданы.",
+    "pl": "Brak kluczy API.",
+    "zh": "尚无API密钥。"
+  },
+  "Ваші ключі": {
+    "en": "Your keys",
+    "ru": "Ваши ключи",
+    "pl": "Twoje klucze",
+    "zh": "您的密钥"
+  },
+  "Назва ключа (напр. 'Мій сайт')": {
+    "en": "Key name (e.g. 'My website')",
+    "ru": "Название ключа (например «Мой сайт»)",
+    "pl": "Nazwa klucza (np. „Moja strona”)",
+    "zh": "密钥名称（例如“我的网站”）"
+  },
+  "Видалити ключ": {
+    "en": "Delete key",
+    "ru": "Удалить ключ",
+    "pl": "Usuń klucz",
+    "zh": "删除密钥"
+  },
+  "Ендпоінт": {
+    "en": "Endpoint",
+    "ru": "Эндпоинт",
+    "pl": "Punkt końcowy",
+    "zh": "端点"
+  },
+  "Дія": {
+    "en": "Action",
+    "ru": "Действие",
+    "pl": "Działanie",
+    "zh": "操作"
+  },
+  "Каталог Інтеграцій": {
+    "en": "Integration catalog",
+    "ru": "Каталог интеграций",
+    "pl": "Katalog integracji",
+    "zh": "集成目录"
+  },
+  "Каталог сервісів": {
+    "en": "Service catalog",
+    "ru": "Каталог сервисов",
+    "pl": "Katalog usług",
+    "zh": "服务目录"
+  },
+  "Налаштування SMTP (Пошта)": {
+    "en": "SMTP settings (email)",
+    "ru": "Настройки SMTP (почта)",
+    "pl": "Ustawienia SMTP (poczta)",
+    "zh": "SMTP设置（邮件）"
+  },
+  "SMTP Сервер": {
+    "en": "SMTP server",
+    "ru": "SMTP сервер",
+    "pl": "Serwer SMTP",
+    "zh": "SMTP服务器"
+  },
+  "Порт": {
+    "en": "Port",
+    "ru": "Порт",
+    "pl": "Port",
+    "zh": "端口"
+  },
+  "Відправник (Sender Email)": {
+    "en": "Sender email",
+    "ru": "Email отправителя",
+    "pl": "Email nadawcy",
+    "zh": "发件人邮箱"
+  },
+  "Робочі години": {
+    "en": "Working hours",
+    "ru": "Рабочие часы",
+    "pl": "Godziny pracy",
+    "zh": "工作时间"
+  },
+  "Модель ШІ": {
+    "en": "AI model",
+    "ru": "Модель ИИ",
+    "pl": "Model AI",
+    "zh": "AI模型"
+  },
+  "Мова спілкування": {
+    "en": "Conversation language",
+    "ru": "Язык общения",
+    "pl": "Język rozmowy",
+    "zh": "对话语言"
+  },
+  "Ім'я асистента": {
+    "en": "Assistant name",
+    "ru": "Имя ассистента",
+    "pl": "Imię asystenta",
+    "zh": "助手名称"
+  },
+  "Макс. токенів": {
+    "en": "Maximum tokens",
+    "ru": "Макс. токенов",
+    "pl": "Maksymalna liczba tokenów",
+    "zh": "最大令牌数"
+  },
+  "Згенерований Prompt": {
+    "en": "Generated prompt",
+    "ru": "Сгенерированный промпт",
+    "pl": "Wygenerowany prompt",
+    "zh": "生成的提示"
+  },
+  "Зберегти згенерований Prompt": {
+    "en": "Save generated prompt",
+    "ru": "Сохранить промпт",
+    "pl": "Zapisz wygenerowany prompt",
+    "zh": "保存生成提示"
+  },
+  "Конструктор Особистості ШІ": {
+    "en": "AI personality builder",
+    "ru": "Конструктор личности ИИ",
+    "pl": "Kreator osobowości AI",
+    "zh": "AI个性构建器"
+  },
+  "Налаштуйте поведінку асистента до дрібниць (30+ параметрів)": {
+    "en": "Configure assistant behavior (30+ settings)",
+    "ru": "Настройте поведение ассистента (30+ параметров)",
+    "pl": "Konfiguruj zachowanie asystenta (ponad 30 ustawień)",
+    "zh": "配置助手行为（30多项设置）"
+  },
+  "Роль": {
+    "en": "Role",
+    "ru": "Роль",
+    "pl": "Rola",
+    "zh": "角色"
+  },
+  "Стиль": {
+    "en": "Style",
+    "ru": "Стиль",
+    "pl": "Styl",
+    "zh": "风格"
+  },
+  "Медицина": {
+    "en": "Healthcare",
+    "ru": "Медицина",
+    "pl": "Medycyna",
+    "zh": "医疗"
+  },
+  "Одяг": {
+    "en": "Clothing",
+    "ru": "Одежда",
+    "pl": "Odzież",
+    "zh": "服装"
+  },
+  "Експерт-консультант": {
+    "en": "Expert consultant",
+    "ru": "Эксперт-консультант",
+    "pl": "Ekspert konsultant",
+    "zh": "专家顾问"
+  },
+  "Професійний жаргон": {
+    "en": "Professional terminology",
+    "ru": "Профессиональный жаргон",
+    "pl": "Terminologia zawodowa",
+    "zh": "专业术语"
+  },
+  "Преміум": {
+    "en": "Premium",
+    "ru": "Премиум",
+    "pl": "Premium",
+    "zh": "高级"
+  },
+  "Лаконічно": {
+    "en": "Concise",
+    "ru": "Лаконично",
+    "pl": "Zwięźle",
+    "zh": "简洁"
+  },
+  "Впевнено": {
+    "en": "Confident",
+    "ru": "Уверенно",
+    "pl": "Pewnie",
+    "zh": "自信"
+  },
+  "Помірно": {
+    "en": "Moderately",
+    "ru": "Умеренно",
+    "pl": "Umiarkowanie",
+    "zh": "适度"
+  },
+  "Багато": {
+    "en": "Many",
+    "ru": "Много",
+    "pl": "Dużo",
+    "zh": "很多"
+  },
+  "Без емодзі": {
+    "en": "No emoji",
+    "ru": "Без эмодзи",
+    "pl": "Bez emoji",
+    "zh": "无表情"
+  },
+  "Емодзі": {
+    "en": "Emoji",
+    "ru": "Эмодзи",
+    "pl": "Emoji",
+    "zh": "表情"
+  },
+  "Довжина відповідей": {
+    "en": "Response length",
+    "ru": "Длина ответов",
+    "pl": "Długość odpowiedzi",
+    "zh": "回复长度"
+  },
+  "Збір контактів": {
+    "en": "Contact collection",
+    "ru": "Сбор контактов",
+    "pl": "Zbieranie kontaktów",
+    "zh": "收集联系人"
+  },
+  "Питати на початку": {
+    "en": "Ask at the start",
+    "ru": "Спрашивать в начале",
+    "pl": "Pytaj na początku",
+    "zh": "开始时询问"
+  },
+  "Питати при бронюванні": {
+    "en": "Ask when booking",
+    "ru": "Спрашивать при бронировании",
+    "pl": "Pytaj przy rezerwacji",
+    "zh": "预约时询问"
+  },
+  "Допродаж (Upsell)": {
+    "en": "Upselling",
+    "ru": "Допродажа",
+    "pl": "Sprzedaż dodatkowa",
+    "zh": "追加销售"
+  },
+  "Показ цін": {
+    "en": "Price display",
+    "ru": "Показ цен",
+    "pl": "Wyświetlanie cen",
+    "zh": "显示价格"
+  },
+  "Питати бажаний час": {
+    "en": "Ask preferred time",
+    "ru": "Спрашивать желаемое время",
+    "pl": "Pytaj o preferowany czas",
+    "zh": "询问首选时间"
+  },
+  "Пропонувати конкретні слоти": {
+    "en": "Suggest specific slots",
+    "ru": "Предлагать конкретные слоты",
+    "pl": "Proponuj konkretne terminy",
+    "zh": "建议具体时段"
+  },
+  "Бронювати одразу": {
+    "en": "Book immediately",
+    "ru": "Бронировать сразу",
+    "pl": "Rezerwuj od razu",
+    "zh": "立即预约"
+  },
+  "Завжди питати підтвердження": {
+    "en": "Always ask for confirmation",
+    "ru": "Всегда спрашивать подтверждение",
+    "pl": "Zawsze pytaj o potwierdzenie",
+    "zh": "始终请求确认"
+  },
+  "Завжди вказувати ціну": {
+    "en": "Always show price",
+    "ru": "Всегда указывать цену",
+    "pl": "Zawsze pokazuj cenę",
+    "zh": "始终显示价格"
+  },
+  "Джерело знань": {
+    "en": "Knowledge source",
+    "ru": "Источник знаний",
+    "pl": "Źródło wiedzy",
+    "zh": "知识来源"
+  },
+  "Дозволити загальні знання": {
+    "en": "Allow general knowledge",
+    "ru": "Разрешить общие знания",
+    "pl": "Zezwól na wiedzę ogólną",
+    "zh": "允许通用知识"
+  },
+  "Не ставити зайвих питань": {
+    "en": "Avoid extra questions",
+    "ru": "Не задавать лишние вопросы",
+    "pl": "Unikaj zbędnych pytań",
+    "zh": "避免额外提问"
+  },
+  "Просити більше деталей": {
+    "en": "Ask for more details",
+    "ru": "Просить больше деталей",
+    "pl": "Proś o więcej szczegółów",
+    "zh": "询问更多细节"
+  },
+  "Перефразувати питання": {
+    "en": "Rephrase question",
+    "ru": "Перефразировать вопрос",
+    "pl": "Przeformułuj pytanie",
+    "zh": "重新表述问题"
+  },
+  "Завершення діалогу": {
+    "en": "Ending the conversation",
+    "ru": "Завершение диалога",
+    "pl": "Zakończenie rozmowy",
+    "zh": "结束对话"
+  },
+  "Ввічливо прощатися": {
+    "en": "Say goodbye politely",
+    "ru": "Вежливо прощаться",
+    "pl": "Pożegnaj uprzejmie",
+    "zh": "礼貌告别"
+  },
+  "Завжди питати 'Чим ще?'": {
+    "en": "Always ask 'Anything else?'",
+    "ru": "Всегда спрашивать «Чем ещё?»",
+    "pl": "Zawsze pytaj „Co jeszcze?”",
+    "zh": "始终询问“还有其他吗？”"
+  },
+  "Подальші питання": {
+    "en": "Follow-up questions",
+    "ru": "Дополнительные вопросы",
+    "pl": "Pytania uzupełniające",
+    "zh": "后续问题"
+  },
+  "Пропонувати після запису": {
+    "en": "Offer after booking",
+    "ru": "Предлагать после записи",
+    "pl": "Proponuj po rezerwacji",
+    "zh": "预约后推荐"
+  },
+  "Проактивно пропонувати": {
+    "en": "Offer proactively",
+    "ru": "Предлагать проактивно",
+    "pl": "Proponuj proaktywnie",
+    "zh": "主动推荐"
+  },
+  "Не пропонувати": {
+    "en": "Do not offer",
+    "ru": "Не предлагать",
+    "pl": "Nie proponuj",
+    "zh": "不推荐"
+  },
+  "Завжди згадувати": {
+    "en": "Always mention",
+    "ru": "Всегда упоминать",
+    "pl": "Zawsze wspominaj",
+    "zh": "始终提及"
+  },
+  "Згадувати за запитом": {
+    "en": "Mention on request",
+    "ru": "Упоминать по запросу",
+    "pl": "Wspominaj na życzenie",
+    "zh": "按需提及"
+  },
+  "Довідковий центр (FAQ)": {
+    "en": "Help center (FAQ)",
+    "ru": "Справочный центр (FAQ)",
+    "pl": "Centrum pomocy (FAQ)",
+    "zh": "帮助中心（FAQ）"
+  },
+  "Написати в підтримку": {
+    "en": "Contact support",
+    "ru": "Написать в поддержку",
+    "pl": "Kontakt z pomocą",
+    "zh": "联系支持"
+  },
+  "Документи ще не завантажені": {
+    "en": "No documents uploaded",
+    "ru": "Документы ещё не загружены",
+    "pl": "Nie przesłano dokumentów",
+    "zh": "尚未上传文件"
+  },
+  "Оберіть": {
+    "en": "Select",
+    "ru": "Выберите",
+    "pl": "Wybierz",
+    "zh": "选择"
+  },
+  "Оберіть діалог": {
+    "en": "Select conversation",
+    "ru": "Выберите диалог",
+    "pl": "Wybierz rozmowę",
+    "zh": "选择对话"
+  },
+  "Детально": {
+    "en": "Detailed",
+    "ru": "Подробно",
+    "pl": "Szczegółowo",
+    "zh": "详细"
+  },
+  "Звернення": {
+    "en": "Inquiries",
+    "ru": "Обращения",
+    "pl": "Zapytania",
+    "zh": "咨询"
+  },
+  "Договір.pdf": {
+    "en": "Contract.pdf",
+    "ru": "Договор.pdf",
+    "pl": "Umowa.pdf",
+    "zh": "合同.pdf"
+  },
+  "Прайс": {
+    "en": "Pricing",
+    "ru": "Прайс",
+    "pl": "Cennik",
+    "zh": "价目表"
+  },
+  "Експорт": {
+    "en": "Export",
+    "ru": "Экспорт",
+    "pl": "Eksport",
+    "zh": "导出"
+  },
+  "Загалом": {
+    "en": "Total",
+    "ru": "Итого",
+    "pl": "Razem",
+    "zh": "总计"
+  },
+  "Керування особистими налаштуваннями": {
+    "en": "Manage personal settings",
+    "ru": "Управление личными настройками",
+    "pl": "Zarządzaj ustawieniami osobistymi",
+    "zh": "管理个人设置"
+  },
+  "Основна навігація": {
+    "en": "Main navigation",
+    "ru": "Основная навигация",
+    "pl": "Nawigacja główna",
+    "zh": "主导航"
+  },
+  "Головна навігація": {
+    "en": "Main navigation",
+    "ru": "Главная навигация",
+    "pl": "Nawigacja główna",
+    "zh": "主导航"
+  },
+  "Пошук сторінок": {
+    "en": "Search pages",
+    "ru": "Поиск страниц",
+    "pl": "Szukaj stron",
+    "zh": "搜索页面"
+  },
+  "Етапи реєстрації": {
+    "en": "Registration steps",
+    "ru": "Этапы регистрации",
+    "pl": "Etapy rejestracji",
+    "zh": "注册步骤"
+  },
+  "Бізнес / Тариф": {
+    "en": "Business / plan",
+    "ru": "Бизнес / тариф",
+    "pl": "Firma / plan",
+    "zh": "企业 / 套餐"
+  },
+  "Огляд": {
+    "en": "Overview",
+    "ru": "Обзор",
+    "pl": "Przegląd",
+    "zh": "概览"
+  },
+  "ДАТА": {
+    "en": "DATE",
+    "ru": "ДАТА",
+    "pl": "DATA",
+    "zh": "日期"
+  },
+  "ЧАС": {
+    "en": "TIME",
+    "ru": "ВРЕМЯ",
+    "pl": "GODZINA",
+    "zh": "时间"
+  },
+  "КОНТАКТНИЙ НОМЕР": {
+    "en": "CONTACT NUMBER",
+    "ru": "КОНТАКТНЫЙ НОМЕР",
+    "pl": "NUMER KONTAKTOWY",
+    "zh": "联系电话"
+  },
+  "ОБРАНИЙ СЕРВІС": {
+    "en": "SELECTED SERVICE",
+    "ru": "ВЫБРАННЫЙ СЕРВИС",
+    "pl": "WYBRANA USŁUGA",
+    "zh": "选定服务"
+  },
+  "ПРОФІЛЬ ГОСТЯ": {
+    "en": "GUEST PROFILE",
+    "ru": "ПРОФИЛЬ ГОСТЯ",
+    "pl": "PROFIL GOŚCIA",
+    "zh": "访客资料"
+  },
+  "Дані збираються...": {
+    "en": "Collecting data…",
+    "ru": "Данные собираются…",
+    "pl": "Zbieranie danych…",
+    "zh": "正在收集数据…"
+  },
+  "Нд": {
+    "en": "Sun",
+    "ru": "Вс",
+    "pl": "Nd",
+    "zh": "周日"
+  },
+  "НД": {
+    "en": "SUN",
+    "ru": "ВС",
+    "pl": "ND",
+    "zh": "周日"
+  },
+  "Пн": {
+    "en": "Mon",
+    "ru": "Пн",
+    "pl": "Pn",
+    "zh": "周一"
+  },
+  "ПН": {
+    "en": "MON",
+    "ru": "ПН",
+    "pl": "PN",
+    "zh": "周一"
+  },
+  "Вт": {
+    "en": "Tue",
+    "ru": "Вт",
+    "pl": "Wt",
+    "zh": "周二"
+  },
+  "ВТ": {
+    "en": "TUE",
+    "ru": "ВТ",
+    "pl": "WT",
+    "zh": "周二"
+  },
+  "Ср": {
+    "en": "Wed",
+    "ru": "Ср",
+    "pl": "Śr",
+    "zh": "周三"
+  },
+  "СР": {
+    "en": "WED",
+    "ru": "СР",
+    "pl": "ŚR",
+    "zh": "周三"
+  },
+  "Чт": {
+    "en": "Thu",
+    "ru": "Чт",
+    "pl": "Czw",
+    "zh": "周四"
+  },
+  "ЧТ": {
+    "en": "THU",
+    "ru": "ЧТ",
+    "pl": "CZW",
+    "zh": "周四"
+  },
+  "Пт": {
+    "en": "Fri",
+    "ru": "Пт",
+    "pl": "Pt",
+    "zh": "周五"
+  },
+  "ПТ": {
+    "en": "FRI",
+    "ru": "ПТ",
+    "pl": "PT",
+    "zh": "周五"
+  },
+  "Сб": {
+    "en": "Sat",
+    "ru": "Сб",
+    "pl": "Sob",
+    "zh": "周六"
+  },
+  "СБ": {
+    "en": "SAT",
+    "ru": "СБ",
+    "pl": "SOB",
+    "zh": "周六"
+  },
+  "Пн-Пт": {
+    "en": "Mon–Fri",
+    "ru": "Пн–Пт",
+    "pl": "Pn–Pt",
+    "zh": "周一至周五"
+  },
+  "Пн-Нд": {
+    "en": "Mon–Sun",
+    "ru": "Пн–Вс",
+    "pl": "Pn–Nd",
+    "zh": "周一至周日"
+  },
+  "Щодня": {
+    "en": "Daily",
+    "ru": "Ежедневно",
+    "pl": "Codziennie",
+    "zh": "每天"
+  },
+  "грн": {
+    "en": "UAH",
+    "ru": "грн",
+    "pl": "UAH",
+    "zh": "UAH"
+  },
+  "візитів": {
+    "en": "visits",
+    "ru": "визитов",
+    "pl": "wizyt",
+    "zh": "访问"
+  },
+  "шт.": {
+    "en": "pcs.",
+    "ru": "шт.",
+    "pl": "szt.",
+    "zh": "件"
+  },
+  "хв)": {
+    "en": "min)",
+    "ru": "мин)",
+    "pl": "min)",
+    "zh": "分钟）"
+  },
+  "за завершеними записами": {
+    "en": "from completed appointments",
+    "ru": "по завершённым записям",
+    "pl": "z zakończonych wizyt",
+    "zh": "来自已完成预约"
+  },
+  "ПОВНИЙ КОНТЕКСТ. ОДИН ПРОСТІР.": {
+    "en": "FULL CONTEXT. ONE WORKSPACE.",
+    "ru": "ПОЛНЫЙ КОНТЕКСТ. ОДНО ПРОСТРАНСТВО.",
+    "pl": "PEŁEN KONTEKST. JEDNA PRZESTRZEŃ.",
+    "zh": "完整上下文。一个工作空间。"
+  },
+  "Повернутися до входу": {
+    "en": "Back to sign in",
+    "ru": "Вернуться ко входу",
+    "pl": "Wróć do logowania",
+    "zh": "返回登录"
+  },
+  "Я ознайомився з": {
+    "en": "I have reviewed",
+    "ru": "Я ознакомился с",
+    "pl": "Zapoznałem się z",
+    "zh": "我已阅读"
+  },
+  "умовами Business": {
+    "en": "Business terms",
+    "ru": "условиями Business",
+    "pl": "warunkami Business",
+    "zh": "Business条款"
+  },
+  "та": {
+    "en": "and",
+    "ru": "и",
+    "pl": "i",
+    "zh": "和"
+  },
+  "та договір": {
+    "en": "and the contract",
+    "ru": "и договор",
+    "pl": "i umową",
+    "zh": "和合同"
+  },
+  "і погоджуюся з умовами обраного тарифу.": {
+    "en": "and agree to the selected plan's terms.",
+    "ru": "и согласен с условиями выбранного тарифа.",
+    "pl": "i akceptuję warunki wybranego planu.",
+    "zh": "并同意所选套餐条款。"
+  },
+  "Підготуйте квитанцію, підписаний": {
+    "en": "Prepare the receipt and signed",
+    "ru": "Подготовьте квитанцию, подписанный",
+    "pl": "Przygotuj potwierdzenie i podpisane",
+    "zh": "准备收据及签署的"
+  },
+  ". Підписані документи перевіряє адміністратор.": {
+    "en": ". Signed documents are reviewed by an administrator.",
+    "ru": ". Подписанные документы проверяет администратор.",
+    "pl": ". Podpisane dokumenty sprawdza administrator.",
+    "zh": "。管理员将审核签署的文件。"
+  },
+  "Якщо у вас виникли запитання, зверніться до адміністратора, з яким узгоджували підключення.": {
+    "en": "For questions, contact the administrator who arranged your setup.",
+    "ru": "По вопросам обратитесь к администратору, с которым согласовывали подключение.",
+    "pl": "W razie pytań skontaktuj się z administratorem wdrożenia.",
+    "zh": "如有疑问，请联系负责部署的管理员。"
+  },
+  "Нові підключення тимчасово призупинено. Зверніться до адміністратора.": {
+    "en": "New connections are temporarily paused. Contact the administrator.",
+    "ru": "Новые подключения временно приостановлены. Свяжитесь с администратором.",
+    "pl": "Nowe wdrożenia są tymczasowo wstrzymane. Skontaktuj się z administratorem.",
+    "zh": "新部署暂时暂停。请联系管理员。"
+  },
+  "Призначення платежу: підключення SafeOrbit, назва бізнесу та ваш телефон. Суму й умови підключення уточнює адміністратор.": {
+    "en": "Payment reference: SafeOrbit setup, business name and phone. Confirm the amount and terms with the administrator.",
+    "ru": "Назначение платежа: подключение SafeOrbit, название бизнеса и телефон. Сумму и условия уточняет администратор.",
+    "pl": "Tytuł płatności: wdrożenie SafeOrbit, nazwa firmy i telefon. Kwotę i warunki potwierdza administrator.",
+    "zh": "付款备注：SafeOrbit部署、企业名称和电话。金额和条款由管理员确认。"
+  },
+  "Після перевірки заявки адміністратор активує ваш простір. Автоматичних списань немає.": {
+    "en": "An administrator activates your workspace after review. There are no automatic charges.",
+    "ru": "После проверки администратор активирует пространство. Автоматических списаний нет.",
+    "pl": "Administrator aktywuje przestrzeń po weryfikacji. Nie ma automatycznych opłat.",
+    "zh": "审核后管理员将激活空间。不会自动扣费。"
+  },
+  "Ці налаштування відображаються на сторінці реєстрації для всіх нових бізнесів.": {
+    "en": "These settings appear on registration for every new business.",
+    "ru": "Эти настройки отображаются при регистрации всех новых бизнесов.",
+    "pl": "Te ustawienia są widoczne przy rejestracji nowych firm.",
+    "zh": "这些设置会显示在所有新企业的注册页面。"
+  },
+  "Метод": {
+    "en": "Method",
+    "ru": "Метод",
+    "pl": "Metoda",
+    "zh": "方法"
+  },
+  "Бізнес": {
+    "en": "Business",
+    "ru": "Бизнес",
+    "pl": "Firma",
+    "zh": "企业"
+  },
+  "Заповніть обидва розділи форми нижче.": {
+    "en": "Complete both form sections below.",
+    "ru": "Заполните оба раздела формы ниже.",
+    "pl": "Wypełnij obie sekcje formularza poniżej.",
+    "zh": "请填写以下两部分表单。"
+  }
+}

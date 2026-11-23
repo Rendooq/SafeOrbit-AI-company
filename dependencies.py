@@ -12,15 +12,25 @@ from models import ApiKey, User, Business
 
 
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> Optional[User]:
-    user_id = request.session.get("user_id")
-    if user_id:
-        user = await db.get(User, user_id)
-        if user:
-            # Attach business object to user for convenience
-            if user.business_id:
-                user.business = await db.get(Business, user.business_id)
-            return user
-    return None
+    from services.demo_workspace import DEMO_USER_ID
+
+    demo = getattr(request.state, "demo_workspace", False)
+    uid = DEMO_USER_ID if demo else request.session.get("user_id")
+    if not isinstance(uid, int):
+        if uid is not None:
+            request.session.clear()
+        return None
+    user = await db.get(User, uid)
+    if not user:
+        request.session.clear()
+        return None
+    if user.business_id:
+        user.business = await db.get(Business, user.business_id)
+        if not user.business or not user.business.is_active:
+            request.session.clear()
+            return None
+    user.is_demo_workspace = demo
+    return user
 
 
 class APIKeyAuth:
@@ -46,9 +56,10 @@ class APIKeyAuth:
         # Note: For production, consider adding a cache layer (e.g., Redis)
         # to reduce DB load for frequent API key lookups.
         authenticated_key = await db.scalar(
-            select(ApiKey).where(
+            select(ApiKey).join(Business, Business.id == ApiKey.business_id).where(
                 ApiKey.api_key == x_api_key,
-                ApiKey.is_active == True
+                ApiKey.is_active == True,
+                Business.is_active == True,
             )
         )
 

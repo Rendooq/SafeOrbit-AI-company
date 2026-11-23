@@ -1,11 +1,14 @@
 import json
 import logging
+import hmac
+import hashlib
+from config import SECRET_KEY
 from datetime import datetime
 import hmac
 import asyncio
 
 import httpx
-from fastapi import APIRouter, Depends, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -104,6 +107,10 @@ async def _process_telegram_update_bg(business_id: int, data: dict, bot_token: s
 
 @router.post("/telegram/{business_id}", include_in_schema=False)
 async def telegram_webhook(business_id: int, request: Request, bg_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+    expected = hmac.new(SECRET_KEY.encode(), f"telegram:{business_id}".encode(), hashlib.sha256).hexdigest()
+    provided = request.headers.get("x-telegram-bot-api-secret-token", "")
+    if not provided or not hmac.compare_digest(expected, provided):
+        raise HTTPException(status_code=401, detail="Invalid Telegram webhook secret")
     try:
         data = await request.json()
         

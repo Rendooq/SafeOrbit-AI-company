@@ -1,0 +1,208 @@
+/* Final semantic layer. Do not replace readable text with faded decorative colors. */
+:root,[data-theme="light"]{
+  --ui-bg:#f4f5f8;--ui-surface:#ffffff;--ui-surface-alt:#f4f5f9;--ui-text:#202431;
+  --ui-muted:#5b6373;--ui-border:#d9dce5;--ui-accent:#bf3b16;--ui-accent-soft:#fff0e8;
+  --ui-positive:#186040;--ui-positive-bg:#e8f6ee;--ui-danger:#a62b35;--ui-danger-bg:#fff0f1;
+  --ui-warning:#77510b;--ui-warning-bg:#fff5d9;--ui-info:#315aa1;--ui-info-bg:#edf3ff;
+  --ui-sidebar:#191a20;--ui-sidebar-text:#f1f3fa;--ui-sidebar-muted:#b4bccc;
+}
+[data-theme="dark"]{
+  --ui-bg:#000000;--ui-surface:#131419;--ui-surface-alt:#1c1f29;--ui-text:#f0f2f7;
+  --ui-muted:#b4bdcc;--ui-border:#353b4a;--ui-accent:#ff9e7d;--ui-accent-soft:#39251f;
+  --ui-positive:#9ce5bf;--ui-positive-bg:#17352a;--ui-danger:#ffb0b8;--ui-danger-bg:#3b2027;
+  --ui-warning:#f6d58d;--ui-warning-bg:#352e1b;--ui-info:#a9c7ff;--ui-info-bg:#202d45;
+  --ui-sidebar:#07080c;--ui-sidebar-text:#f1f3fa;--ui-sidebar-muted:#b4bccc;
+}
+html{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark}
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-width:38px;min-height:38px;border:1px solid var(--ui-border);border-radius:7px;
+  background:var(--ui-surface);color:var(--ui-text);padding:8px 10px;font:600 11px Manrope,"Segoe UI",sans-serif;cursor:pointer;flex:none}
+.theme-toggle:hover{background:var(--ui-surface-alt)}.theme-toggle svg{width:17px;height:17px;flex:none}
+.theme-toggle .theme-sun{display:none}html[data-theme="dark"] .theme-toggle .theme-sun{display:block}
+html[data-theme="dark"] .theme-toggle .theme-moon{display:none}
+.theme-toggle:focus-visible{outline:3px solid var(--ui-accent);outline-offset:3px}
+.language-select{min-height:38px;max-width:116px;border:1px solid var(--ui-border);border-radius:7px;
+  background:var(--ui-surface);color:var(--ui-text);padding:7px;font:600 11px Manrope,"Segoe UI",sans-serif}
+
+/* All workspace surfaces, not only the new overview. */
+html body.radical-workspace{background:var(--ui-bg)!important;color:var(--ui-text)!important;
+  --bg-primary:var(--ui-bg);--bg-secondary:var(--ui-surface);--glass-bg:var(--ui-surface);
+  --glass-border:var(--ui-border);--text-primary:var(--ui-text);--text-secondary:var(--ui-muted);
+  --text-muted:var(--ui-muted);--accent-primary:var(--ui-accent);--success:var(--ui-positive);
+  --warning:var(--ui-warning);--danger:var(--ui-danger);--info:var(--ui-info);
+  --accent-pink:var(--ui-accent);--bs-body-bg:var(--ui-bg);--bs-body-color:var(--ui-text)}
+html body.radical-workspace :is(.glass,.glass-card,.stat-card,.overview-panel,.metric-card,.command-hero,
+  .custom-calendar,.overview-tools,.workspace-topbar,.modal-content,.modal-header,.modal-footer,
+  .dropdown-menu,.list-group-item,.card,.card-body,.card-header,.card-footer,.command-dialog){
+  background:var(--ui-surface)!important;color:var(--ui-text)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace :is(h1,h2,h3,h4,h5,h6,.stat-value,.modal-title,.card-title,
+  .customer-cell strong,.team-member strong,.command-head,.panel-heading h2,.chart-summary>strong,
+  .metric-card>strong,.status-ring strong,.table-cost,.table strong,.glass-table strong,.empty-state>strong){
+  color:var(--ui-text)!important;text-shadow:none!important;opacity:1!important}
+html body.radical-workspace :is(.text-white,.text-light){color:var(--ui-text)!important}
+html body.radical-workspace :is(.text-muted,.text-secondary,.text-white-50,.stat-label,.stat-title,
+  .stat-change,.metric-top,.metric-foot,.metric-foot a,.panel-eyebrow,.panel-chip,.chart-summary>span,
+  .status-legend,.status-legend>div,.status-legend strong,.status-ring span,.customer-cell small,
+  .table-subtime,.team-member small,.team-empty,.empty-state p,.command-hint,.workspace-footer,
+  .breadcrumb-root,.workspace-live,.command-copy p,.page-kicker,.section-kicker,.label-hint){
+  color:var(--ui-muted)!important;opacity:1!important}
+html body.radical-workspace :is(.text-primary,.text-primary-glow,.team-link,.team-empty a,
+  .command-copy h1>span,.help-icon,.empty-action,.empty-state>span){color:var(--ui-accent)!important;text-shadow:none!important}
+html body.radical-workspace .text-success{color:var(--ui-positive)!important}
+html body.radical-workspace .text-danger{color:var(--ui-danger)!important}
+html body.radical-workspace .text-warning{color:var(--ui-warning)!important}
+html body.radical-workspace .text-info{color:var(--ui-info)!important}
+html body.radical-workspace :is(.bg-dark,.bg-black,.bg-light){background:var(--ui-surface-alt)!important;color:var(--ui-text)!important}
+html body.radical-workspace :is(.bg-success.bg-opacity-10,.status-pill.completed){
+  background:var(--ui-positive-bg)!important;color:var(--ui-positive)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace :is(.bg-warning.bg-opacity-10,.status-pill.confirmed){
+  background:var(--ui-warning-bg)!important;color:var(--ui-warning)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace :is(.bg-danger.bg-opacity-10,.status-pill.cancelled){
+  background:var(--ui-danger-bg)!important;color:var(--ui-danger)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace .bg-info.bg-opacity-10{background:var(--ui-info-bg)!important;color:var(--ui-info)!important}
+html body.radical-workspace :is(.stat-icon,.table-avatar,.team-avatar,.topbar-avatar){
+  background:var(--ui-accent-soft)!important;color:var(--ui-accent)!important}
+html body.radical-workspace :is(.table,.table-dark,.glass-table){
+  --bs-table-bg:transparent;--bs-table-color:var(--ui-text);--bs-table-border-color:var(--ui-border);
+  --bs-table-striped-bg:var(--ui-surface-alt);--bs-table-striped-color:var(--ui-text);
+  --bs-table-hover-bg:var(--ui-surface-alt);--bs-table-hover-color:var(--ui-text);color:var(--ui-text)!important}
+html body.radical-workspace :is(.table th,.glass-table th){
+  background:var(--ui-surface-alt)!important;color:var(--ui-muted)!important;border-color:var(--ui-border)!important;font-size:11px!important}
+html body.radical-workspace :is(.table td,.glass-table td){
+  color:var(--ui-text)!important;border-color:var(--ui-border)!important;font-size:12px!important}
+html body.radical-workspace :is(label,.form-label,.form-check-label){color:var(--ui-text)!important;opacity:1!important}
+html body.radical-workspace :is(.form-control,.form-select,.glass-input,.command-dialog input,
+  .swal2-input,.swal2-select,.swal2-textarea,select option){
+  background:var(--ui-surface-alt)!important;color:var(--ui-text)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+html body.radical-workspace textarea,
+html body.radical-workspace select{
+  background:var(--ui-surface-alt)!important;color:var(--ui-text)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace :is(input,textarea)::placeholder{color:var(--ui-muted)!important;opacity:1!important}
+html body.radical-workspace :is(.form-control,.form-select,.glass-input):focus{
+  border-color:var(--ui-accent)!important;outline:2px solid var(--ui-accent-soft);box-shadow:none!important}
+html body.radical-workspace :is(.btn-glass,.btn-outline-light,.btn-light,.row-action,.command-trigger,
+  .panel-chip,.custom-calendar .calendar-nav button,.command-trigger kbd){
+  color:var(--ui-text)!important;background:var(--ui-surface-alt)!important;border:1px solid var(--ui-border)!important}
+html body.radical-workspace :is(.btn-grad,.btn-primary,.btn-primary-glow){
+  background:#bb3715!important;border-color:#bb3715!important;color:#fff!important}
+html[data-theme="dark"] .radical-workspace :is(.btn-grad,.btn-primary,.btn-primary-glow){
+  background:#ff9e7d!important;border-color:#ff9e7d!important;color:#21140e!important}
+/* Old nav-pill rules made inactive and active labels white-on-white. */
+html body.radical-workspace :is(.nav-pills,.nav-tabs,.custom-tabs) .nav-link{
+  color:var(--ui-text)!important;background:transparent!important;opacity:1!important;box-shadow:none!important;
+  border:1px solid transparent!important;font-size:12px!important}
+html body.radical-workspace :is(.nav-pills,.nav-tabs,.custom-tabs) .nav-link:hover{
+  background:var(--ui-surface-alt)!important;color:var(--ui-text)!important}
+html body.radical-workspace :is(.nav-pills,.nav-tabs,.custom-tabs) .nav-link.active{
+  background:var(--ui-accent-soft)!important;color:var(--ui-accent)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace :is(.nav-link,.btn,.btn-glass) i{color:inherit!important;opacity:1!important}
+html body.radical-workspace :is(.command-result,.dropdown-item){color:var(--ui-text)!important}
+html body.radical-workspace :is(.command-result,.dropdown-item):hover{
+  color:var(--ui-accent)!important;background:var(--ui-accent-soft)!important}
+html body.radical-workspace .overview-tools>summary{color:var(--ui-text)!important}
+html body.radical-workspace :is(.team-member,.team-link,.workspace-footer,.status-legend,.modal-header,
+  .modal-footer,.overview-tools[open]>summary){border-color:var(--ui-border)!important}
+html body.radical-workspace .status-ring{
+  background:conic-gradient(var(--ui-accent) 0 var(--completion),var(--ui-surface-alt) var(--completion) 100%)!important}
+html body.radical-workspace .status-ring::before{background:var(--ui-surface)!important}
+html body.radical-workspace :is(.swal2-popup,.swal2-title,.swal2-html-container){background:var(--ui-surface)!important;color:var(--ui-text)!important}
+html body.radical-workspace [style*="border-color: rgba(255" i]{border-color:var(--ui-border)!important}
+html body.radical-workspace .bg-primary.bg-opacity-10{
+  background:var(--ui-accent-soft)!important;color:var(--ui-accent)!important}
+html[data-theme="dark"] .radical-workspace .btn-close{filter:invert(1)!important;opacity:.8!important}
+html body.radical-workspace :is(.so-i18n-select,.so-currency-select){
+  color:var(--ui-text)!important;background:var(--ui-surface)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace :is(.so-i18n-select,.so-currency-select) option{
+  color:var(--ui-text)!important;background:var(--ui-surface)!important}
+html body.radical-workspace .sidebar{background:var(--ui-sidebar)!important;color:var(--ui-sidebar-text)!important}
+html body.radical-workspace .sidebar :is(.workspace-brand,.workspace-switch strong,.workspace-profile strong,
+  .workspace-help strong){color:var(--ui-sidebar-text)!important}
+html body.radical-workspace .sidebar :is(.nav-item,.nav-item i,.workspace-profile small,.workspace-switch small,
+  .nav-kicker,.workspace-help p){color:var(--ui-sidebar-muted)!important}
+html body.radical-workspace .sidebar .nav-item.active,
+html body.radical-workspace .sidebar .nav-item.active i{background:#bb3715!important;color:#fff!important}
+html[data-theme="dark"] .radical-workspace .sidebar .nav-item.active,
+html[data-theme="dark"] .radical-workspace .sidebar .nav-item.active i{background:#ff9e7d!important;color:#21140e!important}
+html body.radical-workspace .hero-metric{background:#191a20!important;color:#fff!important}
+html body.radical-workspace .hero-metric>strong{color:#fff!important}
+html body.radical-workspace .hero-metric :is(.hero-metric-label,.hero-metric-foot){color:#c0c5d0!important}
+html body.radical-workspace .fc{
+  --fc-page-bg-color:var(--ui-surface);--fc-neutral-bg-color:var(--ui-surface-alt);--fc-border-color:var(--ui-border);
+  --fc-today-bg-color:var(--ui-accent-soft);--fc-event-bg-color:var(--ui-accent-soft);
+  --fc-event-border-color:var(--ui-border);--fc-event-text-color:var(--ui-text)}
+html body.radical-workspace :is(.fc a,.custom-calendar .weekday,.custom-calendar .day){color:var(--ui-text)!important}
+html body.radical-workspace .custom-calendar .day.selected{color:var(--ui-accent)!important;background:var(--ui-accent-soft)!important}
+html body.radical-workspace .alert-warning{color:var(--ui-warning)!important;background:var(--ui-warning-bg)!important;border-color:var(--ui-border)!important}
+html body.radical-workspace .alert-danger{color:var(--ui-danger)!important;background:var(--ui-danger-bg)!important;border-color:var(--ui-border)!important}
+/* Inherit semantic colors for light-text legacy inline decorations. */
+html body.radical-workspace [style*="color: rgba(255" i],
+html body.radical-workspace [style*="color:#fff" i],
+html body.radical-workspace [style*="color: #fff" i]{color:var(--ui-text)!important}
+html body.radical-workspace :is(.opacity-50,.opacity-75){opacity:1!important}
+html[data-theme="dark"] .radical-workspace [style*="background: rgba(255" i],
+html[data-theme="dark"] .radical-workspace [style*="background: #fff" i],
+html[data-theme="dark"] .radical-workspace [style*="background:#fff" i]{
+  background:var(--ui-surface-alt)!important;border-color:var(--ui-border)!important}
+
+/* Public/auth controls use the same saved preference. */
+html .auth-page{background:var(--ui-surface)!important;color:var(--ui-text)!important}
+html .auth-page :is(.auth-card h2,.field>label,.pending-title,.plan-top strong,
+  .plan-price,.payment-details summary,.step.active,.auth-top a,.signup-note a){color:var(--ui-text)!important}
+html .auth-page :is(.form-description,.label-hint,.login-note,.signup-note,.auth-caption,
+  .auth-footer,.auth-top,.plan-desc,.plan-detail,.plan-includes,.payment-explainer,.consent,
+  .activation-note,.pending-label,.payment-details dt,.step){color:var(--ui-muted)!important}
+html .auth-page :is(input:not([type=checkbox]):not([type=radio]),select,.plan-card,.pending-ticket,
+  .payment-details,.button-secondary){background:var(--ui-surface-alt)!important;color:var(--ui-text)!important;border-color:var(--ui-border)!important}
+html .auth-page input::placeholder{color:var(--ui-muted)!important}
+html .auth-page .plan-card:has(input:checked){background:var(--ui-accent-soft)!important;border-color:var(--ui-accent)!important}
+html .auth-page .plan-card:has(input:checked) .radio-dot{border-color:var(--ui-accent)!important}
+html .auth-page :is(.button-primary,.step.active b){background:#bb3715!important;border-color:#bb3715!important;color:#fff!important}
+html[data-theme="dark"] .auth-page :is(.button-primary,.step.active b){background:#ff9e7d!important;border-color:#ff9e7d!important;color:#21140e!important}
+html .auth-page :is(.payment-explainer a,.consent a,.password-toggle){color:var(--ui-accent)!important}
+html .auth-page .info-note{background:var(--ui-accent-soft)!important;color:var(--ui-accent)!important;border-color:var(--ui-border)!important}
+html .auth-page .form-alert{background:var(--ui-danger-bg)!important;color:var(--ui-danger)!important;border-color:var(--ui-border)!important}
+html .auth-page input::file-selector-button{
+  background:var(--ui-surface)!important;color:var(--ui-text)!important;border:1px solid var(--ui-border)!important}
+html .auth-page .auth-top{flex-wrap:wrap}
+html .auth-page .manifesto-content>p{color:#bbc1cf}
+html .auth-page .manifesto-footer{color:#b0b7c6}
+html[data-theme="dark"] .auth-page .auth-manifesto{background:#090a0e!important}
+html .marketing-v2 :is(.hero-copy>p,.hero-caption,.section-top p,.feature-grid p,.feature-tag,
+  .site-footer>span,.site-footer>div,.industry-strip>span){color:var(--ui-muted)!important}
+html .marketing-v2 :is(.button-v2.primary){background:#bb3715!important;color:#fff!important}
+html[data-theme="dark"] .marketing-v2{background:var(--ui-bg)!important;color:var(--ui-text)!important}
+html[data-theme="dark"] .marketing-v2 :is(.site-nav,.industry-strip,.site-footer){background:var(--ui-bg)!important;border-color:var(--ui-border)!important}
+html[data-theme="dark"] .marketing-v2 :is(.feature-grid article,.floating-label,.floating-result){
+  background:var(--ui-surface)!important;border-color:var(--ui-border)!important;color:var(--ui-text)!important}
+html[data-theme="dark"] .marketing-v2 :is(.hero-outline,.section-top h2 span){color:var(--ui-muted)!important}
+html[data-theme="dark"] .marketing-v2 .button-v2.primary{background:#ff9e7d!important;color:#21140e!important}
+html[data-theme="dark"] .marketing-v2 .button-v2.dark{background:var(--ui-surface-alt)!important;border-color:var(--ui-border)!important;color:var(--ui-text)!important}
+html[data-theme="dark"] .marketing-v2 .hero-visual::before{background:#38231f!important}
+html[data-theme="dark"] .marketing-v2 .visual-orbit{border-color:#35313c!important}
+html[data-theme="dark"] .marketing-v2 :is(.industry-strip strong,.site-nav nav){color:var(--ui-muted)!important}
+html[data-theme="dark"] .marketing-v2 .product-mockup{color:#202431}
+html[data-theme="dark"] .marketing-v2 .feature-tag{border-color:var(--ui-border)!important}
+@media(max-width:550px){.theme-toggle{min-width:36px;min-height:36px;padding:7px}.theme-toggle [data-theme-label]{display:none}.auth-page .auth-top>span{max-width:125px}}
+@media(max-width:600px){.language-select{max-width:90px;font-size:10px}.site-nav .nav-actions{gap:7px}.auth-page .auth-top{gap:9px}}
+
+/* Workspace text and controls retain their contrast before the theme script runs. */
+html body.radical-workspace :is(.topbar-left strong,.btn-secondary-glass,.secondary-btn){
+  color:var(--ui-text)!important}
+html body.radical-workspace :is(.stat-label,.stat-title,.form-label){
+  font-size:.8125rem!important;letter-spacing:.02em}
+html body.radical-workspace :is(.stat-change,.btn-glass,.dropdown-item){
+  font-size:.875rem!important}
+html body.radical-workspace :is(.btn-glass,.btn-secondary-glass,.secondary-btn):hover{
+  background:var(--ui-accent-soft)!important;color:var(--ui-accent)!important}
+html body.radical-workspace :is(.btn,.nav-link,.btn-glass,.btn-secondary-glass):focus-visible{
+  outline:2px solid var(--ui-accent);outline-offset:2px;box-shadow:none!important}
+
+.superadmin-navigation{display:flex;flex-wrap:wrap;align-items:flex-start;gap:.75rem;padding:.75rem}
+.superadmin-navigation #saTabs{
+  display:flex;flex:1 1 32rem;flex-wrap:wrap;gap:.375rem;padding:0;border:0;background:transparent}
+html body.radical-workspace .superadmin-navigation #saTabs .nav-link{
+  font-size:.875rem!important;line-height:1.35;min-height:44px;padding:.55rem .75rem}
+.superadmin-navigation .superadmin-rates{
+  display:inline-flex;align-items:center;min-height:44px;padding:.55rem .75rem}

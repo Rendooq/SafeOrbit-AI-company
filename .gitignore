@@ -1,0 +1,12 @@
+local.db
+.env
+.venv/
+.backups/
+.pytest_cache/
+__pycache__/
+*.pyc
+.session-secret
+static/uploads/
+*.db-wal
+*.db-shm
+qa/

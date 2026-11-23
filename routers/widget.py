@@ -52,7 +52,8 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script defer src="/static/i18n.js"></script>
+    <script defer src="/static/locales/catalog.js?v=sale-locales2"></script>
+    <script defer src="/static/i18n.js?v=sale-locales2"></script>
     <style>
         *, *::before, *::after {{ box-sizing: border-box; }}
         html, body {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}
@@ -420,7 +421,20 @@ async def process_public_booking(
     delivery_address: str = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
-    dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    biz = await db.get(Business, business_id)
+    if not biz or not biz.is_active:
+        return HTMLResponse("Недоступний бізнес", status_code=404)
+    try:
+        dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        mid = int(master_id) if master_id else None
+    except ValueError:
+        return HTMLResponse("Некоректні дані", status_code=400)
+    if not phone.strip() or len(phone) > 32 or not name.strip() or len(name) > 160:
+        return HTMLResponse("Некоректні дані", status_code=400)
+    if mid is not None:
+        master_rec = await db.get(Master, mid)
+        if not master_rec or master_rec.business_id != business_id or not master_rec.is_active:
+            return HTMLResponse("Недоступний спеціаліст", status_code=400)
     if dt < datetime.now(UA_TZ).replace(tzinfo=None):
         return RedirectResponse(f"/widget/{business_id}?msg=past_time", status_code=303)
 
@@ -428,6 +442,8 @@ async def process_public_booking(
     day_end = day_start + timedelta(days=1)
     
     srv = (await db.execute(select(Service).where(and_(Service.name == service, Service.business_id == business_id)))).scalar_one_or_none()
+    if not srv:
+        return HTMLResponse("Недоступна послуга", status_code=400)
     duration = srv.duration if srv and srv.duration else 90
     cost = srv.price if srv else 0.0
     
@@ -435,6 +451,8 @@ async def process_public_booking(
     new_end = dt + timedelta(minutes=duration)
     
     stmt_overlap = select(Appointment).where(and_(Appointment.business_id == business_id, Appointment.status != 'cancelled', Appointment.appointment_time >= day_start, Appointment.appointment_time < day_end))
+    if mid:
+        stmt_overlap = stmt_overlap.where(Appointment.master_id == mid)
     existing_apps = (await db.execute(stmt_overlap)).scalars().all()
     
     for app in existing_apps:
@@ -519,11 +537,12 @@ async def widget_chat_api(data: dict, db: AsyncSession = Depends(get_db)):
     try:
         business_id = data.get('business_id')
         message = data.get('message', '')
-        session_id = data.get('session_id', 'unknown')
 
         biz = await db.get(Business, business_id)
-        if not biz:
+        if not biz or not biz.is_active:
             return {"response": "Бізнес не знайдено"}
+        if not isinstance(message, str) or len(message) > 4000:
+            return {"response": "Некоректне повідомлення"}
 
         # Simple intent detection
         msg_lower = message.lower()
@@ -538,10 +557,11 @@ async def widget_chat_api(data: dict, db: AsyncSession = Depends(get_db)):
             return {"response": f"Наші сервіси: {svcs}. Бажаєте зареєструвати візит на один із них?"}
 
         if any(w in msg_lower for w in ['графік', 'час', 'коли', 'hours', 'time']):
-            return {"response": f"Ми працюємо: {biz.working_hours or 'Пн-Пт: 09:00 - 20:00'}. Коли вам було б зручно завітати?"}
+            if biz.working_hours:
+                return {"response": f"Графік роботи: {biz.working_hours}"}
+            return {"response": "Графік роботи не вказано. Перегляньте доступні дати у формі запису.", "action": "booking"}
 
-        # Default AI response (Simplified for now, real AI would use Groq)
-        return {"response": f"Дякуємо за ваше повідомлення: '{message}'. Наш менеджер скоро зв'яжеться з вами або ви можете скористатись кнопкою онлайн-запису."}
+        return {"response": "Можу показати ціни, графік або форму онлайн-запису."}
 
     except Exception as e:
         logger.error(f"Widget chat error: {e}")
@@ -559,6 +579,12 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
 
         if not phone or not date_str:
             return {"success": False, "error": "Будь ласка, вкажіть телефон та дату."}
+        biz = await db.get(Business, business_id)
+        service = await db.get(Service, service_id)
+        if not biz or not biz.is_active or not service or service.business_id != business_id:
+            return {"success": False, "error": "Послугу не знайдено"}
+        if len(phone) > 32:
+            return {"success": False, "error": "Некоректний номер телефону"}
 
         # Get or create customer
         customer = await db.scalar(
@@ -567,7 +593,7 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
         if not customer:
             customer = Customer(business_id=business_id, phone_number=phone, name="Клієнт з віджета")
             db.add(customer)
-            await db.commit()
+            await db.flush()
             await db.refresh(customer)
         elif getattr(customer, 'is_blocked', False):
             return {"success": False, "error": "Вибачте, бронювання для вашого номера тимчасово недоступне."}
@@ -579,14 +605,29 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
 
         # Find available master
         master = await db.scalar(
-            select(Master).where(Master.business_id == business_id).limit(1)
+            select(Master).where(Master.business_id == business_id, Master.is_active == True).limit(1)
         )
 
         # Parse date and create appointment
-        appt_time = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=14, minute=0)
+        slot = data.get("time") or "14:00"
+        appt_time = datetime.strptime(f"{date_str} {slot}", "%Y-%m-%d %H:%M")
         
         if appt_time < datetime.now(UA_TZ).replace(tzinfo=None):
             return {"success": False, "error": "Цей час вже минув."}
+        end = appt_time + timedelta(minutes=service.duration or 30)
+        candidates = (await db.execute(select(Appointment).where(
+            Appointment.business_id == business_id, Appointment.status != "cancelled",
+            Appointment.appointment_time >= appt_time - timedelta(hours=24),
+            Appointment.appointment_time < end,
+            Appointment.master_id == (master.id if master else None),
+        ))).scalars().all()
+        durations = dict((await db.execute(select(Service.name, Service.duration).where(
+            Service.business_id == business_id,
+            Service.name.in_({item.service_type for item in candidates}),
+        ))).all()) if candidates else {}
+        if any(item.appointment_time + timedelta(minutes=durations.get(item.service_type) or 90) > appt_time
+               for item in candidates):
+            return {"success": False, "error": "Цей час уже зайнятий"}
 
         appt = Appointment(
             business_id=business_id,
@@ -596,6 +637,7 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
             service_type=service.name,
             cost=service.price,
             source="widget",
+            duration=service.duration or 30,
             status="confirmed"
         )
         db.add(appt)

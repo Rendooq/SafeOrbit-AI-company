@@ -1,20 +1,25 @@
 import ast
-import sys
+from pathlib import Path
 
-try:
-    with open('main.py', 'r', encoding='utf-8') as f:
-        source = f.read()
-    
-    # Try to parse
-    ast.parse(source)
-    print("✓ Python syntax is valid")
-    sys.exit(0)
-except SyntaxError as e:
-    print(f"✗ Syntax error at line {e.lineno}:")
-    print(f"  Message: {e.msg}")
-    if e.text:
-        print(f"  Code: {e.text.strip()[:80]}")
-    sys.exit(1)
-except Exception as e:
-    print(f"✗ Error: {e}")
-    sys.exit(1)
+
+def main() -> int:
+    root = Path(__file__).resolve().parent
+    files = list(root.glob("*.py"))
+    for directory in ("routers", "services", "utils", "tests"):
+        files.extend((root / directory).rglob("*.py"))
+    errors = []
+    for path in sorted(files):
+        try:
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except SyntaxError as error:
+            errors.append(str(error))
+    if errors:
+        for error in errors:
+            print(f"Syntax error: {error}")
+        return 1
+    print(f"Python syntax is valid ({len(files)} files)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

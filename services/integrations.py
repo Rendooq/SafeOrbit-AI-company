@@ -1,6 +1,7 @@
 import httpx
 import logging
 import re
+from utils.network import validate_public_url
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,11 @@ async def push_to_beauty_pro(data: dict, token: str, location_id: str, api_url: 
             
 async def push_to_cleverbox(data: dict, token: str, location_id: str, api_url: str = None):
     url = api_url or "https://cbox.mobi/api/v2/leads"
-    logger.info(f"CLEVERBOX PUSH: Sending to {url} | Data: {data}")
+    try:
+        await validate_public_url(url)
+    except ValueError:
+        return {"ok": False, "msg": "Unsafe integration URL"}
+    logger.debug("Cleverbox sync requested")
     
     # Згідно документації токен передається в спеціальному заголовку "token"
     headers = {"token": token, "Content-Type": "application/json"}

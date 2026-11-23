@@ -7,6 +7,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Index,
     Text,
     func,
 )
@@ -202,6 +203,7 @@ class Service(Base):
 class Appointment(Base):
     __tablename__ = "appointments"
     id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id"))
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     master_id: Mapped[Optional[int]] = mapped_column(ForeignKey("masters.id"))
@@ -387,3 +389,18 @@ class WebhookEventLog(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+
+PERFORMANCE_INDEXES = (
+    Index("ix_appointments_tenant_time", Appointment.business_id, Appointment.appointment_time),
+    Index("ix_appointments_tenant_status_time", Appointment.business_id, Appointment.status, Appointment.appointment_time),
+    Index("ix_customers_tenant_phone", Customer.business_id, Customer.phone_number),
+    Index("ix_chatlogs_tenant_time", ChatLog.business_id, ChatLog.created_at),
+    Index("ix_chatlogs_tenant_identifier_time", ChatLog.business_id, ChatLog.user_identifier, ChatLog.created_at),
+    Index("ix_masters_tenant_active", Master.business_id, Master.is_active),
+)
+
+
+def ensure_performance_indexes(connection):
+    for index in PERFORMANCE_INDEXES:
+        index.create(connection, checkfirst=True)

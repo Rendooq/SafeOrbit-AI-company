@@ -1,22 +1,27 @@
+import csv
+import io
 import json
 import html
-from datetime import datetime, timedelta
+import math
+from datetime import date, datetime, time, timedelta
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Form, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select, desc, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from config import LABELS, UA_TZ, DEFAULT_SMS_SENDER
+from config import LABELS, UA_TZ
 from database import get_db
 from dependencies import get_current_user
-from models import User, Appointment, Master, Service, Customer, Business, ActionLog, ChatLog
+from models import User, Appointment, Master, Service, Customer, Business, ActionLog, ChatLog, Product
 from ui import get_layout
+from utils.templates import render_template
 from utils.logger import log_action
 from sqlalchemy import case
 from services.ai_service import process_ai_request
+from services.sms import send_sms
 import httpx
 import logging
 
@@ -24,10 +29,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Admin Panel"])
 
 
+async def can_manage_appointment(user, appointment, db):
+    if not user or appointment.business_id != user.business_id:
+        return False
+    if user.role == "master":
+        master = await db.get(Master, user.master_id)
+        return bool(master and (master.can_view_all_appts or appointment.master_id == user.master_id))
+    return user.role in {"owner", "admin", "manager"}
+
+
+async def valid_assignment(user, master_id, db):
+    if master_id is None:
+        return user.role != "master"
+    master = await db.get(Master, master_id)
+    return bool(master and master.business_id == user.business_id and master.is_active
+                and (user.role != "master" or master_id == user.master_id))
+
+
 @router.get("/admin", response_class=HTMLResponse)
 async def owner_dash(request: Request, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role not in ["owner", "admin", "manager", "master"]: return RedirectResponse("/", status_code=303)
     
+    is_demo = getattr(user, "is_demo_workspace", False)
+    external_action_class = "d-none" if is_demo else ""
     is_limited_master = False
     if user.role == "master":
         m_record = await db.get(Master, user.master_id)
@@ -38,6 +62,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     today_start = now.replace(tzinfo=None).replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=today_start.weekday())
     month_start = today_start.replace(day=1)
+    next_month = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
 
     filters = [Appointment.business_id == user.business_id]
     if is_limited_master:
@@ -45,8 +70,8 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
 
     agg_stmt = select(
         func.sum(case((and_(Appointment.status != 'cancelled', Appointment.appointment_time >= today_start, Appointment.appointment_time < today_start + timedelta(days=1)), 1), else_=0)),
-        func.sum(case((and_(Appointment.status != 'cancelled', Appointment.appointment_time >= month_start), 1), else_=0)),
-        func.sum(case((and_(Appointment.status == 'completed', Appointment.appointment_time >= month_start), Appointment.cost), else_=0)),
+        func.sum(case((and_(Appointment.status != 'cancelled', Appointment.appointment_time >= month_start, Appointment.appointment_time < next_month), 1), else_=0)),
+        func.sum(case((and_(Appointment.status == 'completed', Appointment.appointment_time >= month_start, Appointment.appointment_time < next_month), Appointment.cost), else_=0)),
         func.sum(case((Appointment.status == 'completed', Appointment.cost), else_=0))
     ).where(and_(*filters))
     agg_res = await db.execute(agg_stmt)
@@ -59,13 +84,17 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     biz_type = user.business.type if user.business else "barbershop"
     l = LABELS.get(biz_type, LABELS["generic"])
 
-    stmt_status = select(Appointment.status, func.count(Appointment.id)).where(and_(*filters)).group_by(Appointment.status)
+    stmt_status = select(Appointment.status, func.count(Appointment.id)).where(and_(
+        *filters, Appointment.appointment_time >= month_start, Appointment.appointment_time < next_month
+    )).group_by(Appointment.status)
     res_status = await db.execute(stmt_status)
     s_map = dict(res_status.all())
     
     masters = (await db.execute(select(Master).where(and_(Master.business_id == user.business_id, Master.is_active == True)))).scalars().all()
+    if is_limited_master:
+        masters = [master for master in masters if master.id == user.master_id]
     services = (await db.execute(select(Service).where(Service.business_id == user.business_id))).scalars().all()
-    services_json = json.dumps({s.id: {'price': s.price, 'name': s.name} for s in services})
+    services_json = json.dumps({s.id: {'price': s.price, 'name': s.name} for s in services}).replace("<", "\\u003c")
 
     stmt = select(Appointment).options(joinedload(Appointment.customer), joinedload(Appointment.master)).where(and_(*filters)).order_by(desc(Appointment.appointment_time)).limit(10)
     res = await db.execute(stmt)
@@ -77,8 +106,8 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         "cancelled": "<span class='badge bg-danger bg-opacity-10 text-danger'>Скасовано</span>"
     }
 
-    master_options = "".join([f'<option value="{m.id}">{m.name}</option>' for m in masters])
-    service_options = "".join([f'<option value="{s.name}" data-id="{s.id}">{s.name} ({s.price} грн)</option>' for s in services])
+    master_options = "".join([f'<option value="{m.id}">{html.escape(m.name)}</option>' for m in masters])
+    service_options = "".join([f'<option value="{html.escape(s.name, quote=True)}" data-id="{s.id}">{html.escape(s.name)} ({s.price} грн)</option>' for s in services])
 
     src_stmt = select(
         func.sum(case((Appointment.source == 'ai', 1), else_=0)),
@@ -142,7 +171,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         <tr>
             <td class="min-w-0 max-w-full">
                 <div class="fw-bold text-truncate break-words overflow-hidden min-w-0" style="max-width: 200px;">{html.escape(a.customer.name or 'Гість')}</div>
-                <div class="small text-muted text-truncate break-words overflow-hidden min-w-0" style="max-width: 200px;">{a.customer.phone_number}</div>
+                <div class="small text-muted text-truncate break-words overflow-hidden min-w-0" style="max-width: 200px;">{html.escape(a.customer.phone_number)}</div>
                 {master_name}
                 {del_str}
             </td>
@@ -154,8 +183,8 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
             <td class="fw-bold">{a.cost} грн</td>
             <td>{badge}</td>
             <td class="text-end">
-                <button class="btn-glass icon-btn me-1" onclick="editApp({a.id}, '{d_str}', '{t_str}', '{a.status}', {a.cost}, '{a.master_id or ''}', '{html.escape(a.delivery_address or '')}', '{html.escape(a.ttn or '')}', '{a.delivery_status or 'pending'}')"><i class="fas fa-edit"></i></button>
-                <button class="btn-glass icon-btn me-1" onclick="openNotify('{a.customer.phone_number}', '{d_str}', '{t_str}')"><i class="fas fa-bell"></i></button>
+                <button class="btn-glass icon-btn me-1" data-legacy-edit="{a.id}" data-edit-args="{html.escape(json.dumps([a.id, d_str, t_str, a.status, a.cost, str(a.master_id or ''), a.delivery_address or '', a.ttn or '', a.delivery_status or 'pending']), quote=True)}"><i class="fas fa-edit"></i></button>
+                <button class="btn-glass icon-btn me-1 {external_action_class}" onclick="openNotify({html.escape(json.dumps(a.customer.phone_number), quote=True)}, '{d_str}', '{t_str}')"><i class="fas fa-bell"></i></button>
                 <a href="/admin/receipt/{a.id}" target="_blank" class="btn-glass icon-btn"><i class="fas fa-print"></i></a>
             </td>
         </tr>
@@ -229,7 +258,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
                     <div class="glass-card">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-800 text-white m-0">{l['new_appt']}</h5>
-                            <div class="d-flex gap-2">
+                            <div class="d-flex gap-2 {external_action_class}">
                                 <button type="button" class="btn-glass py-2" style="font-size: 12px; background: rgba(175, 133, 255, 0.1); color: var(--accent-primary) !important; border-color: rgba(175, 133, 255, 0.3);" onclick="bootstrap.Modal.getOrCreateInstance(document.getElementById('aiModal')).show()">
                                     <i class="fas fa-robot me-1"></i> ШІ
                                 </button>
@@ -311,7 +340,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
                     <div class="glass-card h-100 p-4">
                         <h5 class="fw-800 text-white mb-4"><i class="fas fa-crown text-warning me-2"></i>{l.get('analytics_clients', 'Топ Гостей')}</h5>
                         <div class="client-list d-flex flex-column gap-3">
-                            {top_clients_html if top_clients_html else '<div class="text-center p-5 text-muted small border-dashed rounded-4" style="border: 1px dashed rgba(255,255,255,0.1);">Дані збираються...</div>'}
+                            {top_clients_html if top_clients_html else '<div class="text-center p-5 text-muted small border-dashed rounded-4" style="border: 1px dashed rgba(255,255,255,0.1);">Поки немає завершених записів.</div>'}
                         </div>
                     </div>
                 </div>
@@ -401,6 +430,14 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     let calendarData = [];
     let currentMonth = new Date().getMonth();
     let currentYear = new Date().getFullYear();
+    function formatCalendarMonth() {{
+        const label = document.getElementById('calendarMonthYear');
+        if (!label) return;
+        label.textContent = new Intl.DateTimeFormat(document.documentElement.lang, {{
+            month: "long", year: "numeric",
+        }}).format(new Date(currentYear, currentMonth, 1));
+    }}
+    window.addEventListener("safeorbit:language-changed", formatCalendarMonth);
     
     // Lazy Load прапорці (для усунення перерендеру)
     let calendarInitialized = false;
@@ -438,7 +475,8 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         let f = new FormData(); f.append('question', q);
         let res = await fetch('/admin/ask-ai', {{method:'POST', body:f}});
         let data = await res.json(); 
-        r.innerHTML = data.answer.replace(/\\n/g, '<br>');
+        r.textContent = data.answer;
+        r.style.whiteSpace = 'pre-wrap';
     }}
 
     function startDictation() {{
@@ -510,12 +548,10 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
 
     function renderCalendar() {{
         const daysContainer = document.getElementById('calendarDays');
-        const monthYearLabel = document.getElementById('calendarMonthYear');
         daysContainer.innerHTML = '';
         
         const date = new Date(currentYear, currentMonth, 1);
-        const monthNames = ["Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень", "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень"];
-        monthYearLabel.innerText = `${{monthNames[currentMonth]}} ${{currentYear}}`;
+        formatCalendarMonth();
         
         let firstDay = date.getDay(); if(firstDay === 0) firstDay = 7;
         for(let i = 1; i < firstDay; i++) {{
@@ -545,11 +581,22 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         }}
     }}
 
-    function changeMonth(dir) {{
+    async function changeMonth(dir) {{
         currentMonth += dir;
         if(currentMonth < 0) {{ currentMonth = 11; currentYear--; }}
         if(currentMonth > 11) {{ currentMonth = 0; currentYear++; }}
+        const start = `${{currentYear}}-${{String(currentMonth+1).padStart(2,'0')}}-01`;
+        const following = new Date(currentYear, currentMonth + 1, 1);
+        const end = `${{following.getFullYear()}}-${{String(following.getMonth()+1).padStart(2,'0')}}-01`;
+        const response = await fetch(`/admin/calendar-data?start=${{start}}&end=${{end}}`);
+        calendarData = await response.json();
         renderCalendar();
+    }}
+
+    function escapeCalendarText(value) {{
+        const element = document.createElement('span');
+        element.textContent = String(value ?? '');
+        return element.innerHTML;
     }}
 
     async function showDayDetails(date) {{
@@ -562,11 +609,11 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
                 html += `
                 <div class="glass-card mb-3 p-3" style="border-radius: 20px;">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-800 text-white">${{a.time}}</span>
-                        <span class="badge bg-primary bg-opacity-10 text-primary">${{a.status}}</span>
+                        <span class="fw-800 text-white">${{escapeCalendarText(a.time)}}</span>
+                        <span class="badge bg-primary bg-opacity-10 text-primary">${{escapeCalendarText(a.status)}}</span>
                     </div>
-                    <div class="fw-700 text-white mb-1">${{a.customer}}</div>
-                    <div class="small text-muted">${{a.service}}</div>
+                    <div class="fw-700 text-white mb-1">${{escapeCalendarText(a.customer)}}</div>
+                    <div class="small text-muted">${{escapeCalendarText(a.service)}}</div>
                 </div>`;
             }});
         }}
@@ -604,7 +651,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         new Chart(ctxServ, {{
             type: 'bar',
             data: {{
-                labels: [{", ".join([f"'{s[0]}'" for s in top_services])}],
+                labels: {json.dumps([s[0] for s in top_services]).replace("<", "\\u003c")},
                 datasets: [{{
                     label: 'Кількість',
                     data: [{", ".join([str(s[1]) for s in top_services])}],
@@ -625,7 +672,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
         new Chart(ctxLTV, {{
             type: 'line',
             data: {{
-                labels: [{", ".join([f"'{c[0]}'" for c in top_clients])}],
+                labels: {json.dumps([c[0] for c in top_clients]).replace("<", "\\u003c")},
                 datasets: [{{
                     data: [{", ".join([str(c[2]) for c in top_clients])}],
                     borderColor: '#f472b6',
@@ -661,7 +708,151 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     }});
     </script>
     """
-    return get_layout(content, user, "dash", scripts=scripts)
+    week_rows = (await db.execute(
+        select(Appointment.appointment_time, Appointment.cost).where(
+            and_(*filters), Appointment.status == "completed",
+            Appointment.appointment_time >= today_start - timedelta(days=6),
+            Appointment.appointment_time < today_start + timedelta(days=1),
+        )
+    )).all()
+    days = [today_start.date() - timedelta(days=6-i) for i in range(7)]
+    totals = {day: 0.0 for day in days}
+    for when, cost in week_rows:
+        if when.date() in totals:
+            totals[when.date()] += cost or 0
+    count_customers = await db.scalar(select(func.count(Customer.id)).where(Customer.business_id == user.business_id)) or 0
+    format_amount = lambda value: f"{value:,.0f}".replace(",", " ")
+    overview_appointments = [{
+        "id": appointment.id, "initial": (appointment.customer.name or "?")[:1] if appointment.customer else "?",
+        "name": (appointment.customer.name or "Гість") if appointment.customer else "Гість",
+        "phone": appointment.customer.phone_number if appointment.customer else "",
+        "service": appointment.service_type, "date": appointment.appointment_time.strftime("%d.%m"),
+        "time": appointment.appointment_time.strftime("%H:%M"), "cost": format_amount(appointment.cost),
+        "status_class": appointment.status if appointment.status in {"completed", "confirmed", "cancelled"} else "confirmed",
+        "status_label": {"completed": "Завершено", "confirmed": "Очікується", "cancelled": "Скасовано"}.get(appointment.status, "Очікується"),
+    } for appointment in appts[:6]]
+    status_total = sum(s_map.values())
+    overview = render_template(
+        "app/overview.html", business_name=user.business.name if user.business else "ваша команда",
+        date_label=now.strftime("%d.%m.%Y"), today_count=c_day, month_count=c_month,
+        revenue=format_amount(rev_month), customer_count=count_customers,
+        week_revenue=format_amount(sum(totals.values())),
+        completed_percent=round(100 * s_map.get("completed", 0) / status_total) if status_total else 0,
+        statuses=[{"label": label, "count": s_map.get(key, 0), "color": color} for key, label, color in (
+            ("completed", "Завершено", "#ff6037"), ("confirmed", "Очікується", "#b7b8c7"), ("cancelled", "Скасовано", "#e7e7ed"))],
+        appointments=overview_appointments, masters=masters[:5], is_demo=is_demo,
+        can_report=user.role in {"owner", "admin", "manager"},
+        chart_json=json.dumps({"labels": [day.strftime("%d.%m") for day in days], "values": list(totals.values())}).replace("<", "\\u003c"),
+    )
+    original_heading = '<div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-5 gap-3">'
+    content = content.replace(original_heading, original_heading.replace('mb-5', 'mb-5 overview-legacy-heading'), 1)
+    page = overview + '<div id="legacy-workspace-content" hidden>' + content + '</div>'
+    enhancement = '<script src="/static/saas/overview.js?v=contrast-final" defer></script>'
+    rendered = get_layout(page, user, "dash", scripts=scripts + enhancement)
+    # Insert feature styling before the final contrast/theme override.
+    theme_link = '<link rel="stylesheet" href="/static/v2/theme.css'
+    return rendered.replace(theme_link,
+        '<link rel="stylesheet" href="/static/v2/overview.css?v=radical-final">' + theme_link, 1)
+
+REPORT_ROLES = {"owner", "admin", "manager"}
+REPORT_STATUS = {"completed": "Завершено", "cancelled": "Скасовано",
+                 "confirmed": "Підтверджено", "pending": "Очікує підтвердження"}
+
+
+def report_period(start: date | None, end: date | None):
+    today = datetime.now(UA_TZ).date()
+    end = end or today
+    start = start or end.replace(day=1)
+    return start, end
+
+
+def report_filters(business_id, start, end):
+    return (
+        Appointment.business_id == business_id,
+        Appointment.appointment_time >= datetime.combine(start, time.min),
+        Appointment.appointment_time <= datetime.combine(end, time.max),
+    )
+
+
+@router.get("/admin/reports", response_class=HTMLResponse)
+async def reports_page(
+    start: date | None = None, end: date | None = None,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    if not user or user.role not in REPORT_ROLES:
+        return RedirectResponse("/login" if not user else "/admin", status_code=303)
+    start, end = report_period(start, end)
+    if not 0 <= (end - start).days < 366:
+        content = render_template("app/reports.html", start=start, end=end,
+                                  error="Оберіть період від 1 до 366 днів.")
+        return HTMLResponse(get_layout(content, user, "reports"), status_code=422)
+
+    completed = Appointment.status == "completed"
+    count = func.count(Appointment.id)
+    result = await db.execute(select(
+        Appointment.service_type.label("name"),
+        count.label("total"),
+        func.sum(case((completed, 1), else_=0)).label("completed"),
+        func.sum(case((Appointment.status == "cancelled", 1), else_=0)).label("cancelled"),
+        func.sum(case((completed, Appointment.cost), else_=0)).label("revenue"),
+    ).where(*report_filters(user.business_id, start, end))
+      .group_by(Appointment.service_type)
+      .order_by(count.desc(), Appointment.service_type))
+    services = result.all()
+    revenue = sum(row.revenue or 0 for row in services)
+    completed_count = sum(row.completed for row in services)
+    products = (await db.scalars(select(Product).where(
+        Product.business_id == user.business_id, Product.stock <= 5,
+    ).order_by(Product.stock, Product.name))).all()
+    metrics = [
+        ("Записів", sum(row.total for row in services)),
+        ("Завершено", completed_count),
+        ("Скасовано", sum(row.cancelled for row in services)),
+        ("Дохід за завершеними записами", f"{revenue:,.2f} ₴"),
+        ("Середня сума завершеного запису", f"{revenue / completed_count if completed_count else 0:,.2f} ₴"),
+    ]
+    return get_layout(render_template(
+        "app/reports.html", start=start, end=end, metrics=metrics, services=services, stock=products,
+    ), user, "reports")
+
+
+def csv_text(value):
+    value = str(value or "")
+    if value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")):
+        return "'" + value
+    return value
+
+
+@router.get("/admin/reports/export")
+async def export_reports(
+    start: date | None = None, end: date | None = None,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+):
+    if not user or user.role not in REPORT_ROLES:
+        raise HTTPException(403, "Експорт доступний власнику, адміністратору або менеджеру.")
+    start, end = report_period(start, end)
+    if not 0 <= (end - start).days < 366:
+        raise HTTPException(422, "Оберіть період від 1 до 366 днів.")
+    rows = await db.stream(select(
+        Appointment.appointment_time, Appointment.service_type, Appointment.status, Appointment.cost,
+        Customer.name, Master.name.label("master"),
+    ).join(Customer, and_(Appointment.customer_id == Customer.id, Customer.business_id == user.business_id))
+      .outerjoin(Master, and_(Appointment.master_id == Master.id, Master.business_id == user.business_id))
+      .where(*report_filters(user.business_id, start, end))
+      .order_by(Appointment.appointment_time, Appointment.id))
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Дата та час", "Послуга", "Статус", "Сума, ₴", "Клієнт", "Спеціаліст"])
+    async for row in rows:
+        writer.writerow([row.appointment_time.isoformat(sep=" ", timespec="minutes"), csv_text(row.service_type),
+                         csv_text(REPORT_STATUS.get(row.status, row.status)), f"{row.cost:.2f}",
+                         csv_text(row.name), csv_text(row.master)])
+    return Response(
+        content=output.getvalue().encode("utf-8-sig"), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="safeorbit-{start}-{end}.csv"',
+                 "Cache-Control": "private, no-store"},
+    )
+
 
 @router.post("/admin/add-appointment")
 async def add_appointment(
@@ -679,8 +870,21 @@ async def add_appointment(
 ):
     if not user: return RedirectResponse("/", status_code=303)
     
+    if user.role not in {"owner", "admin", "manager", "master"}:
+        return RedirectResponse("/admin?error=permission", status_code=303)
     actual_service = custom_service if service == "custom" else service
-    dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+    try:
+        dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        parsed_cost = float(cost or 0)
+        parsed_master_id = int(master_id) if master_id and master_id != "None" else None
+    except (ValueError, TypeError):
+        return RedirectResponse("/admin?error=fields", status_code=303)
+    if not actual_service or not phone.strip() or not math.isfinite(parsed_cost) or parsed_cost < 0:
+        return RedirectResponse("/admin?error=fields", status_code=303)
+    if user.role == "master":
+        parsed_master_id = user.master_id
+    if not await valid_assignment(user, parsed_master_id, db):
+        return RedirectResponse("/admin?error=master", status_code=303)
     
     customer = await db.scalar(select(Customer).where(and_(Customer.business_id == user.business_id, Customer.phone_number == phone)))
     if not customer:
@@ -690,16 +894,6 @@ async def add_appointment(
     elif name and customer.name != name:
         customer.name = name
         
-    try:
-        parsed_cost = float(cost) if cost and str(cost).strip() else 0.0
-    except ValueError:
-        parsed_cost = 0.0
-        
-    parsed_master_id = None
-    if master_id and str(master_id).strip() and str(master_id) != 'None':
-        try: parsed_master_id = int(master_id)
-        except ValueError: pass
-
     app = Appointment(
         business_id=user.business_id,
         customer_id=customer.id,
@@ -722,7 +916,7 @@ async def api_update_appt_time(id: int = Form(...), date: str = Form(...), time:
     if not user: return {"ok": False}
     res = await db.execute(select(Appointment).where(and_(Appointment.id == id, Appointment.business_id == user.business_id)))
     appt = res.scalar_one_or_none()
-    if appt:
+    if appt and await can_manage_appointment(user, appt, db):
         try:
             appt.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
             await db.commit()
@@ -746,18 +940,26 @@ async def update_appointment(
 ):
     if not user: return RedirectResponse("/", status_code=303)
     app = await db.get(Appointment, id)
-    if app and app.business_id == user.business_id:
+    if app and await can_manage_appointment(user, app, db):
         try:
             parsed_cost = float(cost) if cost and str(cost).strip() else 0.0
         except ValueError:
-            parsed_cost = 0.0
+            return RedirectResponse("/admin?error=fields", status_code=303)
             
         parsed_master_id = None
         if master_id and str(master_id).strip() and str(master_id) != 'None':
             try: parsed_master_id = int(master_id)
-            except ValueError: pass
+            except ValueError: return RedirectResponse("/admin?error=fields", status_code=303)
 
-        app.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        if not math.isfinite(parsed_cost) or parsed_cost < 0 or status not in {"confirmed", "completed", "cancelled", "pending"}:
+            return RedirectResponse("/admin?error=fields", status_code=303)
+        if not await valid_assignment(user, parsed_master_id, db):
+            return RedirectResponse("/admin?error=master", status_code=303)
+
+        try:
+            app.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            return RedirectResponse("/admin?error=fields", status_code=303)
         app.cost, app.master_id, app.delivery_address = parsed_cost, parsed_master_id, delivery_address
         app.ttn, app.delivery_status, app.status = ttn, delivery_status, status
         await db.commit()
@@ -770,7 +972,7 @@ async def delete_appt(id: int = Form(...), user: User = Depends(get_current_user
     if not user: return RedirectResponse("/", status_code=303)
     
     appt_to_delete = await db.get(Appointment, id)
-    if appt_to_delete and appt_to_delete.business_id == user.business_id:
+    if appt_to_delete and await can_manage_appointment(user, appt_to_delete, db):
         customer_id = appt_to_delete.customer_id
         await db.delete(appt_to_delete)
         await log_action(db, user.business_id, user.id, "Видалено запис", f"ID запису: {id}")
@@ -796,7 +998,8 @@ async def generate_receipt(id: int, user: User = Depends(get_current_user), db: 
     <head>
         <meta charset="utf-8">
         <title>Чек #{appt.id}</title>
-        <script defer src="/static/i18n.js"></script>
+        <script defer src="/static/locales/catalog.js?v=sale-locales2"></script>
+    <script defer src="/static/i18n.js?v=sale-locales2"></script>
         <style>
             body {{ font-family: 'Courier New', Courier, monospace; background: #e5e7eb; display: flex; justify-content: center; padding: 2rem; margin: 0; }}
             .receipt {{ background: white; padding: 2rem; width: 320px; border-radius: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); color: #000; }}
@@ -837,39 +1040,12 @@ async def generate_receipt(id: int, user: User = Depends(get_current_user), db: 
 
 @router.post("/admin/send-sms")
 async def send_sms_endpoint(phone: str = Form(...), message: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return {"ok": False, "msg": "Потрібна авторизація"}
-    
-    biz = await db.get(Business, user.business_id)
-    sender = biz.sms_sender_id or DEFAULT_SMS_SENDER
-    token = biz.sms_token
-
-    if not token:
-        return {"ok": False, "msg": "Помилка: Не вказано SMS токен в налаштуваннях!"}
-
-    url = "https://api.turbosms.ua/message/send.json"
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    payload = {
-        "recipients": [phone],
-        "sms": {
-            "sender": sender,
-            "text": message
-        }
-    }
-
+    if not user:
+        return {"ok": False, "msg": "Потрібна авторизація"}
     async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
-            data = resp.json()
-            
-            # Перевірка успішності (TurboSMS повертає response_code: 0 або список результатів)
-            if data.get("response_code") == 0 or (data.get("response_result") and data["response_result"][0].get("response_code") == 0):
-                 return {"ok": True, "msg": "SMS успішно відправлено!"}
-            else:
-                 error_msg = data.get("response_status") or (data.get("response_result") and data["response_result"][0].get("response_status")) or "Невідома помилка"
-                 return {"ok": False, "msg": f"Помилка провайдера: {error_msg}"}
-        except Exception as e:
-            logger.error(f"SMS Error: {e}")
-            return {"ok": False, "msg": f"Помилка мережі: {str(e)}"}
+        ok, message = await send_sms(client, user.business, phone, message)
+    return {"ok": ok, "msg": message}
+
 
 @router.get("/admin/api/calendar-events")
 async def get_calendar_events(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

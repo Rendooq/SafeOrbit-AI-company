@@ -55,7 +55,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        start_time = time.time()
+        start_time = time.perf_counter()
         
         # Mask API key for logging
         x_api_key = request.headers.get("X-API-Key")
@@ -73,10 +73,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             status_code = response.status_code
         except Exception as e:
-            process_time = time.time() - start_time
+            process_time = time.perf_counter() - start_time
             logger.error(
                 f"API Request Error: method={request.method} path={request.url.path} "
-                f"api_key={masked_api_key} duration={process_time:.4f}s error={e}",
+                f"duration={process_time:.4f}s error={e}",
                 exc_info=True
             )
             raise # Re-raise the exception after logging
@@ -98,8 +98,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 except Exception as db_err:
                     logger.error(f"Failed to save API request log: {db_err}")
 
-        process_time = time.time() - start_time
-        logger.info(
+        process_time = time.perf_counter() - start_time
+        response.headers["Server-Timing"] = f"app;dur={process_time * 1000:.2f}"
+        logger.debug(
             f"API Request: method={request.method} path={request.url.path} "
             f"status={status_code} api_key={masked_api_key} "
             f"duration={process_time:.4f}s"

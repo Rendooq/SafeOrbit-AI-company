@@ -9,12 +9,18 @@ from sqlalchemy import select
 from database import AsyncSessionLocal
 from models import WebhookEndpoint, WebhookEventLog
 from config import UA_TZ
+from utils.network import validate_public_url
 
 logger = logging.getLogger(__name__)
 
 async def send_webhook_with_retry(endpoint_id: int, url: str, secret: str, payload_str: str):
     """Відправляє webhook з HMAC SHA256 підписом та Retry логікою (1s, 5s, 15s)."""
     delays = [1, 5, 15]
+    try:
+        await validate_public_url(url)
+    except ValueError:
+        logger.warning("Blocked unsafe webhook destination for endpoint %s", endpoint_id)
+        return
     
     async with AsyncSessionLocal() as db:
         event_log = WebhookEventLog(
@@ -31,6 +37,7 @@ async def send_webhook_with_retry(endpoint_id: int, url: str, secret: str, paylo
     async with httpx.AsyncClient() as client:
         for attempt, delay in enumerate(delays, start=1):
             try:
+                await validate_public_url(url)
                 # Формування HMAC SHA256 підпису
                 signature = hmac.new(
                     secret.encode('utf-8'),
@@ -92,6 +99,9 @@ async def dispatch_webhooks(business_id: int, event_type: str, data: dict):
     }
     payload_str = json.dumps(payload, ensure_ascii=False)
     
-    # Fire-and-forget: створюємо незалежні таски для кожного ендпоінта
-    for ep in endpoints:
-        asyncio.create_task(send_webhook_with_retry(ep.id, ep.url, ep.secret, payload_str))
+    # FastAPI already executes this dispatcher in the background. Keep delivery
+    # tasks owned/awaited so shutdown does not discard their exceptions.
+    await asyncio.gather(*(
+        send_webhook_with_retry(ep.id, ep.url, ep.secret, payload_str)
+        for ep in endpoints
+    ))

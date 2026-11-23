@@ -1,16 +1,22 @@
 import html
+import hmac
+import hashlib
+from config import SECRET_KEY
+from utils.network import validate_public_url
 import io
 import json
+import math
 import os
 import re
-import shutil
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 import urllib.parse, secrets
 
 import httpx
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -23,6 +29,7 @@ from models import (ActionLog, Appointment, AppointmentConfirmation, Business, C
                     MonthlyPaymentLog, NPSReview, Product, Service, User, SystemUpdate, Integration, ApiKey, ApiRequestLog)
 from ui import get_layout
 from utils.logger import log_action
+from utils.auth import ROOT, MAX_UPLOAD_BYTES
 from utils.security import hash_password, generate_api_key
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -999,7 +1006,7 @@ async def create_master_account(
         if existing_user:
             return RedirectResponse("/admin/settings?msg=login_exists", status_code=303)
 
-        new_user = User(username=login, password=hash_password(password), role="master", business_id=user.business_id, master_id=master.id)
+        new_user = User(username=login, password=await run_in_threadpool(hash_password, password), role="master", business_id=user.business_id, master_id=master.id)
         db.add(new_user)
         await db.commit()
         await log_action(db, user.business_id, user.id, "Створено акаунт співробітника", f"Створено акаунт для '{master.name}' з логіном '{login}'.")
@@ -1225,10 +1232,15 @@ async def get_api_key_logs(key_id: int, user: User = Depends(get_current_user), 
 
 
 @router.get("/klienci", response_class=HTMLResponse)
-async def clients_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def clients_page(q: str = Query("", max_length=100), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role not in ["owner", "admin", "manager", "master"]: return RedirectResponse("/", status_code=303)
     customers = (await db.execute(select(Customer).where(Customer.business_id == user.business_id).order_by(desc(Customer.id)))).scalars().all()
     
+    query = q.strip().casefold()
+    if query:
+        customers = [customer for customer in customers if query in (customer.name or "").casefold()
+                     or query in customer.phone_number.casefold()]
+
     biz_type = user.business.type if user.business else "barbershop"
     if biz_type == 'school':
         l = {"clients": "Учні"}
@@ -1240,7 +1252,7 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
         badge = "<span class='badge bg-danger bg-opacity-10 text-danger'>Заблоковано</span>" if getattr(c, 'is_blocked', False) else "<span class='badge bg-success bg-opacity-10 text-success'>Активний</span>"
         btn_icon = "fa-unlock text-success" if getattr(c, 'is_blocked', False) else "fa-ban text-danger"
         btn_title = "Розблокувати клієнта" if getattr(c, 'is_blocked', False) else "Заблокувати клієнта (Чорний список)"
-        btn_edit = f"<button type='button' class='btn btn-glass btn-sm me-1' onclick=\"editCustomer({c.id}, '{html.escape(c.name or '')}', '{html.escape(c.phone_number or '')}', {c.discount_percent}, '{html.escape(c.notes or '')}')\" title='Редагувати профіль'><i class='fas fa-edit text-info'></i></button>"
+        btn_edit = f"<button type='button' class='btn btn-glass btn-sm me-1' data-customer-edit=\"{html.escape(json.dumps([c.id, c.name or '', c.phone_number or '', c.discount_percent, c.notes or '']), quote=True)}\" title='Редагувати профіль'><i class='fas fa-edit text-info'></i></button>"
         
         rows += f"""
         <tr>
@@ -1259,6 +1271,8 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
             </td>
         </tr>"""
         
+    no_customers = "За цим запитом клієнтів не знайдено" if query else "Клієнтів ще немає"
+    empty_row = f'<tr><td colspan="7" class="text-center py-5 text-muted">{no_customers}</td></tr>'
     content = f"""
     <div class="glass-card p-4">
         <div class="d-flex align-items-center gap-3 mb-4">
@@ -1270,10 +1284,16 @@ async def clients_page(user: User = Depends(get_current_user), db: AsyncSession 
                 <div class="small text-white-50">Єдина база контактів, знижок, статусів і нотаток</div>
             </div>
         </div>
+        <form class="d-flex flex-wrap align-items-end gap-2 mb-3" action="/admin/klienci" method="get">
+            <div><label for="client-query" class="form-label">Пошук за ім’ям або номером</label>
+            <input id="client-query" name="q" type="search" class="form-control" maxlength="100" value="{html.escape(q, quote=True)}"></div>
+            <button class="btn-glass px-3 py-2">Знайти</button>
+            <a class="btn-glass px-3 py-2" href="/admin/klienci">Скинути</a>
+        </form>
         <div class="table-responsive w-full overflow-x-auto whitespace-nowrap block">
             <table class="glass-table">
                 <thead><tr><th>ID</th><th>Ім'я</th><th>Телефон</th><th>Знижка</th><th>Статус</th><th>Нотатки</th><th class="text-end">Дії</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="7" class="text-center py-5 text-muted">Клієнтів ще немає</td></tr>'}</tbody>
+                <tbody>{rows or empty_row}</tbody>
             </table>
         </div>
     </div>
@@ -1345,9 +1365,20 @@ async def update_customer(
 
 
 @router.get("/finance", response_class=HTMLResponse)
-async def finance_page(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def finance_page(error: str = "", user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user or user.role not in ["owner", "admin", "manager"]: return RedirectResponse("/", status_code=303)
+    is_demo = getattr(user, "is_demo_workspace", False)
     products = (await db.execute(select(Product).where(Product.business_id == user.business_id).order_by(desc(Product.id)))).scalars().all()
+    error_message = {
+        "image": "Завантажте фото PNG, JPEG або WebP до 5 МБ.",
+        "fields": "Перевірте назву, ціну та залишок товару.",
+    }.get(error)
+    photo_field = "" if is_demo else """
+        <div class="mb-4">
+            <label for="product-photo" class="form-label">Фото товару</label>
+            <input id="product-photo" type="file" name="image" class="form-control" accept="image/*">
+        </div>
+    """
     
     rows = ""
     for p in products:
@@ -1357,7 +1388,7 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
                 variants = json.loads(p.variants)
                 variants_html = "<ul class='list-unstyled mb-0 small text-muted'>"
                 for v in variants:
-                    variants_html += f"<li>{v.get('color', '')} {v.get('size', '')}: {v.get('stock', 0)} шт.</li>"
+                    variants_html += f"<li>{html.escape(str(v.get('color', '')))} {html.escape(str(v.get('size', '')))}: {html.escape(str(v.get('stock', 0)))} шт.</li>"
                 variants_html += "</ul>"
             except:
                 variants_html = "<span class='small text-danger'>Помилка варіантів</span>"
@@ -1385,6 +1416,7 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
         <div class="col-lg-5">
             <div class="glass-card p-4">
                 <h5 class="fw-800 text-white mb-4"><i class="fas fa-plus-circle text-primary me-2"></i>Додати новий товар</h5>
+                {f'<p class="alert alert-danger" role="alert">{error_message}</p>' if error_message else ""}
                 <form action="/admin/add-product" method="post" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label">Назва товару</label>
@@ -1397,14 +1429,11 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
                         </div>
                         <div class="col-6">
                             <label class="form-label">Ціна продажу (грн)</label>
-                            <input name="unit_cost" type="number" step="0.01" class="glass-input" placeholder="0.00" required>
+                            <input name="unit_cost" type="number" min="0" step="0.01" class="glass-input" placeholder="0.00" required>
                         </div>
                     </div>
                     
-                    <div class="mb-4">
-                        <label class="form-label">Фото товару</label>
-                        <input type="file" name="image" class="form-control" accept="image/*">
-                    </div>
+                    {photo_field}
                     
                     <div class="p-3 rounded-4" style="background: rgba(255,255,255,0.02); border: 0.5px solid var(--glass-border);">
                         <h6 class="fw-800 text-white mb-3">Варіанти товару (колір, розмір, кількість)</h6>
@@ -1442,7 +1471,7 @@ async def finance_page(user: User = Depends(get_current_user), db: AsyncSession 
         newRow.innerHTML = `
             <div class="col-4"><input name="variant_color" class="glass-input" placeholder="Колір"></div>
             <div class="col-4"><input name="variant_size" class="glass-input" placeholder="Розмір/Об'єм"></div>
-            <div class="col-3"><input name="variant_stock" type="number" class="glass-input" placeholder="К-сть" value="1"></div>
+            <div class="col-3"><input name="variant_stock" type="number" min="0" max="1000000" class="glass-input" placeholder="К-сть" value="1"></div>
             <div class="col-1 text-end"><button type="button" class="btn btn-glass btn-sm" onclick="this.parentElement.parentElement.remove()"><i class="fas fa-times text-danger"></i></button></div>
         `;
         container.appendChild(newRow);
@@ -1495,11 +1524,19 @@ async def add_product(
     if not user or user.role not in ["owner", "admin", "manager"]:
         return RedirectResponse("/", status_code=303)
 
+    name = name.strip()
+    if not name or not math.isfinite(unit_cost) or unit_cost < 0:
+        return RedirectResponse("/admin/finance?error=fields", status_code=303)
+    if getattr(user, "is_demo_workspace", False) and image and image.filename:
+        return RedirectResponse("/admin/finance?error=fields", status_code=303)
+
     variants = []
     total_stock = 0
     for i in range(len(variant_color)):
         try:
             stock = int(variant_stock[i])
+            if not 0 <= stock <= 1_000_000:
+                return RedirectResponse("/admin/finance?error=fields", status_code=303)
             variants.append({
                 "color": variant_color[i],
                 "size": variant_size[i],
@@ -1511,12 +1548,22 @@ async def add_product(
     
     image_url = None
     if image and image.filename:
-        os.makedirs("static/uploads/products", exist_ok=True)
-        ext = image.filename.split('.')[-1] if '.' in image.filename else 'jpg'
-        filepath = f"static/uploads/products/prod_{int(datetime.now().timestamp())}.{ext}"
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
-        image_url = f"/{filepath}"
+        content = await image.read(MAX_UPLOAD_BYTES + 1)
+        if len(content) > MAX_UPLOAD_BYTES:
+            return RedirectResponse("/admin/finance?error=image", status_code=303)
+        if content.startswith(b"\x89PNG\r\n\x1a\n"):
+            extension = ".png"
+        elif content.startswith(b"\xff\xd8\xff"):
+            extension = ".jpg"
+        elif content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+            extension = ".webp"
+        else:
+            return RedirectResponse("/admin/finance?error=image", status_code=303)
+        filename = f"{secrets.token_hex(16)}{extension}"
+        folder = ROOT / "static" / "uploads" / "products"
+        await run_in_threadpool(folder.mkdir, parents=True, exist_ok=True)
+        await run_in_threadpool((folder / filename).write_bytes, content)
+        image_url = f"/static/uploads/products/{filename}"
 
     new_product = Product(
         business_id=user.business_id,
@@ -1618,14 +1665,18 @@ async def chats_page(user: User = Depends(get_current_user), db: AsyncSession = 
                 const icon = isTg ? '<i class="fab fa-telegram text-info"></i>' : '<i class="fas fa-globe text-primary"></i>';
                 const activeClass = s.id === activeSessionId ? 'active' : '';
                 
-                list.innerHTML += `
-                <div class="chat-list-item ${activeClass}" onclick="openChat('${s.id}', '${s.source}')">
+                const item = document.createElement('div');
+                item.className = 'chat-list-item ' + activeClass;
+                item.innerHTML = `
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="fw-bold text-white text-truncate">${icon} Клієнт</span>
-                        <span class="small text-muted" style="font-size: 10px;">${s.time}</span>
+                        <span class="small text-muted" style="font-size: 10px;"></span>
                     </div>
-                    <div class="small text-muted text-truncate">${s.text}</div>
-                </div>`;
+                    <div class="small text-muted text-truncate" data-i18n-ignore></div>`;
+                item.querySelector('.small').textContent = s.time;
+                item.lastElementChild.textContent = s.text;
+                item.addEventListener('click', () => openChat(s.id, s.source));
+                list.appendChild(item);
             });
         } catch(e) {
             console.error('Error loading sessions', e);
@@ -1651,7 +1702,7 @@ async def chats_page(user: User = Depends(get_current_user), db: AsyncSession = 
         msgContainer.innerHTML = '<div class="text-center m-auto text-muted"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i></div>';
         
         try {
-            const res = await fetch(`/admin/api/chat-history/${sessionId}`);
+            const res = await fetch(`/admin/api/chat-history/${encodeURIComponent(sessionId)}`);
             const messages = await res.json();
             msgContainer.innerHTML = '';
             
@@ -1685,8 +1736,9 @@ async def chats_page(user: User = Depends(get_current_user), db: AsyncSession = 
         msgContainer.innerHTML += `
         <div class="d-flex flex-column align-self-end" style="max-width: 80%;">
             <span class="small text-muted mb-1 px-2" style="font-size: 10px;">Ви • Щойно</span>
-            <div class="chat-bubble assistant">${text}</div>
+            <div class="chat-bubble assistant" data-i18n-ignore></div>
         </div>`;
+        msgContainer.lastElementChild.querySelector(".chat-bubble").textContent = text;
         msgContainer.scrollTop = msgContainer.scrollHeight;
         
         let f = new FormData();
@@ -1728,7 +1780,13 @@ async def api_chat_history(session_id: str, user: User = Depends(get_current_use
 
 @router.post("/api/chat-send")
 async def api_chat_send(session_id: str = Form(...), message: str = Form(...), user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not user: return {"success": False}
+    if not user or not user.business_id or not message.strip() or len(message) > 4096:
+        return {"success": False}
+    session_exists = await db.scalar(select(ChatLog.id).where(
+        ChatLog.business_id == user.business_id, ChatLog.user_identifier == session_id,
+    ).limit(1))
+    if session_exists is None:
+        return {"success": False}
     chat = ChatLog(business_id=user.business_id, user_identifier=session_id, role="assistant", content=f"👨‍💻 [Менеджер]: {message}")
     db.add(chat)
     await db.commit()
@@ -1744,7 +1802,7 @@ async def api_chat_send(session_id: str = Form(...), message: str = Form(...), u
 
 
 @router.get("/calendar-data")
-async def get_calendar_data(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_calendar_data(start: Optional[str] = None, end: Optional[str] = None, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if not user: 
         return []
 
@@ -1758,13 +1816,22 @@ async def get_calendar_data(user: User = Depends(get_current_user), db: AsyncSes
     if is_limited_master:
         filters.append(Appointment.master_id == user.master_id)
 
+    now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    try:
+        range_start = datetime.fromisoformat(start).replace(tzinfo=None) if start else now.replace(day=1)
+        range_end = datetime.fromisoformat(end).replace(tzinfo=None) if end else (range_start.replace(day=28)+timedelta(days=4)).replace(day=1)
+    except ValueError:
+        return []
+    if range_end <= range_start or (range_end-range_start).days > 93:
+        return []
+    filters.extend([Appointment.appointment_time >= range_start, Appointment.appointment_time < range_end])
     stmt = select(Appointment.appointment_time).where(and_(*filters))
     res = await db.execute(stmt)
     appts_datetimes = res.scalars().all()
     
     unique_dates = {a.strftime('%Y-%m-%d') for a in appts_datetimes}
     
-    return [{"date": d} for d in unique_dates]
+    return [{"date": d} for d in sorted(unique_dates)]
 
 @router.get("/day-details")
 async def get_day_details(date: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -1832,8 +1899,8 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
             "business_name": biz_name
         })
         
-    my_ints_json = json.dumps(my_ints)
-    branches_json = json.dumps(branches_data)
+    my_ints_json = json.dumps(my_ints).replace("<", "\\u003c")
+    branches_json = json.dumps(branches_data).replace("<", "\\u003c")
 
     content = f"""
     <div class="glass-card p-4 p-md-5 mb-4">
@@ -2115,6 +2182,11 @@ async def save_integration(
 ):
     if not user or user.role not in ["owner", "admin", "manager"]: return RedirectResponse("/", status_code=303)
     
+    if ext_id and ext_id.lower().startswith(("http://", "https://")):
+        try:
+            await validate_public_url(ext_id)
+        except ValueError:
+            return RedirectResponse("/admin/bot-integration?error=unsafe_url", status_code=303)
     biz_id_to_use = user.business_id
     if target_business_id and target_business_id != user.business_id:
         if user.role == "owner":
@@ -2185,7 +2257,8 @@ async def save_integration(
         try:
             async with httpx.AsyncClient() as client:
                 if is_active:
-                    await client.post(f"https://api.telegram.org/bot{token}/setWebhook", json={"url": webhook_url})
+                    secret_token = hmac.new(SECRET_KEY.encode(), f"telegram:{biz_id_to_use}".encode(), hashlib.sha256).hexdigest()
+                    await client.post(f"https://api.telegram.org/bot{token}/setWebhook", json={"url": webhook_url, "secret_token": secret_token})
                 else:
                     await client.post(f"https://api.telegram.org/bot{token}/deleteWebhook")
         except Exception: pass
@@ -2235,22 +2308,16 @@ async def help_page(user: User = Depends(get_current_user)):
         <div class="text-center mb-5">
             <div class="mb-4"><i class="fas fa-headset fa-3x text-success opacity-75"></i></div>
             <h4 class="fw-800 text-white mb-2">Довідковий центр (FAQ)</h4>
-            <p class="text-muted">База знань: 200+ відповідей на часті запитання</p>
             <a href="https://t.me/SaaSDevelop" target="_blank" class="btn-primary-glow px-4 py-2 mt-3"><i class="fab fa-telegram me-2"></i>Написати в підтримку</a>
         </div>
         
         <div class="d-flex gap-2 mb-4 overflow-auto pb-2" style="scrollbar-width: none;" id="faq-categories">
             <button class="btn-glass active faq-cat-btn" onclick="filterFaq('all', this)">Всі</button>
             <button class="btn-glass faq-cat-btn" onclick="filterFaq('start', this)">🚀 Початок роботи</button>
-            <button class="btn-glass faq-cat-btn" onclick="filterFaq('ai', this)">🤖 Налаштування ШІ</button>
-            <button class="btn-glass faq-cat-btn" onclick="filterFaq('integrations', this)">🔌 Інтеграції</button>
             <button class="btn-glass faq-cat-btn" onclick="filterFaq('messengers', this)">📱 Месенджери</button>
-            <button class="btn-glass faq-cat-btn" onclick="filterFaq('voice', this)">📞 Голосовий ШІ</button>
             <button class="btn-glass faq-cat-btn" onclick="filterFaq('billing', this)">💰 Оплати</button>
             <button class="btn-glass faq-cat-btn" onclick="filterFaq('analytics', this)">📊 Аналітика</button>
             <button class="btn-glass faq-cat-btn" onclick="filterFaq('security', this)">🔒 Безпека</button>
-            <button class="btn-glass faq-cat-btn" onclick="filterFaq('troubleshooting', this)">🆘 Вирішення проблем</button>
-            <button class="btn-glass faq-cat-btn" onclick="filterFaq('pricing', this)">📈 Тарифи</button>
         </div>
         
         <div class="search-box w-100 mb-4" style="max-width: 100%;">
@@ -2296,236 +2363,47 @@ async def help_page(user: User = Depends(get_current_user)):
     </style>
     <script>
     const faqs = [
-        // 🚀 1. Початок роботи
-        {cat: "start", q: "Огляд робочого простору (Dashboard).", a: "Дашборд — це ваш головний екран. Він у реальному часі відображає фінансові метрики, воронку записів, завантаженість майстрів та автоматично сегментує клієнтів на VIP, постійних та нових на основі їх LTV."},
-        {cat: "start", q: "Як підключити першого співробітника?", a: "Відкрийте 'Конфігурація' -> 'Експерти' та натисніть 'Додати'. Вкажіть ПІБ співробітника, оберіть посаду та прив'яжіть послуги. Згодом ви зможете згенерувати йому унікальний логін для входу в систему."},
-        {cat: "start", q: "Як змінити свій пароль?", a: "Власник бізнесу змінює пароль у розділі 'Конфігурація', а майстер — безпосередньо у власному профілі після авторизації. При втраті доступу безпечне відновлення здійснюється лише через супер-адміністратора."},
-        {cat: "start", q: "Як створити філію?", a: "У панелі власника перейдіть до 'Конфігурація' -> 'Філії'. Введіть назву нової локації, місто, адресу та створіть логін/пароль для керівника. Філія функціонуватиме як повністю ізольований суб-акаунт."},
-        {cat: "start", q: "Як перемикатися між філіями?", a: "У списку філій поруч із кожною точкою є кнопка 'Увійти'. Натиснувши її, система миттєво перенаправить вас у панель керування обраної локації без необхідності повторної авторизації."},
-        {cat: "start", q: "Як налаштувати графік роботи?", a: "Введіть графік у розділі 'ШІ Асистент' (наприклад: Пн-Пт 09:00-20:00). Бот автоматично скануватиме ці години і ніколи не пропонуватиме клієнтам час поза межами робочого розкладу."},
-        {cat: "start", q: "Де знайти віджет для сайту?", a: "Посилання на публічний віджет доступне на Дашборді (кнопка 'Віджет'). Ви можете інтегрувати його на свій сайт (через iframe) або додати в шапку профілю Instagram (Linktree)."},
-        {cat: "start", q: "Які є ролі користувачів?", a: "Система підтримує чітке розмежування прав: Власник (повний фінансовий контроль), Маркетолог (ШІ та аналітика), Адміністратор (робота з записами) та Майстер (бачить виключно свій розклад)."},
-        {cat: "start", q: "Як відновити забутий пароль?", a: "Для максимального захисту від злому функція самостійного відновлення через email вимкнена. Зверніться до підтримки (Telegram), щоб супер-адмін згенерував вам новий тимчасовий ключ."},
-        {cat: "start", q: "Як додати нову послугу в прайс?", a: "В 'Конфігурації' оберіть вкладку 'Послуги'. Вкажіть назву послуги, її фіксовану вартість у гривнях та тривалість виконання у хвилинах. Ці дані миттєво стануть доступними для ШІ-асистента."},
-        {cat: "start", q: "Як видалити послугу чи майстра?", a: "Натисніть іконку кошика поруч із відповідним записом у списку. Зверніть увагу: ця дія не видалить історичні записи в календарі, пов'язані з цим майстром або послугою."},
-        {cat: "start", q: "Чи можу я змінити назву бізнесу?", a: "Назва фіксується при реєстрації для юридичної звітності та формування договорів. Для зміни фактичної назви бренду зверніться до вашого персонального менеджера."},
-        {cat: "start", q: "Що робити після реєстрації?", a: "Покроковий старт: 1) Додайте прайс-лист. 2) Створіть профілі майстрів. 3) Вкажіть графік роботи та налаштуйте Prompt для ШІ. 4) Підключіть токен Telegram для тестування бота."},
-        {cat: "start", q: "Як додати логотип бренду?", a: "Система автоматично створює стильний аватар з першої літери вашої назви. Функція завантаження графічного логотипу для кастомізації чеків зараз знаходиться на стадії тестування."},
-        {cat: "start", q: "Де знайти свій договір?", a: "Ваші підписані документи надійно шифруються та зберігаються на хмарному сервері. Для отримання їх цифрової копії надішліть офіційний запит до служби технічної підтримки."},
-        {cat: "start", q: "Чи є мобільний додаток?", a: "SafeOrbit розроблено як PWA-додаток. Відкрийте CRM у мобільному браузері, натисніть 'Поділитися' -> 'Додати на головний екран', і ви отримаєте повноцінний застосунок на телефоні."},
-        {cat: "start", q: "Як змінити часовий пояс?", a: "Серверна частина оптимізована під офіційний час Києва (Europe/Kyiv). Для міжнародних філій синхронізація часу налаштовується індивідуально через звернення до техпідтримки."},
-        {cat: "start", q: "Як очистити всі дані?", a: "Для безпечного обнулення тестових записів і клієнтської бази перед офіційним запуском зверніться до адміністратора. Налаштування ШІ та токени при цьому будуть повністю збережені."},
-        {cat: "start", q: "Як імпортувати базу клієнтів?", a: "Підготуйте свою поточну базу клієнтів у форматі CSV або таблиці Excel. Наша команда технічної підтримки безкоштовно та коректно імпортує її у ваш новий акаунт."},
-        {cat: "start", q: "Що таке 'Швидкий старт'?", a: "Це преміум-послуга онбордингу 'під ключ', де наші інженери самостійно створюють ваш прайс, пишуть ідеальний Prompt для ШІ та підключають усі необхідні API-інтеграції."},
-
-        // 🤖 2. Налаштування ШІ
-        {cat: "ai", q: "Як активувати ШІ-асистента?", a: "В розділі 'AI Асистенти' вставте токен бота (напр. від Telegram) і збережіть зміни. Нейромережа одразу отримає доступ до розкладу і почне обробляти повідомлення клієнтів."},
-        {cat: "ai", q: "Що таке 'Конструктор Особистості'?", a: "Це візуальний інструмент для швидкого створення системного Prompt'у. Вибираючи тон, мову та емодзі, ви формуєте унікальний стиль поведінки вашого бота без навичок програмування."},
-        {cat: "ai", q: "Як навчити ШІ моєму прайсу?", a: "Бот не потребує ручного навчання прайсу. Він має інтелектуальний доступ до бази даних ('Послуги' та 'Склад') і підтягує актуальні ціни безпосередньо в момент діалогу."},
-        {cat: "ai", q: "Як ШІ пропонує вільні вікна?", a: "Модель аналізує робочий графік, перевіряє тривалість запитуваної послуги та сканує календар. Після цього вона формує список з 3-4 реально вільних слотів для клієнта."},
-        {cat: "ai", q: "Як змінити модель ШІ?", a: "У налаштуваннях ШІ виберіть модель з випадаючого списку. Рекомендуємо Llama 3.3 70B для складних інтелектуальних діалогів або Llama 8B для миттєвих відповідей."},
-        {cat: "ai", q: "Що таке 'Температура' ШІ?", a: "Це індекс креативності моделі (від 0.0 до 1.0). Для точної технічної підтримки встановіть 0.3. Якщо потрібні розгорнуті і творчі продажі — підвищіть до 0.7."},
-        {cat: "ai", q: "Чи розуміє ШІ голосові повідомлення?", a: "Наразі підтримується лише текстовий ввід. Модуль комп'ютерного слуху (STT) на базі Whisper для розпізнавання аудіо знаходиться в активній стадії розробки."},
-        {cat: "ai", q: "Як працює допродаж (Upsell)?", a: "Увімкніть стратегію допродажу в Конструкторі. Бот аналізуватиме контекст і проактивно пропонуватиме логічні доповнення (наприклад, маску після фарбування)."},
-        {cat: "ai", q: "Як обмежити довжину відповідей?", a: "Встановіть у Конструкторі опцію 'Лаконічно' або зменшіть параметр 'Макс. токенів' до 150. Бот змінить парадигму і відповідатиме короткими 1-2 реченнями."},
-        {cat: "ai", q: "Що робити при системних помилках ШІ?", a: "Відкрийте 'Системну інструкцію' і допишіть жорстке правило. Наприклад: 'ЗАБОРОНЕНО записувати до 10:00'. ШІ негайно врахує цей контекст у нових діалогах."},
-        {cat: "ai", q: "Як бот реагує на 'поклич людину'?", a: "ШІ має базовий тригер на слова 'адмін', 'людина', 'оператор'. Він миттєво припиняє генерацію відповідей і надсилає Push-сповіщення живому менеджеру."},
-        {cat: "ai", q: "Як ШІ дізнається про товари магазину?", a: "Бот читає вашу вкладку 'Склад'. Коли клієнт запитує наявність, ШІ перевіряє залишки, запитує потрібний колір/розмір і оформлює замовлення на доставку."},
-        {cat: "ai", q: "Чи може ШІ скасувати запис?", a: "Так, функціонал підтримує скасування. Якщо ідентифікований клієнт просить відмінити візит, бот знаходить його запис, анулює його і звільняє час у календарі."},
-        {cat: "ai", q: "Як ШІ працює зі знижками?", a: "Якщо у CRM профілі клієнта зафіксовано знижку (напр. 15%), бот автоматично перераховує фінальну ціну послуги та наголошує клієнту на його персональній вигоді."},
-        {cat: "ai", q: "Чи вміє бот жартувати?", a: "Абсолютно. Якщо в Конструкторі обрати 'Грайливий' тон, модель почне підтримувати неформальну бесіду, використовувати гумор та велику кількість емодзі."},
-        {cat: "ai", q: "Скільки мов підтримує ШІ?", a: "Базово прописані українська, англійська та польська мови. У режимі 'Мультимовний' нейромережа автоматично розпізнає мову клієнта і відповідає нею ж."},
-        {cat: "ai", q: "Як бот звертається до клієнтів?", a: "Ви можете жорстко задати формат звертання. Оберіть шанобливе 'На Ви' для преміум сегменту, або дружнє 'На Ти' для сучасних молодіжних брендів."},
-        {cat: "ai", q: "Чи можу я сам написати Prompt?", a: "Так, ви можете повністю ігнорувати Конструктор. Напишіть власний детальний Prompt у текстовому полі 'Системна інструкція', впровадивши будь-які специфічні алгоритми."},
-        {cat: "ai", q: "Що таке 'Макс. токенів'?", a: "Це обмеження на фізичний об'єм згенерованого тексту. Значення 1024 токенів дозволяє боту давати розгорнуті прайси без обривання тексту на половині слова."},
-        {cat: "ai", q: "Як ШІ розпізнає послугу з опису?", a: "Llama 3.3 використовує глибокий семантичний аналіз тексту. Якщо клієнт просить 'зробити волосся світлішим', модель чітко зрозуміє, що йдеться про 'Фарбування'."},
-        {cat: "ai", q: "Чи можна вимкнути ШІ на ніч?", a: "Бот працює 24/7, конвертуючи ліди вночі. Але ви можете додати в Prompt інструкцію: повідомляти, що заклад зачинено, і пропонувати час на ранок."},
-
-        // 🔌 3. Інтеграції з CRM
-        {cat: "integrations", q: "Altegio через API.", a: "Введіть токен та ID компанії в налаштуваннях Altegio. Після збереження ШІ почне сканувати вільні вікна та майстрів безпосередньо з вашої зовнішньої CRM."},
-        {cat: "integrations", q: "BeautyPro синхронізація.", a: "Вкажіть токен та ID локації BeautyPro. Ця інтеграція дозволяє миттєво дублювати всі нові AI-записи у ваш основний розклад BeautyPro."},
-        {cat: "integrations", q: "Інтеграція Cleverbox.", a: "Введіть API URL та токен доступу Cleverbox. Ваші гарячі ліди з месенджерів автоматично потраплятимуть до клієнтської бази Cleverbox."},
-        {cat: "integrations", q: "Підключення Integrica.", a: "Збережіть токен та ID локації в каталозі інтеграцій. Синхронізація контактних даних та деталей запису відбувається в режимі реального часу."},
-        {cat: "integrations", q: "LuckyFit.", a: "Потрібен лише API токен. Ця оптимізована інтеграція ідеально підходить для фітнес-студій, передаючи інформацію про бронювання групових тренувань."},
-        {cat: "integrations", q: "uSpacy.", a: "Введіть Token та Workspace ID. Модуль автоматично передає створені ботом ліди безпосередньо у воронку продажів (Kanban) uSpacy для менеджерів."},
-        {cat: "integrations", q: "Dikidi.", a: "Розробка офіційного модуля синхронізації з Dikidi знаходиться на фінальній стадії. Слідкуйте за технічними оновленнями системи в Telegram-каналі."},
-        {cat: "integrations", q: "Перевірка інтеграції.", a: "Перейдіть у 'Журнал подій'. У разі успішної відправки даних у сторонню CRM там гарантовано з'явиться зелений лог із відповідним підтвердженням."},
-        {cat: "integrations", q: "Запис не з'явився в CRM.", a: "Перевірте, чи увімкнено перемикач 'CRM: Увімк' у панелі супер-адміністратора, і чи не містить ваш токен зайвих прихованих пробілів."},
-        {cat: "integrations", q: "Дві CRM одночасно?", a: "Так, архітектура підтримує мультиканальність. Ви можете паралельно відправляти ліди в uSpacy та одночасно фіксувати жорсткі записи в Altegio."},
-        {cat: "integrations", q: "Імпорт бази з CRM.", a: "Масова викачка бази поки не підтримується. Клієнти завантажуються поступово: при кожному новому зверненні його картка синхронізується з основною CRM."},
-        {cat: "integrations", q: "WINS.", a: "Збережіть токен та Branch ID у налаштуваннях WINS. Підтримується надійна двостороння передача статусів запису між системами."},
-        {cat: "integrations", q: "Doctor Eleks.", a: "Введіть Token та Clinic ID. Ця інтеграція адаптована спеціально для медичних центрів і суворо враховує специфіку розкладу лікарів."},
-        {cat: "integrations", q: "Appointer.", a: "Введіть токен та Location ID у відповідне поле. Бот зможе бронювати час, орієнтуючись на реальну зайнятість кабінетів в системі Appointer."},
-        {cat: "integrations", q: "EasyWeek.", a: "Синхронізація підтримується повністю. Введіть API ключ, і система автоматично зв'яже послуги за їхніми назвами та ідентифікаторами."},
-        {cat: "integrations", q: "Trendis.", a: "Введіть токен та Location ID для передачі записів. Рішення чудово підходить для сучасних салонів краси, що використовують платформу Trendis."},
-        {cat: "integrations", q: "MioPane.", a: "Для підключення MioPane потрібні токен та ID локації. Бот автоматично отримуватиме актуальні дані про доступність майстрів з розкладу."},
-        {cat: "integrations", q: "Clinica Web.", a: "Інтеграція доступна для медичних закладів. Вона дозволяє повністю автоматизувати первинну реєстрацію пацієнтів через Telegram-бота."},
-        {cat: "integrations", q: "Помилка 401 в логах.", a: "Статус 401 означає 'Unauthorized'. Ваш API-токен від сторонньої CRM застарів, введений з помилкою або був заблокований на їхньому боці."},
-        {cat: "integrations", q: "Затримка синхронізації.", a: "Наші сервери відправляють дані миттєво (через Webhooks). Затримка у 3-5 секунд можлива лише при перевантаженні серверів сторонньої CRM."},
-        {cat: "integrations", q: "Чи синхронізуються ціни?", a: "Так, SafeOrbit передає фінальну вартість (з урахуванням ШІ-допродажів та знижок), щоб у вашій CRM завжди відображався коректний чистий дохід."},
-
-        // 📱 4. Месенджери
-        {cat: "messengers", q: "Instagram Direct.", a: "Підключення вимагає Access Token від Meta. Оскільки налаштування через Facebook Developer Console є надскладним, наші інженери роблять це під ключ."},
-        {cat: "messengers", q: "Telegram-бот.", a: "Створіть нового бота у @BotFather, скопіюйте HTTP API Token і вставте його у налаштування SafeOrbit. AI-бот почне працювати миттєво."},
-        {cat: "messengers", q: "WhatsApp Business API.", a: "Підключення можливе виключно через офіційних провайдерів Meta (BSP). Процес бізнес-реєстрації номера займає близько 3 днів."},
-        {cat: "messengers", q: "Viber Chatbots.", a: "Створіть бота у Viber Partner Portal, скопіюйте унікальний токен та введіть його в системі. Підтримуються всі діалогові функції ШІ."},
-        {cat: "messengers", q: "Facebook Messenger.", a: "Модуль налаштовується паралельно з Instagram Direct, оскільки використовує єдину хмарну інфраструктуру Meta Webhooks для відправки повідомлень."},
-        {cat: "messengers", q: "Як відповісти вручну?", a: "Відкрийте вкладку 'Комунікації', знайдіть потрібний діалог і введіть текст. ШІ автоматично призупиниться, щоб не перебивати вас під час розмови."},
-        {cat: "messengers", q: "Чи бачить ШІ старі переписки?", a: "Так, бот автоматично завантажує в пам'ять контекст останніх 30 повідомлень діалогу. Це дозволяє йому не ставити клієнту повторних питань."},
-        {cat: "messengers", q: "Сповіщення в Telegram.", a: "Вкажіть свій особистий Chat ID (або ID групи з мінусом попереду) у налаштуваннях, щоб отримувати миттєві алерти про нові успішні записи."},
-        {cat: "messengers", q: "Ідентифікація клієнтів.", a: "Система безпомилково розпізнає клієнта за унікальним Chat ID. Якщо клієнт надає свій телефон, його профіль автоматично об'єднується з базою."},
-        {cat: "messengers", q: "Захист від спаму.", a: "ШІ має вбудований Rate Limiting. Якщо користувач надсилає десятки повідомлень за секунду, бот ігнорує його для захисту ваших серверних ресурсів."},
-        {cat: "messengers", q: "Надсилання фото.", a: "Наразі інтерфейс та ШІ обробляють виключно текстові запити. Підтримка комп'ютерного зору (Computer Vision) для фото запланована на майбутнє."},
-        {cat: "messengers", q: "Віджет на сайт.", a: "Натисніть кнопку 'Віджет', щоб згенерувати публічне посилання. Ви можете додати його на свій корпоративний сайт або в Linktree Instagram."},
-        {cat: "messengers", q: "Зміна імені бота.", a: "Ім'я, опис та аватар бота змінюються не в нашій CRM, а безпосередньо в налаштуваннях месенджера (наприклад, через команди у @BotFather)."},
-        {cat: "messengers", q: "Як відключити месенджер?", a: "Щоб призупинити роботу ШІ-бота в конкретному каналі, просто зітріть його токен у налаштуваннях інтеграцій і натисніть кнопку збереження."},
-        {cat: "messengers", q: "Чи є ліміт повідомлень?", a: "Для користувачів PRO-тарифу будь-які ліміти відсутні. У базовому тарифі діє політика чесного використання для запобігання перевантажень API."},
-        {cat: "messengers", q: "Блокування клієнта.", a: "Функція повноцінного чорного списку знаходиться в розробці. Наразі ви можете просто ігнорувати небажані діалоги у вкладці 'Комунікації'."},
-        {cat: "messengers", q: "Групові чати Telegram.", a: "Нейромережа оптимізована виключно для особистих (Direct) повідомлень. Додавання бота в групи не підтримується задля збереження конфіденційності."},
-        {cat: "messengers", q: "Надсилання локації.", a: "Бот може надіслати текстом вашу точну адресу та пояснити, як дістатися. Відправка живої геолокації картою наразі не підтримується платформою."},
-        {cat: "messengers", q: "Автовідповідач.", a: "Бот повністю замінює стандартний автовідповідач. Вночі він повноцінно спілкується, відповідає на питання і записує клієнтів на вільний ранковий час."},
-        {cat: "messengers", q: "Історія чатів.", a: "Всі діалоги надійно шифруються і безстроково зберігаються у базі даних. Ви можете будь-коли переглянути їх та проаналізувати у вкладці 'Комунікації'."},
-        {cat: "messengers", q: "Скільки ботів можна додати?", a: "За одним бізнес-акаунтом можна закріпити строго по одному боту для кожного месенджера (один Telegram, один Viber тощо)."},
-
-        // 📞 5. Голосовий ШІ
-        {cat: "voice", q: "Як активувати голосовий ШІ?", a: "Голосовий ШІ доступний виключно в PRO-тарифі. Для його активації потрібна персональна консультація з інженером для налаштування SIP-транку (Vapi/Retell)."},
-        {cat: "voice", q: "Binotel.", a: "Введіть API ключ та секрет з кабінету Binotel. Це дозволить безперебійно маршрутизувати вхідні дзвінки з вашої АТС безпосередньо на нейромережу."},
-        {cat: "voice", q: "Phonet.", a: "Вкажіть домен, ключ та пароль Phonet. Інтеграція підтримує передачу контексту дзвінка та автоматичне збереження аудіозапису розмови в нашій CRM."},
-        {cat: "voice", q: "Ringostat.", a: "Введіть Auth Token для відстеження дзвінків. Ringostat дозволяє додатково аналізувати маркетингові джерела (Call Tracking), з яких прийшов ваш клієнт."},
-        {cat: "voice", q: "Чи може ШІ сам записувати?", a: "Так, голосовий асистент має миттєвий доступ до вашого календаря. Під час розмови він знаходить вільне вікно і одразу створює підтверджений запис."},
-        {cat: "voice", q: "Переведення дзвінка на людину.", a: "У налаштуваннях вкажіть 'transfer_phone_number'. Якщо клієнт ставить нестандартне питання, бот безшовно переведе дзвінок на ваш мобільний."},
-        {cat: "voice", q: "Записи розмов.", a: "Оригінальні аудіозаписи всіх розмов з ШІ, а також їх повна текстова транскрипція, автоматично зберігатимуться в картці клієнта для контролю якості."},
-        {cat: "voice", q: "Вибір голосу.", a: "Ви можете обрати голос (тембр, стать, акцент) на стороні провайдерів ElevenLabs або OpenAI. Наші інженери допоможуть підібрати ідеальне звучання."},
-        {cat: "voice", q: "SMS-нагадування.", a: "Для автоматичної відправки SMS-нагадувань підключіть провайдера TurboSMS. У розкладі з'явиться можливість надсилати повідомлення в один клік."},
-        {cat: "voice", q: "Twilio.", a: "Twilio є міжнародним провайдером. Введіть Account SID та Auth Token для відправки SMS за кордон (ідеально підходить для філій у Європі чи США)."},
-        {cat: "voice", q: "eSputnik.", a: "Інтеграція з eSputnik підтримується для створення масових тригерних розсилок. Дані з нашої CRM автоматично оновлюють сегменти у вашому eSputnik-акаунті."},
-        {cat: "voice", q: "Швидкість відповіді голосом.", a: "Завдяки використанню надшвидких процесорів Groq затримка між реплікою клієнта та відповіддю бота становить менше 800 мілісекунд (імітація живої людини)."},
-        {cat: "voice", q: "Синтез мовлення (TTS).", a: "Генерація голосу (Text-to-Speech) відбувається через найсучасніші нейромережі, які здатні робити паузи, зітхати та інтонувати текст природно."},
-        {cat: "voice", q: "Розпізнавання (STT).", a: "Модуль розпізнавання (Speech-to-Text) відмінно розуміє українську мову, суржик, слова-паразити та ігнорує фоновий шум на вулиці."},
-        {cat: "voice", q: "Вхідні та вихідні?", a: "Бот здатний як приймати вхідні дзвінки від лідів (замінюючи адміністратора), так і робити вихідні обдзвони бази для збору NPS-оцінок."},
-        {cat: "voice", q: "Автовідповідач клієнта.", a: "Голосовий ШІ автоматично розпізнає автовідповідач (Voicemail) на стороні клієнта і одразу кладе слухавку, економлячи ваші кошти."},
-        {cat: "voice", q: "Музика на фоні.", a: "Для збереження мінімальної затримки відповіді та зменшення навантаження на канал, фонова музика під час розмови з ботом наразі не використовується."},
-        {cat: "voice", q: "Чи потрібна SIP-телефонія?", a: "Так, для роботи голосового бота обов'язково потрібна існуюча хмарна SIP-телефонія (Binotel, Phonet), до якої ми підключаємо нейромережу."},
-        {cat: "voice", q: "Номер відправника SMS.", a: "Для відправки SMS з назвою вашого бренду (замість невідомого номера) вкажіть офіційно зареєстрований альфа-іменник (Sender ID) у налаштуваннях."},
-        {cat: "voice", q: "Ціна за хвилину.", a: "Послуги голосового ШІ не тарифікуються нами. Ви сплачуєте виключно своєму провайдеру телефонії за хвилини розмови згідно з їхніми тарифами."},
-        {cat: "voice", q: "Переадресація при зайнятості.", a: "Якщо ваша основна лінія зайнята живими менеджерами, система може переадресувати вхідний дзвінок на ШІ-асистента, щоб не втратити ліда."},
-        
-        // 💰 6. Оплати
-        {cat: "billing", q: "Monobank API.", a: "Введіть X-Token (генерується в кабінеті ФОП). Це дозволить CRM автоматично відстежувати надходження коштів та змінювати статуси замовлень на 'Оплачено'."},
-        {cat: "billing", q: "Fondy.", a: "Для підключення еквайрингу Fondy введіть Merchant ID та Secret Key. Завдяки цьому ви зможете приймати оплати картками (Apple Pay/Google Pay) онлайн."},
-        {cat: "billing", q: "WayForPay.", a: "Введіть Merchant Account та Secret Key. WayForPay є популярним українським шлюзом з низькими комісіями для безпечного прийому онлайн-платежів."},
-        {cat: "billing", q: "LiqPay.", a: "Інтеграція з LiqPay вимагає введення Public Key та Private Key з кабінету ПриватБанку. Ідеально підходить для бізнесів, що обслуговуються в ПБ."},
-        {cat: "billing", q: "Stripe.", a: "Введіть Secret Key для прийому міжнародних платежів. Stripe повністю підтримує розрахунки в USD, EUR та інших іноземних валютах."},
-        {cat: "billing", q: "Фіскальний чек.", a: "Відкрийте деталі запису в календарі та натисніть кнопку 'Друк' (іконка принтера). Система миттєво згенерує стилізований PDF-чек для термопринтера."},
-        {cat: "billing", q: "Доходи в статистиці.", a: "На дашборді автоматично сумується вартість виключно тих записів, що мають статус 'Виконано'. Скасовані або очікувані візити дохід не формують."},
-        {cat: "billing", q: "Як ШІ обробляє ціни?", a: "ШІ-бот зчитує ціни безпосередньо з вашої вкладки 'Послуги'. Якщо ви оновили прайс, бот почне використовувати нові ціни вже через секунду."},
-        {cat: "billing", q: "Знижки клієнтів.", a: "У профілі клієнта можна встановити персональну знижку у відсотках. При записі ШІ застосує її до ціни і приємно наголосить на цьому клієнту."},
-        {cat: "billing", q: "Оплата підписки SafeOrbit.", a: "Оплата за CRM здійснюється переказом за реквізитами IBAN ФОП або через безпечне платіжне посилання, яке щомісяця генерує менеджер."},
-        {cat: "billing", q: "Зміна валюти.", a: "Базово вся система працює з гривнею (UAH). Підтримка інших валют та автоматична конвертація доступні виключно на PRO-тарифі."},
-        {cat: "billing", q: "Повернення коштів клієнту.", a: "Повернення коштів (Refund) наразі не автоматизовано в CRM. Вам потрібно ініціювати цю процедуру вручну в кабінеті вашого платіжного шлюзу."},
-        {cat: "billing", q: "Генерація посилань.", a: "Функція автоматичної генерації унікального посилання на оплату безпосередньо в чаті знаходиться на стадії тестування і з'явиться в наступному патчі."},
-        {cat: "billing", q: "Передоплата.", a: "Ви можете налаштувати обов'язкову часткову передоплату. ШІ надішле клієнту реквізити та чекатиме підтвердження (скріншоту) перед фіксацією часу."},
-        {cat: "billing", q: "Комісія еквайрингу.", a: "SafeOrbit не стягує жодних прихованих комісій з ваших транзакцій. Ви сплачуєте виключно стандартну комісію вашого банку (зазвичай 1.2-1.5%)."},
-        {cat: "billing", q: "Звіт по фінансах.", a: "У розділі аналітики ви можете в один клік експортувати список усіх записів разом з їхньою фінальною вартістю у CSV-файл для подальшого аналізу."},
-        {cat: "billing", q: "Собівартість товару.", a: "Додаючи товар на склад, обов'язково вказуйте його собівартість (Unit Cost). Це дозволить системі автоматично вираховувати ваш чистий прибуток."},
-        {cat: "billing", q: "Мультивалютність.", a: "Мультивалютність підтримується при підключенні Stripe. Бот може називати ціни у валюті клієнта, спираючись на локацію його телефонного номера."},
-        {cat: "billing", q: "Додавання чайових.", a: "Клієнт може залишити безготівкові чайові майстру на етапі онлайн-оплати візиту через Fondy або WayForPay (якщо ця функція увімкнена)."},
-        {cat: "billing", q: "Статуси оплат.", a: "При інтеграції з Monobank або Fondy статус запису автоматично зміниться з 'Очікується' на 'Оплачено', щойно гроші надійдуть на ваш рахунок."},
-        {cat: "billing", q: "Реквізити на чеку.", a: "На товарному чеку автоматично друкуються назва вашого бізнесу, юридична адреса, час візиту, перелік наданих послуг та фінальна сума."},
-
-        // 📊 7. Аналітика
-        {cat: "analytics", q: "Що на Дашборді?", a: "Дашборд відображає глобальну картину: кількість візитів за сьогодні/місяць, сумарний дохід, кругові діаграми послуг та рейтинг топ-клієнтів."},
-        {cat: "analytics", q: "Джерела записів.", a: "Цей графік наочно показує відсоток лідів, яких успішно закрив ШІ-асистент, у порівнянні із записами, які адміністратор додав вручну."},
-        {cat: "analytics", q: "Топ гостей.", a: "Алгоритм системи автоматично визначає VIP-клієнтів (за найбільшим LTV) і виводить їх у топ списку для вашої особливої уваги."},
-        {cat: "analytics", q: "Завантаженість майстрів.", a: "У розділі календаря ви можете застосувати фільтр по кожному майстру, щоб побачити щільність його розкладу та оцінити ефективність."},
-        {cat: "analytics", q: "Журнал подій.", a: "У вкладці 'Журнал подій' ведеться суворий аудит: фіксуються зміни налаштувань ШІ, створення записів та помилки інтеграцій."},
-        {cat: "analytics", q: "Експорт бази.", a: "Ви можете в один клік скопіювати всю таблицю клієнтів з вкладки 'База клієнтів'. Формування чистого CSV-файлу буде додано пізніше."},
-        {cat: "analytics", q: "ШІ-аналітик.", a: "Натиснувши на іконку робота внизу, ви можете спитати: 'Скільки записів на завтра?'. ШІ проаналізує базу і видасть точну текстову відповідь."},
-        {cat: "analytics", q: "Історія візитів.", a: "Уся історія візитів, суми чеків та скасовані записи назавжди зберігаються у розширеній цифровій картці кожного клієнта."},
-        {cat: "analytics", q: "Статистика складу.", a: "На вкладці 'Склад' ви контролюєте актуальні залишки товарів. ШІ враховує цю кількість при обробці запитів від покупців."},
-        {cat: "analytics", q: "Скасовані записи.", a: "Червоний індикатор на дашборді одразу сигналізує про скасовані візити. Аналізуйте ці дані, щоб вчасно реагувати на відтік клієнтів."},
-        {cat: "analytics", q: "Конверсія бота.", a: "Цей складний показник вираховується автоматично шляхом ділення кількості унікальних чатів на кількість реально створених записів."},
-        {cat: "analytics", q: "RFM-аналіз.", a: "Фоновий процес автоматично ділить вашу базу на 'Сплячих', 'Нових' та 'VIP' клієнтів залежно від давності та частоти їхніх покупок."},
-        {cat: "analytics", q: "Середній чек.", a: "Хочете дізнатися середній чек? Просто запитайте про це вбудованого ШІ-асистента. Він миттєво підрахує суму за обраний період."},
-        {cat: "analytics", q: "Фільтр по датах.", a: "Гнучка навігація місяцями та тижнями доступна у вкладці 'Календар'. Ви можете легко планувати роботу на кілька місяців вперед."},
-        {cat: "analytics", q: "Кількість нових лідів.", a: "Кожен унікальний контакт, що написав боту (навіть без запису), назавжди зберігається у вашу базу для подальшого ремаркетингу."},
-        {cat: "analytics", q: "Продажі товарів.", a: "Якщо у вас Retail-бізнес, замовлення з адресою доставки будуть візуально виділені спеціальною іконкою 'Вантажівка' у загальному списку."},
-        {cat: "analytics", q: "Звіт по годинах.", a: "Побудова візуальної теплової карти (Heatmap) найбільш завантажених годин вашого закладу знаходиться у стадії фінальної розробки."},
-        {cat: "analytics", q: "Графік доходів.", a: "Лінійний графік на дашборді демонструє динаміку зростання 'Цінності клієнтів' (LTV) протягом поточного фінансового місяця."},
-        {cat: "analytics", q: "Аналітика розсилок.", a: "Після відправки глобальної розсилки система збирає базову статистику успішно доставлених повідомлень по базі."},
-        {cat: "analytics", q: "NPS оцінки.", a: "Система здатна автоматично збирати оцінки від 1 до 5 від клієнтів після візиту, формуючи середній бал якості обслуговування."},
-        {cat: "analytics", q: "Продуктивність ШІ.", a: "За даними нашої аналітики, бот SafeOrbit бере на себе 80% рутини, заощаджуючи в середньому 40-60 годин робочого часу адміністратора."},
-
-        // 🔒 8. Безпека
-        {cat: "security", q: "Конфіденційність.", a: "Ваша база клієнтів надійно шифрується (AES-256) і зберігається на повністю ізольованих інстансах. Ми гарантуємо непередачу даних третім особам."},
-        {cat: "security", q: "Доступ ШІ.", a: "Нейромережа має доступ ЛИШЕ до вашого графіка та прайсу. На рівні ядра ШІ суворо заборонено читати або розголошувати чужі персональні дані."},
-        {cat: "security", q: "NDA.", a: "Підписання Угоди про нерозголошення (NDA) є обов'язковою процедурою перед активацією акаунту. Вона юридично захищає вашу комерційну таємницю."},
-        {cat: "security", q: "Резервне копіювання.", a: "Ми здійснюємо автоматичне створення знімків бази даних (Backups) щодня о 03:00. Ваші дані у повній безпеці від випадкової втрати."},
-        {cat: "security", q: "Двофакторна (2FA).", a: "Функція входу через код з SMS або Google Authenticator (2FA) наразі тестується і буде розгорнута в найближчому пакеті оновлень безпеки."},
-        {cat: "security", q: "Доступ майстрів.", a: "Майстер авторизується під власним логіном і бачить виключно записи, закріплені за ним. Модулі фінансів, налаштувань та бази клієнтів від нього приховані."},
-        {cat: "security", q: "GDPR.", a: "Архітектура SafeOrbit повністю відповідає європейським регламентам приватності (GDPR) щодо безпечного збору та зберігання персональних даних."},
-        {cat: "security", q: "Видалення акаунту.", a: "Для повного видалення вашого бізнес-профілю з усіх серверів зверніться із запитом до служби підтримки. Дані стираються безповоротно."},
-        {cat: "security", q: "Платіжні дані.", a: "Ми ніколи не зберігаємо номери банківських карток клієнтів. Усі фінансові транзакції проходять через захищені шлюзи офіційних еквайєрів."},
-        {cat: "security", q: "Логи сесій.", a: "Усі критичні входи в панель керування фіксуються із записом IP-адреси. Ви можете запросити детальний звіт про сесії авторизації у підтримки."},
-        {cat: "security", q: "SSL сертифікат.", a: "З'єднання між вашим браузером та нашими серверами надійно захищене військовим протоколом HTTPS з 2048-бітним ключем шифрування."},
-        {cat: "security", q: "Розмежування прав.", a: "Система має жорстку ієрархію доступу: Власник (всі права) > Маркетолог > Адміністратор > Майстер (лише читання свого розкладу)."},
-        {cat: "security", q: "Захист від DDoS.", a: "Вся мережева інфраструктура SafeOrbit прихована за потужними екранами захисту Cloudflare, що гарантує 99.9% аптайму під час DDoS-атак."},
-        {cat: "security", q: "Prompt Injection.", a: "Бот має багаторівневий системний захист від хакерських спроб 'зламати' інструкції (Prompt Injection) або змусити бота ігнорувати правила."},
-        {cat: "security", q: "Ізоляція даних.", a: "Архітектура (Multi-tenant) побудована так, що кожен бізнес працює у власному ізольованому кластері. Витік даних до інших клієнтів виключений."},
-        {cat: "security", q: "Аудит безпеки.", a: "Наш код та серверна інфраструктура щоквартально проходять незалежний аудит безпеки (Penetration Testing) для виявлення та закриття вразливостей."},
-        {cat: "security", q: "Відновлення пароля.", a: "З метою захисту від соціальної інженерії зміна втраченого пароля можлива ВИКЛЮЧНО через ручну верифікацію супер-адміністратором системи."},
-        {cat: "security", q: "Зміна власника.", a: "Передача прав власності на акаунт іншій особі можлива лише після підписання офіційної електронної заяви обома сторонами процесу."},
-        {cat: "security", q: "Експорт бази.", a: "Кнопка масового експорту клієнтської бази доступна виключно користувачам з роллю 'Власник', щоб уникнути крадіжки бази менеджерами."},
-        {cat: "security", q: "Вимоги до пароля.", a: "Система приймає паролі довжиною не менше 8 символів. Паролі хешуються складним криптографічним алгоритмом Bcrypt."},
-        {cat: "security", q: "Доступ підтримки.", a: "Наші інженери можуть зайти у ваш акаунт для виправлення помилок ТІЛЬКИ після вашого прямого письмового дозволу в офіційному чаті підтримки."},
-
-        // 🆘 9. Вирішення проблем
-        {cat: "troubleshooting", q: "ШІ не відповідає.", a: "Перевірте дві речі: чи коректно вставлений токен бота (без зайвих пробілів) та чи увімкнений перемикач 'ШІ Асистент' у панелі супер-адміністратора."},
-        {cat: "troubleshooting", q: "Немає сповіщень Telegram.", a: "Переконайтеся, що ви поставили галочку біля 'Telegram Chat ID для сповіщень'. Якщо це груповий чат, його ID обов'язково має починатися з мінуса (-100...)."},
-        {cat: "troubleshooting", q: "ШІ змінив мову.", a: "Таке буває, коли клієнт починає писати англійською. Щоб виправити це, жорстко вкажіть 'Українська' у Конструкторі і збережіть новий Prompt."},
-        {cat: "troubleshooting", q: "Помилка збереження.", a: "Скиньте кеш браузера комбінацією Ctrl+Shift+R (Cmd+Shift+R для Mac) та перевірте підключення до мережі. Якщо не допомогло — пишіть у підтримку."},
-        {cat: "troubleshooting", q: "Помилка Altegio.", a: "Згенеруйте новий API-токен доступу у вашому кабінеті Altegio. Старий ключ міг бути анульований політикою безпеки сторонньої CRM."},
-        {cat: "troubleshooting", q: "Віджет не працює.", a: "Переконайтеся, що ваш бізнес-акаунт не заблоковано за несплату. Заблоковані профілі втрачають доступ до генерації публічних посилань."},
-        {cat: "troubleshooting", q: "Неправильні ціни.", a: "Бот не вигадує ціни, він бере їх із вкладки 'Послуги'. Оновіть там вартість, і бот миттєво почне використовувати оновлені дані в діалогах."},
-        {cat: "troubleshooting", q: "Скидання налаштувань.", a: "Щоб повернути базові налаштування ШІ, просто повністю видаліть текст із поля 'Системна інструкція' і натисніть кнопку 'Зберегти'."},
-        {cat: "troubleshooting", q: "Техпідтримка.", a: "Кнопка 'Написати в підтримку' вгорі сторінки переведе вас у наш офіційний Telegram-канал. Інженери відповідають протягом 15 хвилин у робочий час."},
-        {cat: "troubleshooting", q: "Помилка 403.", a: "Ця помилка (Unauthorized) означає, що термін дії вашої сесії вичерпано. Вийдіть з акаунту через ліве меню і здійсніть вхід заново."},
-        {cat: "troubleshooting", q: "Бот не пропонує вільний час.", a: "Перевірте, чи коректно заповнено поле 'Графік роботи'. Якщо воно порожнє або написано з помилкою, ШІ вважатиме, що заклад зачинено."},
-        {cat: "troubleshooting", q: "Подвійні записи.", a: "Система має жорсткий захист від 'накладання' записів. Якщо виникає конфлікт, перевірте, чи правильно вказана тривалість (у хвилинах) для кожної послуги."},
-        {cat: "troubleshooting", q: "Клієнт не отримує SMS.", a: "Авторизуйтесь у кабінеті вашого провайдера (напр. TurboSMS) і перевірте баланс. Відправка SMS не відбудеться при нульовому рахунку."},
-        {cat: "troubleshooting", q: "Повільний ШІ.", a: "Модель 70B є надзвичайно розумною, але важкою. Для максимальної швидкості (до 1 сек) змініть модель на llama-3.1-8b у налаштуваннях."},
-        {cat: "troubleshooting", q: "Пропали діалоги.", a: "Це тимчасовий візуальний збій рендеру сторінки. Оновіть сторінку браузера, і всі діалоги коректно підвантажаться із захищеної бази даних."},
-        {cat: "troubleshooting", q: "Помилка 'Invalid API Key'.", a: "Цей лог означає, що один із ваших ключів (від CRM, месенджера або платіжного шлюзу) недійсний. Зверніться до підтримки для аудиту ключів."},
-        {cat: "troubleshooting", q: "ШІ пропонує минулий час.", a: "Щоб бот не помилявся з часовими поясами, додайте в кінець Prompt'у фразу: 'Завжди перевіряй поточний час перед тим, як пропонувати слоти'."},
-        {cat: "troubleshooting", q: "Як перевірити логи?", a: "Відкрийте вкладку 'Журнал подій'. Там висвітлюються всі приховані системні процеси, включаючи успішність синхронізації зі сторонніми сервісами."},
-        {cat: "troubleshooting", q: "Бот повторюється.", a: "Якщо ШІ 'зациклився' і відповідає однією фразою, знизьте параметр 'Температура' до 0.3. Це зробить його відповіді більш жорсткими та детермінованими."},
-        {cat: "troubleshooting", q: "Не завантажується фото в чат.", a: "Інтерфейс чату SafeOrbit наразі оптимізовано виключно для швидкого текстового обміну. Відправка зображень не передбачена ядром системи."},
-        {cat: "troubleshooting", q: "Не працює кнопка.", a: "Деякі агресивні блокувальники реклами (на зразок uBlock Origin) можуть блокувати скрипти збереження. Додайте наш сайт у список виключень."},
-
-        // 📈 10. Тарифи
-        {cat: "pricing", q: "Базовий тариф.", a: "Вартість: 11 000 грн/міс. Включає: розумний текстовий ШІ, підключення Telegram/Instagram, 1 активну CRM інтеграцію та базовий модуль аналітики."},
-        {cat: "pricing", q: "PRO тариф.", a: "Вартість: 53 000 грн (оплачується одноразово). Ви отримуєте довічну ліцензію, голосовий ШІ, підтримку всіх доступних месенджерів та пріоритетну кастомну розробку."},
-        {cat: "pricing", q: "Тестовий період.", a: "Оскільки підключення ШІ вимагає дорогої ручної роботи інженерів та оренди серверних потужностей, ми не надаємо тестовий період. Натомість доступна персональна Zoom-демонстрація."},
-        {cat: "pricing", q: "Плата за налаштування.", a: "Одноразовий платіж 9 000 грн (тільки у Базовому тарифі) покриває 10 годин роботи нашої команди: створення бази, написання промптів та тестування інтеграцій."},
-        {cat: "pricing", q: "Перехід на PRO.", a: "Ви можете перейти з Базового на PRO в будь-який момент. Напишіть у підтримку, і ми врахуємо частину ваших попередніх абонентських платежів як знижку."},
-        {cat: "pricing", q: "Знижки для мереж.", a: "Якщо ви розширюєтесь, кожна наступна філія підключається зі знижкою 50%. Наприклад, друга точка на базовому тарифі коштуватиме лише 5 500 грн/міс."},
-        {cat: "pricing", q: "Способи оплати.", a: "Ви можете сплатити підписку за офіційними реквізитами IBAN на рахунок ФОП, або скористатися безпечним платіжним посиланням для оплати карткою через еквайринг."},
-        {cat: "pricing", q: "Підтримка PRO.", a: "Для власників довічної PRO-ліцензії діє мінімальна абонплата 1 100 грн/міс. Вона покриває оренду серверів Llama, хмарні бекапи та оновлення системи безпеки."},
-        {cat: "pricing", q: "Повернення коштів.", a: "Повернення коштів у повному обсязі гарантується протягом 14 днів після оплати, якщо наша система технічно не здатна виконувати заявлені функції для вашого бізнесу."},
-        {cat: "pricing", q: "Кастомна розробка.", a: "Ексклюзивно для користувачів PRO-тарифу доступна розробка унікальних функцій. Наші інженери можуть створити будь-який модуль спеціально під специфіку ваших процесів."},
-        {cat: "pricing", q: "Партнерська програма.", a: "Рекомендуйте SafeOrbit колегам і отримуйте пасивний дохід. Ми виплачуємо до 15% (Revenue Share) від усіх платежів залучених вами нових клієнтів."},
-        {cat: "pricing", q: "Білінг цикл.", a: "Оплата за Базовий тариф списується рівно через 30 днів після фактичної дати вашої першої активації та успішного підключення бота."},
-        {cat: "pricing", q: "Чи є комісія за запис?", a: "На відміну від агрегаторів, ми не стягуємо жодного відсотка чи комісії з ваших успішних замовлень. Ваш дохід залишається повністю вашим."},
-        {cat: "pricing", q: "Скільки коштує голосовий ШІ?", a: "Доступ до модуля голосового ШІ включено у вартість PRO-тарифу. Ви додатково оплачуєте лише фактичні хвилини розмов вашому провайдеру SIP-телефонії."},
-        {cat: "pricing", q: "Чи можна призупинити підписку?", a: "Так. Якщо ваш бізнес на паузі, ви можете заморозити акаунт на термін до 3 місяців. Вся клієнтська база та налаштування будуть збережені на серверах."},
-        {cat: "pricing", q: "Оплата за SMS.", a: "Відправка SMS-нагадувань та розсилок тарифікується окремо і сплачується безпосередньо обраному вами провайдеру (наприклад, TurboSMS)."},
-        {cat: "pricing", q: "Що буде при несплаті?", a: "При виникненні заборгованості ШІ-бот автоматично припиняє обробляти повідомлення клієнтів, проте ви зберігаєте повний доступ до адмін-панелі ще протягом 7 днів."},
-        {cat: "pricing", q: "Вартість додаткової CRM.", a: "У Базовому тарифі безкоштовно доступна 1 інтеграція. За кожну наступну сторонню CRM або ERP систему діє доплата +1000 грн до щомісячної абонплати."},
-        {cat: "pricing", q: "Персональний менеджер.", a: "Кожному клієнту безкоштовно виділяється персональний Onboarding-менеджер, який супроводжує процес налаштування та навчання персоналу в перші тижні."},
-        {cat: "pricing", q: "Вартість розробки.", a: "Ціна створення кастомних модулів оцінюється індивідуально після складання детального Технічного Завдання (ТЗ) нашими архітекторами."},
-        {cat: "pricing", q: "Оновлення системи.", a: "SafeOrbit є хмарним SaaS-рішенням. Всі мінорні та мажорні оновлення системи, нові патчі та вдосконалення безпеки застосовуються безкоштовно для всіх клієнтів."},
-        {cat: "pricing", q: "Скільки операторів можна додати?", a: "Ми не обмежуємо кількість співробітників. Ви можете додати 10 майстрів і 3 адміністраторів — це ніяк не вплине на фінальну вартість тарифу."}
-    ];
+    {
+        "cat": "start",
+        "q": "Створити запис",
+        "a": "На сторінці огляду натисніть «Створити запис», заповніть контакт, послугу, дату й час та збережіть запис."
+    },
+    {
+        "cat": "start",
+        "q": "Додати послугу",
+        "a": "У конфігурації відкрийте «Послуги» та введіть назву, ціну й тривалість."
+    },
+    {
+        "cat": "analytics",
+        "q": "Звіт за записами",
+        "a": "У розділі «Звіти» оберіть дати. Там доступні дохід за завершеними записами, середня сума та експорт у CSV."
+    },
+    {
+        "cat": "analytics",
+        "q": "Склад та Товари",
+        "a": "У розділі «Склад» можна додавати товари та варіанти. Товари із залишком до п’яти одиниць показано у звітах."
+    },
+    {
+        "cat": "billing",
+        "q": "Тариф та підключення",
+        "a": "На сторінці реєстрації оберіть тариф і країну оплати. Після завантаження документів статус заявки можна переглянути на сторінці активації."
+    },
+    {
+        "cat": "messengers",
+        "q": "Клієнт не отримує SMS",
+        "a": "Перевірте токен, ім’я відправника та баланс у TurboSMS. Для автоматичних нагадувань увімкніть SMS у налаштуваннях."
+    },
+    {
+        "cat": "security",
+        "q": "Блокування клієнта",
+        "a": "У списку клієнтів натисніть «Заблокувати клієнта». Це обмежує самостійне бронювання та консультації ШІ для цього номера."
+    },
+    {
+        "cat": "start",
+        "q": "Демо SafeOrbit",
+        "a": "На сторінці входу можна відкрити демо без пароля. Зміни зберігаються в окремій сесії, яка спливає після години бездіяльності."
+    }
+];
 
     let currentFaqCat = 'all';
 
@@ -2537,7 +2415,9 @@ async def help_page(user: User = Depends(get_current_user)):
         
         faqs.forEach((faq, index) => {
             if(currentFaqCat !== 'all' && faq.cat !== currentFaqCat) return;
-            if(search && !faq.q.toLowerCase().includes(search.toLowerCase()) && !faq.a.toLowerCase().includes(search.toLowerCase())) return;
+            const translate = window.SafeOrbitI18N?.translate || (text => text);
+            if (search && ![faq.q, faq.a, translate(faq.q), translate(faq.a)]
+                .some(text => text.toLowerCase().includes(search.toLowerCase()))) return;
             
             count++;
             html += `

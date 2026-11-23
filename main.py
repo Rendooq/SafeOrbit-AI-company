@@ -89,9 +89,14 @@ app = FastAPI(
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=IS_PRODUCTION, same_site="lax")
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=4)
 app.add_middleware(RequestSecurityMiddleware)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=[
+allowed_hosts = [
     host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,test").split(",") if host.strip()
-])
+]
+render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if render_hostname:
+    allowed_hosts.append(render_hostname)
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 # Add custom middlewares
 app.add_middleware(LoggingMiddleware)

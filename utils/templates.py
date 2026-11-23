@@ -22,7 +22,7 @@ def render_template(name: str, **context) -> str:
         # Final semantic layer after feature CSS; init runs before styles paint.
         page = page.replace("<head>", '<head><script src="/static/v2/theme-init.js?v=readability-2"></script>', 1)
         page = page.replace("</head>",
-            '<link rel="stylesheet" href="/static/v2/theme.css?v=readability-2">'
+            '<link rel="stylesheet" href="/static/v2/theme.css?v=mobile-contrast-1">'
             '<script src="/static/v2/theme.js?v=sale-locales2" defer></script></head>', 1)
     return protect_forms(page)
 

@@ -206,3 +206,106 @@ html body.radical-workspace .superadmin-navigation #saTabs .nav-link{
   font-size:.875rem!important;line-height:1.35;min-height:44px;padding:.55rem .75rem}
 .superadmin-navigation .superadmin-rates{
   display:inline-flex;align-items:center;min-height:44px;padding:.55rem .75rem}
+
+.marketing-v2 :is(.hero-outline,.section-top h2 span,.industry-strip strong,.feature-number){
+  color:var(--ui-muted)
+}
+.marketing-v2 .section-top > .eyebrow-v2,
+.auth-page .section-kicker,
+.radical-workspace .command-copy > .eyebrow-v2{
+  color:var(--ui-accent)
+}
+.marketing-v2 .cta-section :is(p,h2 span){color:#d3d7e0}
+.marketing-v2 .cta-mark{pointer-events:none}
+html .marketing-v2 .product-mockup,
+html .marketing-v2 .product-mockup :is(.mock-top,.mock-content){
+  background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-border)
+}
+html .marketing-v2 .mock-content p{color:var(--ui-muted);margin-block:.5rem 1rem}
+html .auth-page .plan-price small{color:var(--ui-muted)}
+html .auth-page .step:not(.active) b{
+  background:var(--ui-surface-alt);color:var(--ui-text);border:1px solid var(--ui-border)
+}
+html body.radical-workspace .command-actions > a{
+  color:var(--ui-accent);text-decoration:underline;text-underline-offset:.2em
+}
+html body.radical-workspace .status-pill.confirmed{
+  color:var(--ui-info)!important;background:var(--ui-info-bg)!important
+}
+
+@media(max-width:800px){
+  .marketing-v2 :is(.hero-announcement,.hero-caption,.industry-strip > span,.section-top > .eyebrow-v2,
+    .feature-number,.feature-tag,.cta-section > .eyebrow-v2,.site-footer > div){
+    font-size:.75rem
+  }
+  .marketing-v2 :is(.hero-copy > p,.feature-grid p,.section-top p,.cta-section p){font-size:1rem}
+  .marketing-v2 :is(.hero-tour,.hero-actions .button-v2,.nav-login){font-size:.875rem}
+  .marketing-v2 :is(.hero-tour,.nav-login){min-height:44px;display:inline-flex;align-items:center}
+  .marketing-v2 .hero-caption{flex-wrap:wrap}
+  .marketing-v2 .hero-copy h1,.marketing-v2 .cta-section h2{overflow-wrap:anywhere}
+  .marketing-v2 .site-footer > div{flex-wrap:wrap}
+  .marketing-v2 .product-mockup{transform:none}
+  .marketing-v2 .mock-content{padding:1rem}
+  .marketing-v2 .industry-strip > div{gap:.375rem .75rem}
+
+  html .auth-page .auth-top{
+    display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:.5rem
+  }
+  html .auth-page .auth-top .mobile-brand{grid-column:1;grid-row:1;justify-self:start}
+  html .auth-page .auth-top .language-select{grid-column:2;grid-row:1}
+  html .auth-page .auth-top .theme-toggle{grid-column:3;grid-row:1}
+  html .auth-page .auth-top > span{
+    grid-column:1/-1;max-width:none;text-align:left;font-size:.875rem
+  }
+  .auth-page :is(.section-kicker,.label-hint,.signup-note,.login-note,.auth-caption,.auth-footer,
+    .auth-footer > span,.plan-price small,.plan-desc,.plan-detail,.plan-includes,.activation-note,.step,
+    .payment-details dl > div){font-size:.8125rem}
+  .auth-page :is(.field > label,.payment-explainer,.consent,.payment-details summary,.button-row button){font-size:.875rem}
+  .auth-page :is(.field input:not([type=file]),.field select){font-size:1rem}
+  .auth-page .field input[type=file]{font-size:.875rem}
+  .auth-page .auth-caption{white-space:normal}
+  .auth-page :is(.auth-footer,.button-row){flex-wrap:wrap}
+  .auth-page .plan-price{white-space:normal}
+  .auth-page .signup-note a{display:inline-block;padding-block:.4rem}
+}
+
+@media(max-width:650px){
+  html body.radical-workspace .command-actions{flex-wrap:wrap;gap:.5rem .75rem}
+  html body.radical-workspace .command-actions > :is(a,button){
+    display:inline-flex;align-items:center;gap:.35rem;min-height:44px;font-size:.875rem!important
+  }
+  html body.radical-workspace :is(.command-copy > .eyebrow-v2,.hero-metric-label,.hero-metric strong small,
+    .hero-metric-foot,.metric-top,.metric-foot,.panel-eyebrow,.panel-chip,.chart-summary > span,
+    .status-ring span,.status-legend > div,.customer-cell small,.table-subtime,.team-member small,
+    .team-link,.overview-tools > summary,.status-pill,.workspace-content .small){
+    font-size:.8125rem
+  }
+  html body.radical-workspace .hero-metric strong small{max-width:12ch}
+  html body.radical-workspace .metric-card{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+  html body.radical-workspace .metric-card > strong{font-size:clamp(1.25rem,6vw,1.875rem);overflow-wrap:anywhere}
+  html body.radical-workspace .metric-foot{margin-top:.3rem}
+  html body.radical-workspace :is(.table th,.table td,.glass-table th,.glass-table td){font-size:.8125rem!important}
+  html body.radical-workspace :is(.table-responsive,.overview-panel){min-width:0;max-width:100%}
+  html body.radical-workspace .table-responsive{overflow-x:auto}
+  html body.radical-workspace .appointments-panel .table{min-width:34rem}
+  html body.radical-workspace .customer-cell small{display:block}
+  html body.radical-workspace :is(.form-control,.glass-input,.form-select,.command-dialog input){font-size:1rem!important}
+}
+
+@media(max-width:450px){
+  .marketing-v2 .site-nav{height:auto;min-height:72px;padding:12px 16px;gap:8px}
+  .marketing-v2 .site-nav .brand-v2{font-size:1.125rem;gap:6px}
+  .marketing-v2 .site-nav .brand-v2 img{width:28px;height:28px}
+  .marketing-v2 .nav-actions{gap:5px}
+  .marketing-v2 .hero-copy h1{font-size:clamp(2.25rem,13vw,3.625rem);letter-spacing:-.045em}
+  .marketing-v2 .hero-actions{gap:.65rem}
+  .marketing-v2 .hero-tour{white-space:normal}
+  .auth-page .auth-main{padding-inline:clamp(16px,5vw,25px)}
+  .auth-page .plan-grid{grid-template-columns:1fr}
+}
+
+@media(max-width:650px){
+  .marketing-v2 .industry-strip strong{font-size:.8125rem}
+  .language-select,
+  html body.radical-workspace .workspace-topbar .so-i18n-select{font-size:.8125rem!important}
+}

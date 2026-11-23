@@ -3,7 +3,7 @@ import json
 import shutil
 from uuid import uuid4
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Annotated, Optional
 import logging
 
 import httpx
@@ -31,34 +31,10 @@ router = APIRouter(tags=["Authentication"])
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     settings = await db.get(GlobalPaymentSettings, 1)
-    def amount(value):
-        return f"{value:,}".replace(",", " ")
-    payment = {
-        "iban": (settings.iban if settings else None) or "Уточніть у адміністратора",
-        "fop": (settings.receiver_name if settings else None) or "SafeOrbit",
-        "bank": (settings.bank_name if settings else None) or "Уточніть у адміністратора",
-        "edrpou": "",
-    }
-    d1 = max(0, min(100, (settings.plan1_discount if settings else 0) or 0))
-    d2 = max(0, min(100, (settings.plan2_discount if settings else 0) or 0))
-    prices = {
-        "plan1_base": amount(round(8250 * (1 - d1 / 100))),
-        "plan1_setup": amount(round(6750 * (1 - d1 / 100))),
-        "plan2_base": amount(round(39750 * (1 - d2 / 100))),
-        "plan2_support": amount(round(825 * (1 - d2 / 100))),
-    }
     return HTMLResponse(render_template(
-        "auth/register.html", payment=payment, prices=prices, global_discount=0,
-        creem_plans=[plan for plan, discount in (("plan1", d1), ("plan2", d2)) if not discount and creem.charges(plan)],
+        "auth/register.html",
         plan1_active=settings.is_plan1_active if settings else True,
         plan2_active=settings.is_plan2_active if settings else True,
-        payment_us={
-            "receiver": (settings.us_receiver_name if settings else None) or "Уточніть у адміністратора",
-            "bank": (settings.us_bank_name if settings else None) or "Уточніть у адміністратора",
-            "account": (settings.us_account_number if settings else None) or "Уточніть у адміністратора",
-            "routing": (settings.us_routing_number if settings else None) or "Уточніть у адміністратора",
-            "swift": (settings.us_swift if settings else None) or "Уточніть у адміністратора",
-        },
         utm_source=request.query_params.get("utm_source", ""),
         utm_medium=request.query_params.get("utm_medium", ""),
         utm_campaign=request.query_params.get("utm_campaign", ""),
@@ -66,7 +42,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/register")
-async def register_post(request: Request, background_tasks: BackgroundTasks, name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), payment_country: str = Form("ua"), plan_type: str = Form("plan1"), terms_accepted: str = Form(""), applied_promo: Optional[str] = Form(None), utm_source: Optional[str] = Form(None), utm_medium: Optional[str] = Form(None), utm_campaign: Optional[str] = Form(None), receipt: Optional[UploadFile] = File(None), nda_file: UploadFile = File(...), contract_file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def register_post(request: Request, background_tasks: BackgroundTasks, name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), payment_country: str = Form("ua"), plan_type: str = Form("plan1"), terms_accepted: str = Form(""), applied_promo: Optional[str] = Form(None), utm_source: Optional[str] = Form(None), utm_medium: Optional[str] = Form(None), utm_campaign: Optional[str] = Form(None), receipt: Optional[UploadFile] = File(None), nda_file: Optional[UploadFile] = File(None), contract_file: Optional[UploadFile] = File(None), db: AsyncSession = Depends(get_db), registration_flow: Annotated[str, Form()] = ""):
     remote = request.client.host if request.client else "unknown"
     if not registration_limiter.allow(remote):
         return RedirectResponse("/register?error=rate", status_code=303)
@@ -121,14 +97,17 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
         elif settings and getattr(settings, 'discount_duration_months', 0) > 0:
             discount_ends_at = datetime.now(UA_TZ).replace(tzinfo=None) + timedelta(days=30 * settings.discount_duration_months)
 
-    online = payment_country == "creem"
+    free_signup = registration_flow == "access"
+    online = free_signup or payment_country == "creem"
     charges = creem.charges(plan_type) if online else ()
-    if online and (not charges or total_discount or applied_promo):
+    if online and not free_signup and (not charges or total_discount or applied_promo):
         return RedirectResponse("/register?error=plan", status_code=303)
+    if not free_signup and (not nda_file or not contract_file):
+        return RedirectResponse("/register?error=file", status_code=303)
     if not online and (not receipt or not receipt.filename):
         return RedirectResponse("/register?error=file", status_code=303)
-    billing_country = payment_country if payment_country in ("ua", "us", "creem") else "ua"
-    uploads = [(nda_file, "documents"), (contract_file, "documents")]
+    billing_country = "creem" if online else ("us" if payment_country == "us" else "ua")
+    uploads = [] if free_signup else [(nda_file, "documents"), (contract_file, "documents")]
     if not online:
         uploads.append((receipt, "receipts"))
     saved = []
@@ -141,13 +120,14 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
     except Exception:
         await remove_documents(saved)
         raise
-    f_nda, f_contract, *receipts = [path.relative_to(ROOT).as_posix() for path in saved]
+    links = [f"/{path.relative_to(ROOT).as_posix()}" for path in saved]
+    nda_url, contract_url, receipt_url = (links + [None] * 3)[:3]
     try:
         password_hash = await run_in_threadpool(hash_password, password)
     except Exception:
         await remove_documents(saved)
         raise
-    nb = Business(name=name, type=type, retail_subcategory=retail_subcategory if type == 'retail' else None, billing_country=billing_country, plan_type=plan_type, contract_url=f"/{f_contract}", nda_url=f"/{f_nda}", is_active=False, payment_status="pending", receipt_url=f"/{receipts[0]}" if receipts else None, subscription_discount=total_discount, discount_ends_at=discount_ends_at, utm_source=utm_source, utm_medium=utm_medium, utm_campaign=utm_campaign)
+    nb = Business(name=name, type=type, retail_subcategory=retail_subcategory if type == 'retail' else None, billing_country=billing_country, plan_type=plan_type, contract_url=contract_url, nda_url=nda_url, is_active=False, payment_status="pending", receipt_url=receipt_url, subscription_discount=0 if free_signup else total_discount, discount_ends_at=None if free_signup else discount_ends_at, utm_source=utm_source, utm_medium=utm_medium, utm_campaign=utm_campaign)
     try:
         db.add(nb)
         await db.flush()
@@ -199,15 +179,23 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
     if not biz:
         return RedirectResponse("/login", status_code=303)
     status = biz.payment_status or "pending"
-    outstanding = None
-    if biz.billing_country == "creem" and status == "pending":
-        outstanding = await db.scalar(select(CreemPayment).where(
-            CreemPayment.business_id == id, CreemPayment.paid.is_(False),
-        ).order_by(CreemPayment.recurring).limit(1))
+    limited = biz.billing_country == "creem" and status == "pending"
+    payments = []
+    available = ()
+    if limited:
+        payments = (await db.scalars(select(CreemPayment).where(
+            CreemPayment.business_id == id,
+        ).order_by(CreemPayment.recurring))).all()
+        available = creem.charges(biz.plan_type)
+    outstanding = next((row for row in payments if not row.paid), None)
+    if not payments and available:
+        outstanding = available[0]
     if status == "approved":
         title, description, label = "Ваш простір готовий.", "Підключення підтверджено. Увійдіть, щоб почати роботу.", "Активовано"
     elif status == "rejected":
         title, description, label = "Потрібно уточнити деталі.", "Адміністратор залишив повідомлення щодо вашої заявки.", "Потребує уточнення"
+    elif limited and (outstanding or not payments):
+        title, description, label = "Ваш акаунт створено.", "Оплатіть підключення та підписку, щоб відкрити робочий простір SafeOrbit.", "Обмежений доступ"
     else:
         title, description, label = "Дякуємо. Заявка вже у нас.", "Адміністратор перевірить підключення та активує ваш бізнес-простір.", "На перевірці"
     return HTMLResponse(render_template(
@@ -215,7 +203,36 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
         kicker="ПІДКЛЮЧЕННЯ SAFEORBIT",
         business_name=biz.name, message=biz.admin_message if status == "rejected" else None,
         checkout_business_id=id, outstanding=outstanding, checkout_error=payment_error == "1",
+        limited=limited, payment_available=bool(available), prices=payments or available,
+        plan_name="Business" if biz.plan_type == "plan1" else "Business Pro",
+        contract_path="/static/contract_plan1.pdf" if biz.plan_type == "plan1" else "/static/contract_plan2.pdf",
+        documents_ready=bool(biz.nda_url and biz.contract_url), document_error=payment_error == "documents",
     ))
+
+
+@router.post("/pending-activation/{id}/documents")
+async def submit_access_documents(id: int, request: Request, nda: UploadFile = File(...),
+                                  contract: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    if request.session.get("pending_business_id") != id:
+        return RedirectResponse("/login", status_code=303)
+    pending = f"/pending-activation/{id}"
+    biz = await db.get(Business, id, with_for_update=True)
+    if not biz or biz.billing_country != "creem" or biz.payment_status != "pending" or (biz.nda_url and biz.contract_url):
+        return RedirectResponse(pending, status_code=303)
+    saved = []
+    try:
+        for upload in (nda, contract):
+            saved.append(await save_document(upload, "documents"))
+        biz.nda_url, biz.contract_url = (f"/{path.relative_to(ROOT).as_posix()}" for path in saved)
+        await db.commit()
+    except ValueError:
+        await remove_documents(saved)
+        return RedirectResponse(f"{pending}?payment_error=documents", status_code=303)
+    except Exception:
+        await db.rollback()
+        await remove_documents(saved)
+        raise
+    return RedirectResponse(pending, status_code=303)
 
 
 @router.post("/pending-activation/{id}/pay")
@@ -226,13 +243,20 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
     biz = await db.get(Business, id, with_for_update=True)
     if not biz or biz.billing_country != "creem" or biz.payment_status != "pending":
         return RedirectResponse(pending, status_code=303)
-    if not creem.charges(biz.plan_type):
+    charges = creem.charges(biz.plan_type)
+    if not charges:
         return RedirectResponse(f"{pending}?payment_error=1", status_code=303)
     payments = (await db.scalars(select(CreemPayment).where(
-        CreemPayment.business_id == id, CreemPayment.paid.is_(False),
+        CreemPayment.business_id == id,
     ).order_by(CreemPayment.recurring))).all()
+    if not payments:
+        payments = [CreemPayment(id=uuid4().hex, business_id=id, product_id=charge.product_id,
+                                 cents=charge.cents, recurring=charge.recurring) for charge in charges]
+        db.add_all(payments)
     try:
         for payment in payments:
+            if payment.paid:
+                continue
             if payment.checkout_id:
                 checkout = await creem.api("GET", "checkouts", params={"checkout_id": payment.checkout_id})
                 if creem.is_paid(checkout, payment.checkout_id, payment.id, payment.product_id, payment.cents):

@@ -5,3 +5,30 @@
 .field>label{font-size:12px}.field input:not([type=file]),.field select{font-size:13px}.form-description{color:#838394;font-size:13px}.auth-top{font-size:12px;color:#838394}.signup-note{font-size:11px;color:#858597}.button-primary{font-size:13px}.plan-desc{font-size:10px;color:#8b8b9d}.plan-detail{font-size:10px;color:#85859a}.plan-includes{font-size:10px;color:#85859b}.payment-explainer,.consent{font-size:11px;color:#7c7c93}.field input[type=file]{font-size:11px;color:#8c8ca2}.payment-details summary{font-size:12px}.activation-note{font-size:10px;color:#9191a7}.info-note{font-size:12px;color:#ad7459}.label-hint{font-size:10px;color:#8c8c9f}
 @media(max-width:800px){.auth-page{display:block}.auth-manifesto{display:none}.auth-main{min-height:100dvh;padding:27px 7% 24px}.auth-top{justify-content:space-between;font-size:9px;gap:18px}.mobile-brand{display:flex;font-size:19px}.mobile-brand img{width:28px;height:28px}.auth-top>span{max-width:160px;text-align:right}.auth-top a{display:inline-block;margin:0 0 0 4px}.auth-card{padding:60px 0;max-width:390px}.register-card{padding:38px 0;max-width:480px}.auth-card h2{font-size:34px}.auth-footer{font-size:8px}}
 @media(max-width:450px){.auth-main{padding:25px 25px 22px}.auth-card{padding:60px 0}.auth-card h2{font-size:31px}.section-kicker{font-size:7px}.register-card{padding:35px 0}.register-card h2{font-size:29px}.field-grid{grid-template-columns:1fr;gap:0}.plan-card{padding:13px}.plan-price{font-size:24px}.plan-desc{font-size:7px}.plan-detail{font-size:7px}.label-hint{font-size:8px}.auth-footer>span{font-size:7px}.signup-note{font-size:9px}}
+
+.access-card { padding-block: 36px; }
+.access-features, .access-prices, .access-documents { margin-block: 18px; }
+.access-features h3, .access-prices h3 { margin: 0 0 10px; font-size: .95rem; }
+.access-features ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; padding: 0; margin: 0; list-style: none; }
+.access-features li, .access-prices, .access-documents { border: 1px solid var(--line, currentColor); border-radius: 12px; padding: 12px; }
+.access-features li { font-size: .82rem; }
+.access-prices dl { margin: 0; }
+.access-prices dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-block: 6px; }
+.access-prices dd { margin: 0; font-weight: 700; text-align: end; }
+.access-prices dd small { display: block; font-weight: 500; }
+.access-documents summary { cursor: pointer; font-weight: 600; }
+.access-documents p { font-size: .85rem; }
+.access-documents .field { margin-block: 12px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .auth-card, .form-step:not([hidden]), .access-features li, .access-prices { animation: auth-appear .34s ease-out both; }
+  .access-features li:nth-child(2) { animation-delay: .045s; }
+  .access-features li:nth-child(3) { animation-delay: .09s; }
+  .auth-card .button-primary, .register-card .plan-card { transition: transform .18s ease, box-shadow .18s ease; }
+  .auth-card .button-primary:hover, .register-card .plan-card:hover { transform: translateY(-2px); }
+  .auth-card .button-primary:active { transform: translateY(0); }
+}
+@keyframes auth-appear {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

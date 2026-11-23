@@ -580,6 +580,8 @@ async def approve_payment(business_id: int, user: User = Depends(get_current_use
             payments = (await db.scalars(select(CreemPayment).where(CreemPayment.business_id == biz.id))).all()
             if len(payments) != 2 or not all(payment.paid for payment in payments):
                 raise HTTPException(409, "Очікується підтвердження оплати від Creem.")
+            if not biz.nda_url or not biz.contract_url:
+                raise HTTPException(409, "Очікуються підписані документи.")
         biz.payment_status = "approved"
         biz.is_active = True
         await db.commit()

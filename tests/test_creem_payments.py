@@ -2,11 +2,40 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 from test_regressions import api
+from fastapi import BackgroundTasks
+from sqlalchemy import select
 from starlette.requests import Request
 
-from models import Business, CreemPayment
-from routers.auth import creem_pay
+from models import Business, CreemPayment, User
+from routers.auth import creem_pay, pending_activation_page, register_post
 from services.creem import Charge, is_paid
+
+
+def test_free_registration_creates_a_restricted_workspace_without_payment_or_documents():
+    async def scenario():
+        async with api() as (_, sessions):
+            async with sessions() as db:
+                request = Request({"type": "http", "session": {}, "client": ("free-registration", 1)})
+                with patch("routers.auth.creem.charges", return_value=(
+                    Charge("prod_setup", 13698, False), Charge("prod_monthly", 16742, True),
+                )), patch("routers.auth.creem.api", new_callable=AsyncMock) as provider:
+                    response = await register_post(
+                        request, BackgroundTasks(), "New business", "+380671112233", "secure-password",
+                        "clinic", None, "ua", "plan1", "yes", None, None, None, None,
+                        None, None, None, db, registration_flow="access",
+                    )
+                    owner = await db.scalar(select(User).where(User.username == "+380671112233"))
+                    assert owner is not None
+                    assert response.headers["location"] == f"/pending-activation/{owner.business_id}"
+                    company = await db.get(Business, owner.business_id)
+                    assert company and not company.is_active and company.payment_status == "pending"
+                    assert not any((company.receipt_url, company.nda_url, company.contract_url))
+                    page = (await pending_activation_page(company.id, request, db)).body.decode()
+                    assert "Обмежений доступ" in page and "Купити доступ · Creem" in page
+                    assert "€136.98" in page and "€167.42" in page
+                    provider.assert_not_awaited()
+
+    asyncio.run(scenario())
 
 
 def test_creem_verifies_the_exact_production_charge():

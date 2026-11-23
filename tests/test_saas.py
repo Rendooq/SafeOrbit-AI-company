@@ -147,13 +147,13 @@ def test_registration_page_renders_settings_and_escapes_utm():
                 request=Request({"type":"http","query_string":b'utm_source=%22%3E%3Cscript%3Ebad%3C%2Fscript%3E'})
                 response=await auth.register_page(request,db)
                 page=response.body.decode()
-                assert response.status_code==200 and "TESTSWIFT" in page
+                assert response.status_code==200 and "TESTSWIFT" not in page
                 assert '<script>x</script>' not in page
-                assert '&lt;script&gt;x&lt;/script&gt;' in page
-                assert 'name="receipt"' in page and 'name="nda_file"' in page and 'name="contract_file"' in page
+                assert '&lt;script&gt;bad&lt;/script&gt;' in page
+                assert all(f'name="{field}"' not in page for field in ("receipt", "nda_file", "contract_file"))
+                assert 'name="registration_flow" value="access"' in page
                 assert 'value="plan1"' not in page
                 assert 'value="plan2" checked' in page
-                assert "/static/nda.pdf" in page
     asyncio.run(scenario())
 
 

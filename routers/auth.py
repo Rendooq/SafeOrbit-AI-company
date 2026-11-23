@@ -27,6 +27,7 @@ from utils.auth import AttemptLimiter, normalize_username, login_limiter, regist
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
 PUBLIC_SITE = "https://safeorbit.com.pl"
+SALON_PAGE = "/crm-dlia-saloniv"
 
 
 @router.get("/register", response_class=HTMLResponse)
@@ -307,6 +308,13 @@ async def public_home():
     ))
 
 
+@router.get(SALON_PAGE, response_class=HTMLResponse)
+async def salon_landing():
+    return HTMLResponse(render_template(
+        "marketing/salons.html", canonical=PUBLIC_SITE + SALON_PAGE,
+    ))
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse)
 async def robots_txt():
     return f"User-agent: *\nAllow: /\nSitemap: {PUBLIC_SITE}/sitemap.xml\n"
@@ -317,7 +325,8 @@ async def sitemap_xml():
     return Response(
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        f'<url><loc>{PUBLIC_SITE}/</loc></url></urlset>',
+        f'<url><loc>{PUBLIC_SITE}/</loc></url>'
+        f'<url><loc>{PUBLIC_SITE}{SALON_PAGE}</loc></url></urlset>',
         media_type="application/xml",
     )
 

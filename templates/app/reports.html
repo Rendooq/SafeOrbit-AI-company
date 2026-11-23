@@ -1,10 +1,22 @@
-<section class="glass-card p-4 mb-4">
-  <h1 class="h4">Звіт за записами</h1>
-  <form class="d-flex flex-wrap align-items-end gap-3" method="get" action="/admin/reports">
+<link rel="stylesheet" href="/static/v2/reports.css?v=1">
+<section class="glass-card report-header">
+  <div class="report-intro">
+    <div><h1>Звіт за записами</h1><p>Дохід, послуги та робота команди за обраний період.</p></div>
+    {% if not error %}<a class="btn-glass px-3 py-2" href="/admin/reports/export?start={{ start }}&amp;end={{ end }}{% if specialist is not none %}&amp;specialist={{ specialist }}{% endif %}">Завантажити CSV</a>{% endif %}
+  </div>
+  <nav class="report-presets" aria-label="Швидкий вибір періоду">
+    {% for label, first, last in presets %}<a href="?start={{ first }}&amp;end={{ last }}{% if specialist is not none %}&amp;specialist={{ specialist }}{% endif %}" {% if first == start and last == end %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+  <form class="report-filters" method="get" action="/admin/reports">
     <div><label class="form-label" for="report-start">Від</label><input class="form-control" id="report-start" name="start" type="date" value="{{ start }}" required></div>
     <div><label class="form-label" for="report-end">До</label><input class="form-control" id="report-end" name="end" type="date" value="{{ end }}" required></div>
+    <div><label class="form-label" for="report-specialist">Спеціаліст</label>
+      <select class="form-select" id="report-specialist" name="specialist">
+        <option value="0">Уся команда</option>
+        {% for member in specialists %}<option value="{{ member.id }}" {% if member.id == specialist %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
+      </select>
+    </div>
     <button class="btn-grad">Застосувати</button>
-    {% if not error %}<a class="btn-glass px-3 py-2" href="/admin/reports/export?start={{ start }}&amp;end={{ end }}">Завантажити CSV</a>{% endif %}
   </form>
   {% if error %}<p class="text-danger mt-3 mb-0" role="alert">{{ error }}</p>{% endif %}
 </section>
@@ -12,6 +24,26 @@
 <div class="dashboard-stats">
   {% for label, value in metrics %}<article class="stat-card p-3"><div><p class="stat-label">{{ label }}</p><strong class="stat-value">{{ value }}</strong></div></article>{% endfor %}
 </div>
+{% if services %}
+<div class="report-insights">
+  <section class="glass-card report-panel">
+    <h2>Динаміка доходу</h2>
+    <p>{% if trend_weekly %}За тижнями{% else %}За днями{% endif %} · Лише завершені записи</p>
+    <div class="report-trend" tabindex="0">
+      {% for label, amount, percent in trend %}
+        <div class="report-bar"><span>{{ label }}</span><meter min="0" max="100" value="{{ percent }}" aria-hidden="true"></meter><strong>{{ '%.2f' | format(amount) }} ₴</strong></div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="glass-card report-panel">
+    <h2>Результати команди</h2>
+    <div class="table-responsive"><table class="table">
+      <thead><tr><th>Спеціаліст</th><th>Записів</th><th>Завершено</th><th>Дохід, ₴</th></tr></thead>
+      <tbody>{% for row in team %}<tr><td>{{ row.name or 'Без спеціаліста' }}</td><td>{{ row.total }}</td><td>{{ row.completed }}</td><td>{{ '%.2f' | format(row.revenue or 0) }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+{% endif %}
 <section class="glass-card p-4 mb-4">
   <h2 class="h5">Послуги за період</h2>
   {% if services %}

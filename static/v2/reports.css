@@ -1,0 +1,30 @@
+.report-header, .report-panel { padding: clamp(16px, 3vw, 28px); margin-bottom: 18px; }
+.report-intro { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.report-intro h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.05rem); letter-spacing: -.035em; }
+.report-intro p, .report-panel p { margin: 6px 0 12px; color: var(--muted, inherit); }
+.report-presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 18px; }
+.report-presets a { padding: 6px 10px; border: 1px solid var(--line, currentColor); border-radius: 999px; color: inherit; text-decoration: none; }
+.report-presets a[aria-current], .report-presets a:hover { border-color: #ff6037; }
+.report-presets a[aria-current] { font-weight: 700; }
+.report-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; gap: 12px; }
+.report-filters .form-control, .report-filters .form-select { min-width: 0; width: 100%; }
+.report-insights { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; }
+.report-panel { min-width: 0; }
+.report-panel h2 { margin: 0 0 8px; font-size: 1.12rem; }
+.report-trend { max-height: 19rem; overflow: auto; padding: 4px; }
+.report-bar { display: grid; grid-template-columns: 5.6rem minmax(40px, 1fr) auto; align-items: center; gap: 10px; margin: 8px 0; font-size: .8rem; }
+.report-bar meter { width: 100%; height: .9rem; }
+.report-bar meter::-webkit-meter-optimum-value { background: #ff6037; }
+.report-bar meter::-moz-meter-bar { background: #ff6037; }
+.report-bar strong { text-align: end; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .report-insights { grid-template-columns: 1fr; gap: 0; }
+}
+@media (max-width: 600px) {
+  .report-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-bar { grid-template-columns: 4.7rem minmax(24px, 1fr) minmax(52px, auto); gap: 5px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .report-header, .report-panel { animation: report-enter .32s ease-out both; }
+  @keyframes report-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}

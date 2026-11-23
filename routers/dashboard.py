@@ -766,41 +766,80 @@ def report_period(start: date | None, end: date | None):
     return start, end
 
 
-def report_filters(business_id, start, end):
-    return (
+def report_filters(business_id, start, end, specialist=None):
+    filters = (
         Appointment.business_id == business_id,
         Appointment.appointment_time >= datetime.combine(start, time.min),
         Appointment.appointment_time <= datetime.combine(end, time.max),
     )
+    return filters if specialist is None else (*filters, Appointment.master_id == specialist)
 
 
 @router.get("/admin/reports", response_class=HTMLResponse)
 async def reports_page(
     start: date | None = None, end: date | None = None,
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+    specialist: Optional[int] = None,
 ):
     if not user or user.role not in REPORT_ROLES:
         return RedirectResponse("/login" if not user else "/admin", status_code=303)
+    specialist = specialist or None
     start, end = report_period(start, end)
+    specialists = (await db.execute(select(Master.id, Master.name).where(
+        Master.business_id == user.business_id,
+    ).order_by(Master.name, Master.id))).all()
+    today = datetime.now(UA_TZ).date()
+    presets = [
+        ("Останні 7 днів", today - timedelta(days=6), today),
+        ("Останні 30 днів", today - timedelta(days=29), today),
+        ("Цей місяць", today.replace(day=1), today),
+    ]
+    options = dict(start=start, end=end, specialists=specialists, specialist=specialist, presets=presets)
     if not 0 <= (end - start).days < 366:
-        content = render_template("app/reports.html", start=start, end=end,
+        content = render_template("app/reports.html", **options,
                                   error="Оберіть період від 1 до 366 днів.")
         return HTMLResponse(get_layout(content, user, "reports"), status_code=422)
 
     completed = Appointment.status == "completed"
     count = func.count(Appointment.id)
+    filters = report_filters(user.business_id, start, end, specialist)
     result = await db.execute(select(
         Appointment.service_type.label("name"),
         count.label("total"),
         func.sum(case((completed, 1), else_=0)).label("completed"),
         func.sum(case((Appointment.status == "cancelled", 1), else_=0)).label("cancelled"),
         func.sum(case((completed, Appointment.cost), else_=0)).label("revenue"),
-    ).where(*report_filters(user.business_id, start, end))
+       ).where(*filters)
       .group_by(Appointment.service_type)
       .order_by(count.desc(), Appointment.service_type))
     services = result.all()
     revenue = sum(row.revenue or 0 for row in services)
     completed_count = sum(row.completed for row in services)
+    day = func.date(Appointment.appointment_time)
+    daily_totals = (await db.execute(select(day, func.sum(Appointment.cost)).where(
+        *filters, completed,
+    ).group_by(day))).all()
+    amounts = {str(day_key): amount for day_key, amount in daily_totals}
+    span = (end - start).days + 1
+    step = 7 if span > 35 else 1
+    trend = []
+    for offset in range(0, span, step):
+        first = start + timedelta(days=offset)
+        last = start + timedelta(days=min(offset + step, span) - 1)
+        value = sum(amounts.get(str(start + timedelta(days=index)), 0) or 0
+                    for index in range(offset, min(offset + step, span)))
+        label = first.strftime("%d.%m")
+        if first != last:
+            label += "–" + last.strftime("%d.%m")
+        trend.append((label, value))
+    peak = max((value for _, value in trend), default=0) or 1
+    team = (await db.execute(select(
+        Master.name, count.label("total"),
+        func.sum(case((completed, 1), else_=0)).label("completed"),
+        func.sum(case((completed, Appointment.cost), else_=0)).label("revenue"),
+    ).outerjoin(Master, and_(Appointment.master_id == Master.id, Master.business_id == user.business_id))
+      .where(*filters).group_by(Master.id, Master.name)
+      .order_by(desc("revenue"), Master.name))).all()
     products = (await db.scalars(select(Product).where(
         Product.business_id == user.business_id, Product.stock <= 5,
     ).order_by(Product.stock, Product.name))).all()
@@ -812,7 +851,9 @@ async def reports_page(
         ("Середня сума завершеного запису", f"{revenue / completed_count if completed_count else 0:,.2f} ₴"),
     ]
     return get_layout(render_template(
-        "app/reports.html", start=start, end=end, metrics=metrics, services=services, stock=products,
+        "app/reports.html", **options, metrics=metrics, services=services, stock=products, team=team,
+        trend=[(label, value, min(100, max(0, round(100 * value / peak)))) for label, value in trend],
+        trend_weekly=step == 7,
     ), user, "reports")
 
 
@@ -827,6 +868,7 @@ def csv_text(value):
 async def export_reports(
     start: date | None = None, end: date | None = None,
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+    specialist: Optional[int] = None,
 ):
     if not user or user.role not in REPORT_ROLES:
         raise HTTPException(403, "Експорт доступний власнику, адміністратору або менеджеру.")
@@ -836,9 +878,9 @@ async def export_reports(
     rows = await db.stream(select(
         Appointment.appointment_time, Appointment.service_type, Appointment.status, Appointment.cost,
         Customer.name, Master.name.label("master"),
-    ).join(Customer, and_(Appointment.customer_id == Customer.id, Customer.business_id == user.business_id))
+    ).outerjoin(Customer, and_(Appointment.customer_id == Customer.id, Customer.business_id == user.business_id))
       .outerjoin(Master, and_(Appointment.master_id == Master.id, Master.business_id == user.business_id))
-      .where(*report_filters(user.business_id, start, end))
+      .where(*report_filters(user.business_id, start, end, specialist or None))
       .order_by(Appointment.appointment_time, Appointment.id))
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")

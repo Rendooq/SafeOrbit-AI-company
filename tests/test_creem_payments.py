@@ -45,13 +45,13 @@ def test_creem_verifies_the_exact_production_charge():
         "order": {"status": "paid", "currency": "EUR", "sub_total": 13698,
                   "amount_due": 15000, "amount_paid": 15000},
     }
-    assert is_paid(checkout, "ch_setup", "local", "prod_setup", 13698)
-    assert not is_paid({**checkout, "mode": "test"}, "ch_setup", "local", "prod_setup", 13698)
-    assert not is_paid(checkout, "ch_setup", "other", "prod_setup", 13698)
-    assert not is_paid(checkout, "ch_setup", "local", "prod_other", 13698)
-    assert not is_paid(checkout, "ch_setup", "local", "prod_setup", 16742)
+    assert is_paid(checkout, "ch_setup", "prod_setup", 13698)
+    assert not is_paid({**checkout, "mode": "test"}, "ch_setup", "prod_setup", 13698)
+    assert not is_paid(checkout, "ch_other", "prod_setup", 13698)
+    assert not is_paid(checkout, "ch_setup", "prod_other", 13698)
+    assert not is_paid(checkout, "ch_setup", "prod_setup", 16742)
     checkout["order"]["amount_paid"] = 13698
-    assert not is_paid(checkout, "ch_setup", "local", "prod_setup", 13698)
+    assert not is_paid(checkout, "ch_setup", "prod_setup", 13698)
 
 
 def test_creem_checkout_belongs_to_the_registration_and_confirms_first_charge():
@@ -76,7 +76,7 @@ def test_creem_checkout_belongs_to_the_registration_and_confirms_first_charge():
                                "amount_due": 13698, "amount_paid": 13698}},
                     {"id": "prod_monthly", "currency": "EUR", "price": 16742, "status": "active",
                      "billing_type": "recurring", "billing_period": "every-month"},
-                    {"id": "ch_monthly", "request_id": "monthly", "checkout_url": "https://creem.io/checkout/ch_monthly"},
+                    {"id": "ch_monthly", "checkout_url": "https://creem.io/checkout/ch_monthly"},
                 ])
                 request = Request({"type": "http", "session": {"pending_business_id": 2}})
                 with patch("routers.auth.creem.api", provider), patch(

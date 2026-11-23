@@ -259,7 +259,7 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
                 continue
             if payment.checkout_id:
                 checkout = await creem.api("GET", "checkouts", params={"checkout_id": payment.checkout_id})
-                if creem.is_paid(checkout, payment.checkout_id, payment.id, payment.product_id, payment.cents):
+                if creem.is_paid(checkout, payment.checkout_id, payment.product_id, payment.cents):
                     payment.paid = True
                     continue
                 if checkout.get("status") != "expired":
@@ -280,8 +280,8 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
                 "success_url": f"https://safeorbit.com.pl{pending}",
             })
             new_id = checkout.get("id")
-            if not isinstance(new_id, str) or not new_id.startswith("ch_") or checkout.get("request_id") != payment.id:
-                raise creem.CreemError("Invalid checkout reference")
+            if not isinstance(new_id, str) or not new_id.startswith("ch_"):
+                raise creem.CreemError("Creem did not return a checkout session ID")
             payment.checkout_id = new_id
             payment.checkout_url = creem.checkout_url(checkout.get("checkout_url"))
             await db.commit()

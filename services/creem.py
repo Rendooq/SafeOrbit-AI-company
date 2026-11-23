@@ -70,7 +70,7 @@ def checkout_url(value: object) -> str:
     return value
 
 
-def is_paid(checkout: dict, checkout_id: str, request_id: str, product_id: str, cents: int) -> bool:
+def is_paid(checkout: dict, checkout_id: str, product_id: str, cents: int) -> bool:
     product = checkout.get("product")
     if isinstance(product, dict):
         product = product.get("id")
@@ -78,7 +78,6 @@ def is_paid(checkout: dict, checkout_id: str, request_id: str, product_id: str, 
     return (
         checkout.get("mode") == "prod"
         and checkout.get("id") == checkout_id
-        and checkout.get("request_id") == request_id
         and checkout.get("status") == "completed"
         and product == product_id
         and isinstance(order, dict)

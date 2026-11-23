@@ -5764,5 +5764,233 @@
     "ru": "Все суммы в евро до применимых налогов. Creem покажет итог перед оплатой.",
     "pl": "Wszystkie kwoty są w euro przed naliczeniem podatków. Creem pokaże ostateczną kwotę przed płatnością.",
     "zh": "所有金额均为欧元，未含适用税费。Creem 会在付款前显示最终金额。"
+  },
+  "Огляд CRM": {
+    "en": "CRM overview",
+    "ru": "Обзор CRM",
+    "pl": "Przegląd CRM",
+    "zh": "CRM 概览"
+  },
+  "Меню": {
+    "en": "Menu",
+    "ru": "Меню",
+    "pl": "Menu",
+    "zh": "菜单"
+  },
+  "CRM для сервісного бізнесу": {
+    "en": "CRM for service businesses",
+    "ru": "CRM для сферы услуг",
+    "pl": "CRM dla firm usługowych",
+    "zh": "面向服务行业的 CRM"
+  },
+  "Робочий день": {
+    "en": "Your workday",
+    "ru": "Рабочий день",
+    "pl": "Twój dzień pracy",
+    "zh": "工作日，"
+  },
+  "у своєму ритмі.": {
+    "en": "at your own pace.",
+    "ru": "в своём ритме.",
+    "pl": "w Twoim rytmie.",
+    "zh": "按你的节奏。"
+  },
+  "Переглянути тарифи": {
+    "en": "View pricing",
+    "ru": "Посмотреть тарифы",
+    "pl": "Zobacz ceny",
+    "zh": "查看价格"
+  },
+  "12 березня": {
+    "en": "12 March",
+    "ru": "12 марта",
+    "pl": "12 marca",
+    "zh": "3月12日"
+  },
+  "День студії": {
+    "en": "A day at the studio",
+    "ru": "День студии",
+    "pl": "Dzień w studiu",
+    "zh": "工作室的一天"
+  },
+  "Розклад": {
+    "en": "Schedule",
+    "ru": "Расписание",
+    "pl": "Grafik",
+    "zh": "日程"
+  },
+  "Підсумок": {
+    "en": "Summary",
+    "ru": "Итоги",
+    "pl": "Podsumowanie",
+    "zh": "汇总"
+  },
+  "Стрижка": {
+    "en": "Haircut",
+    "ru": "Стрижка",
+    "pl": "Strzyżenie",
+    "zh": "剪发"
+  },
+  "Фарбування": {
+    "en": "Hair colour",
+    "ru": "Окрашивание",
+    "pl": "Koloryzacja",
+    "zh": "染发"
+  },
+  "Укладка": {
+    "en": "Styling",
+    "ru": "Укладка",
+    "pl": "Stylizacja",
+    "zh": "造型"
+  },
+  "Ірина Лисенко": {
+    "en": "Iryna Lysenko",
+    "ru": "Ирина Лысенко",
+    "pl": "Iryna Łysenko",
+    "zh": "伊琳娜·利森科"
+  },
+  "Марта Бондар": {
+    "en": "Marta Bondar",
+    "ru": "Марта Бондарь",
+    "pl": "Marta Bondar",
+    "zh": "玛尔塔·邦达尔"
+  },
+  "Олена Мельник": {
+    "en": "Olena Melnyk",
+    "ru": "Елена Мельник",
+    "pl": "Ołena Melnyk",
+    "zh": "奥莱娜·梅利尼克"
+  },
+  "Іван Коваль": {
+    "en": "Ivan Koval",
+    "ru": "Иван Коваль",
+    "pl": "Iwan Kowal",
+    "zh": "伊万·科瓦尔"
+  },
+  "Анна Мороз": {
+    "en": "Anna Moroz",
+    "ru": "Анна Мороз",
+    "pl": "Anna Moroz",
+    "zh": "安娜·莫罗兹"
+  },
+  "Завершені візити": {
+    "en": "Completed visits",
+    "ru": "Завершённые визиты",
+    "pl": "Zakończone wizyty",
+    "zh": "已完成的预约"
+  },
+  "Картка клієнта": {
+    "en": "Client profile",
+    "ru": "Карточка клиента",
+    "pl": "Karta klienta",
+    "zh": "客户档案"
+  },
+  "Час візиту": {
+    "en": "Visit time",
+    "ru": "Время визита",
+    "pl": "Godzina wizyty",
+    "zh": "到访时间"
+  },
+  "Майстер": {
+    "en": "Specialist",
+    "ru": "Мастер",
+    "pl": "Specjalista",
+    "zh": "服务人员"
+  },
+  "Вартість": {
+    "en": "Price",
+    "ru": "Стоимость",
+    "pl": "Cena",
+    "zh": "价格"
+  },
+  "Дохід від завершених візитів": {
+    "en": "Revenue from completed visits",
+    "ru": "Доход от завершённых визитов",
+    "pl": "Przychód z zakończonych wizyt",
+    "zh": "已完成预约的收入"
+  },
+  "Демонстраційні дані": {
+    "en": "Sample data",
+    "ru": "Демонстрационные данные",
+    "pl": "Dane przykładowe",
+    "zh": "示例数据"
+  },
+  "Від запису до розрахунку": {
+    "en": "From booking to checkout",
+    "ru": "От записи до расчёта",
+    "pl": "Od rezerwacji do rozliczenia",
+    "zh": "从预约到结账"
+  },
+  "Для салонів і студій": {
+    "en": "For salons and studios",
+    "ru": "Для салонов и студий",
+    "pl": "Dla salonów i studiów",
+    "zh": "适用于沙龙和工作室"
+  },
+  "Календар команди": {
+    "en": "Team calendar",
+    "ru": "Календарь команды",
+    "pl": "Kalendarz zespołu",
+    "zh": "团队日历"
+  },
+  "Побачте найближчий візит і відкрийте його деталі просто з розкладу.": {
+    "en": "See the next appointment and open its details right from the calendar.",
+    "ru": "Посмотрите ближайший визит и откройте его детали прямо из расписания.",
+    "pl": "Sprawdź najbliższą wizytę i otwórz jej szczegóły wprost z grafiku.",
+    "zh": "查看下一次预约，直接在日程中打开详情。"
+  },
+  "Дізнайтеся, хто прийде, до якого майстра й на яку послугу.": {
+    "en": "See who’s coming in, who they’re booked with and which service they chose.",
+    "ru": "Узнайте, кто придёт, к какому мастеру и на какую услугу.",
+    "pl": "Zobacz, kto przyjdzie, do którego specjalisty i na jaką usługę.",
+    "zh": "查看到访客户、预约员工和服务项目。"
+  },
+  "Підсумок дня": {
+    "en": "Day’s summary",
+    "ru": "Итоги дня",
+    "pl": "Podsumowanie dnia",
+    "zh": "当日汇总"
+  },
+  "Перевірте, які візити вже завершилися і скільки вони принесли.": {
+    "en": "Check which appointments are complete and how much you earned from them.",
+    "ru": "Посмотрите, какие визиты уже завершились и сколько они принесли.",
+    "pl": "Sprawdź, które wizyty już się odbyły i jaki przyniosły przychód.",
+    "zh": "查看哪些预约已经完成，以及这些预约带来的收入。"
+  },
+  "Проведіть день у демо.": {
+    "en": "Try a workday in the demo.",
+    "ru": "Проведите день в демо.",
+    "pl": "Spędź dzień w wersji demo.",
+    "zh": "在演示中体验一天的工作。"
+  },
+  "Створіть запис і перегляньте результат у робочому кабінеті.": {
+    "en": "Create an appointment and see it in your workspace.",
+    "ru": "Создайте запись и посмотрите результат в рабочем кабинете.",
+    "pl": "Dodaj wizytę i zobacz ją w swoim panelu.",
+    "zh": "创建一条预约，在工作区中查看结果。"
+  },
+  "Посилання внизу сторінки": {
+    "en": "Footer links",
+    "ru": "Ссылки внизу страницы",
+    "pl": "Odnośniki w stopce",
+    "zh": "页脚链接"
+  },
+  "SafeOrbit — CRM для малого бізнесу, онлайн-запис і клієнтська база": {
+    "en": "SafeOrbit — Small business CRM, online booking and client records",
+    "ru": "SafeOrbit — CRM для малого бизнеса, онлайн-запись и клиентская база",
+    "pl": "SafeOrbit — CRM dla małych firm, rezerwacje online i baza klientów",
+    "zh": "SafeOrbit — 小企业 CRM、在线预约和客户管理"
+  },
+  "Хто прийде наступним? Скільки приніс день? Розклад команди, історія візитів і дохід — в одній CRM.": {
+    "en": "Who’s booked in next? How much did you earn today? Your team’s schedule, visit history and revenue in one CRM.",
+    "ru": "Кто придёт следующим? Сколько принёс день? Расписание команды, история визитов и доход — в одной CRM.",
+    "pl": "Kto ma następną wizytę? Ile dziś zarobiliście? Grafik zespołu, historia wizyt i przychody w jednym CRM.",
+    "zh": "下一位客户是谁？今天收入多少？在一个 CRM 中查看团队日程、到访记录和收入。"
+  },
+  "Обрати тариф": {
+    "en": "Choose a plan",
+    "ru": "Выбрать тариф",
+    "pl": "Wybierz plan",
+    "zh": "选择套餐"
   }
 }

@@ -1,61 +1,94 @@
+{% macro icon(name) -%}
+<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#i-{{ name }}"/></svg>
+{%- endmacro %}
 <!doctype html>
 <html lang="uk" data-design="radical-v2">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#ff6037"><meta name="description" content="SafeOrbit — CRM для малого та сервісного бізнесу. Онлайн-запис клієнтів, календар співробітників, клієнтська база та звіти про дохід. Спробуйте демо.">
-<title>SafeOrbit — CRM для малого бізнесу, онлайн-запис і клієнтська база</title>
-<link rel="canonical" href="{{ public_site }}/">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="SafeOrbit">
-<meta property="og:url" content="{{ public_site }}/">
-<meta property="og:title" content="SafeOrbit — CRM для малого та сервісного бізнесу">
-<meta property="og:description" content="Онлайн-запис, клієнтська база, календар команди та бізнес-аналітика в одному просторі.">
-{% if site_verification %}<meta name="google-site-verification" content="{{ site_verification }}">{% endif %}
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"SafeOrbit","url":{{ (public_site ~ '/') | tojson }}}</script><link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/v2/core.css?v=radical-final"><link rel="stylesheet" href="/static/v2/home.css?v=conversion2"><script src="/static/locales/catalog.js?v=conversion2" defer></script><script src="/static/i18n.js?v=sale-locales2" defer></script><link rel="stylesheet" href="/static/v2/product.css?v=1"></head>
-<body class="marketing-v2 product-home">
-<header class="site-nav"><a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a><nav aria-label="Головна навігація"><a href="#product">Платформа</a><a href="#workflow">Можливості</a><a href="/taryfy">Тарифи</a></nav><div class="nav-actions">{% include "partials/language-select.html" %}{% include "partials/theme-toggle.html" %}<a href="/login" class="nav-login">Увійти</a><a href="/register" class="button-v2 dark">Почати роботу <span aria-hidden="true">↗</span></a></div></header>
-<main>
-  <section class="hero-v2">
-    <div class="hero-copy">
-      <h1>CRM, у якій <em>ви бачите весь день.</em></h1>
-      <p>CRM для малого та сервісного бізнесу. Онлайн-запис, клієнтська база, календар команди та аналітика.</p>
-      <div class="hero-actions">
-        <a class="button-v2 primary" href="/login-demo">Спробувати демо <span aria-hidden="true">↗</span></a>
-        <a class="button-v2 dark" href="/taryfy">Переглянути тарифи</a>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f9f8f4">
+  <meta name="description" content="SafeOrbit — CRM для малого та сервісного бізнесу. Онлайн-запис клієнтів, календар співробітників, клієнтська база та звіти про дохід. Спробуйте демо.">
+  <title>SafeOrbit — CRM для малого бізнесу, онлайн-запис і клієнтська база</title>
+  <link rel="canonical" href="{{ public_site }}/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SafeOrbit">
+  <meta property="og:url" content="{{ public_site }}/">
+  <meta property="og:title" content="SafeOrbit — CRM для малого та сервісного бізнесу">
+  <meta property="og:description" content="Онлайн-запис, клієнтська база, календар команди та бізнес-аналітика в одному просторі.">
+  {% if site_verification %}<meta name="google-site-verification" content="{{ site_verification }}">{% endif %}
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"SafeOrbit","url":{{ (public_site ~ '/') | tojson }}}</script>
+  <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
+  <link rel="stylesheet" href="/static/v2/studio-home.css?v=2">
+  <script src="/static/locales/catalog.js?v=studio2" defer></script>
+  <script src="/static/i18n.js?v=sale-locales2" defer></script>
+  <script src="/static/v2/studio-home.js?v=1" defer></script>
+</head>
+<body class="studio-home">
+  <svg class="symbol-library" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+      <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 18 18 6M7 6h11v11"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7.5 3v5m9-5v5M3 10.5h18m-14 4h3m3 0h3"/></symbol>
+      <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.4-4.2 3.2-6 7.5-6s7.1 1.8 7.5 6"/></symbol>
+      <symbol id="i-report" viewBox="0 0 24 24"><path d="M4 4v16h16M8 15v-3m5 3V8m5 7v-5"/></symbol>
+      <symbol id="i-orbit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.8"/><ellipse cx="12" cy="12" rx="11" ry="3.7" transform="rotate(-32 12 12)"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 8h18M3 16h18"/></symbol>
+    </defs>
+  </svg>
+  <header class="masthead frame">
+    <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
+    <nav class="top-links" aria-label="Головна навігація">
+      <a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="/taryfy">Тарифи</a>
+    </nav>
+    <div class="mast-tools">
+      {% include "partials/language-select.html" %}
+      {% include "partials/theme-toggle.html" %}
+      <a class="sign-in" href="/login">Увійти</a>
+      <a class="action action-ink nav-register" href="/register">Створити акаунт {{ icon('up') }}</a>
+      <details class="mobile-menu"><summary aria-label="Меню">{{ icon('menu') }}</summary>
+        <nav aria-label="Меню"><a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="/taryfy">Тарифи</a><a href="/login">Увійти</a><a href="/register">Створити акаунт</a></nav>
+      </details>
+    </div>
+  </header>
+  <main>
+    <div class="frame">
+      <section class="hero-v2">
+        <div class="intro">
+          <p class="category">{{ icon('orbit') }} CRM для сервісного бізнесу</p>
+          <h1>Робочий день <em>у своєму ритмі.</em></h1>
+          <p class="standfirst">Хто прийде наступним? Скільки приніс день? Розклад команди, історія візитів і дохід — в одній CRM.</p>
+          <div class="intro-actions">
+            <a class="action action-violet" href="/login-demo">Спробувати демо {{ icon('arrow') }}</a>
+            <a class="text-action" href="/taryfy">Обрати тариф {{ icon('up') }}</a>
+          </div>
+        </div>
+        {% include "marketing/studio-preview.html" %}
+      </section>
+    </div>
+    <section class="workflow frame" id="workflow" aria-labelledby="workflow-title">
+      <div class="workflow-heading"><h2 id="workflow-title">Від запису до розрахунку</h2><a class="text-action" href="/crm-dlia-saloniv">Для салонів і студій {{ icon('up') }}</a></div>
+      <div class="work-links">
+        {% for tab, glyph, title, copy in [
+          ('schedule','calendar','Календар команди','Побачте найближчий візит і відкрийте його деталі просто з розкладу.'),
+          ('client','person','Картка клієнта','Дізнайтеся, хто прийде, до якого майстра й на яку послугу.'),
+          ('report','report','Підсумок дня','Перевірте, які візити вже завершилися і скільки вони принесли.')] %}
+        <a class="work-link" data-preview-link="{{ tab }}" href="#panel-{{ tab }}">
+          <span class="tile-icon tile-{{ tab }}">{{ icon(glyph) }}</span>
+          <div><h3>{{ title }}</h3><p>{{ copy }}</p></div>{{ icon('up') }}
+        </a>
+        {% endfor %}
       </div>
-      <a class="salon-link" href="/crm-dlia-saloniv">Рішення для салонів краси та студій <span aria-hidden="true">→</span></a>
-    </div>
-    <section class="product-preview" id="product" aria-labelledby="preview-title">
-      <header class="preview-header"><h2 id="preview-title">Робочий простір SafeOrbit</h2><span>Демонстраційні дані</span></header>
-      <details name="product-preview" open>
-        <summary>Календар записів</summary>
-        <ul class="preview-list calendar-preview">
-          <li><time datetime="09:30">09:30</time><span><strong>Стрижка</strong><small>Анна Мороз</small></span></li>
-          <li><time datetime="11:00">11:00</time><span><strong>Фарбування</strong><small>Олександр Кравчук</small></span></li>
-          <li><time datetime="14:30">14:30</time><span><strong>Консультація</strong><small>Анна Мороз</small></span></li>
-        </ul>
-      </details>
-      <details name="product-preview">
-        <summary>Картка клієнта</summary>
-        <dl class="preview-list customer-preview"><div><dt>Клієнт</dt><dd>Олена Мельник</dd></div><div><dt>Останній візит</dt><dd>Стрижка</dd></div><div><dt>Наступний запис</dt><dd>Фарбування</dd></div></dl>
-      </details>
-      <details name="product-preview">
-        <summary>Звіти про дохід</summary>
-        <dl class="preview-list customer-preview"><div><dt>Завершені записи</dt><dd>12</dd></div><div><dt>Дохід за період</dt><dd>9 600 ₴</dd></div><div><dt>Середня сума запису</dt><dd>800 ₴</dd></div></dl>
-      </details>
     </section>
-  </section>
-  <section class="feature-section" id="workflow">
-    <div class="section-top"><h2>Від першого запису до звіту</h2></div>
-    <div class="feature-grid">
-      <article><h3>Записи й розклад</h3><p>Приймайте онлайн-записи та розподіляйте їх між співробітниками в календарі.</p></article>
-      <article><h3>База клієнтів</h3><p>Знаходьте контакти й історію візитів у картці клієнта.</p></article>
-      <article><h3>Звіти за період</h3><p>Порівнюйте дохід за послугами та спеціалістами. Експортуйте звіт у CSV.</p></article>
-    </div>
-  </section>
-  <section class="cta-section" id="start">
-    <h2>Перевірте SafeOrbit на своєму сценарії</h2>
-    <p>У демо можна створити запис, відкрити картку клієнта й переглянути звіт.</p>
-    <a href="/login-demo" class="button-v2 primary">Відкрити демо <span aria-hidden="true">↗</span></a>
-    <a href="/register" class="product-cta-link">Створити акаунт</a>
-  </section>
-</main><footer class="site-footer"><a href="/" class="brand-v2"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a><span>Ваш бізнес. В одному просторі.</span><div><a href="/login">Вхід</a><a href="/taryfy">Тарифи</a><span>© 2026 SafeOrbit</span></div></footer>
-</body></html>
+    <section class="closing frame">
+      <div><h2>Проведіть день у демо.</h2><p>Створіть запис і перегляньте результат у робочому кабінеті.</p></div>
+      <a class="action action-light" href="/login-demo">Відкрити демо {{ icon('arrow') }}</a>
+    </section>
+  </main>
+  <footer class="colophon frame">
+    <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
+    <nav aria-label="Посилання внизу сторінки"><a href="/taryfy">Тарифи</a><a href="/login">Вхід</a><a href="/register">Створити акаунт</a></nav>
+    <small>© 2026 SafeOrbit</small>
+  </footer>
+</body>
+</html>

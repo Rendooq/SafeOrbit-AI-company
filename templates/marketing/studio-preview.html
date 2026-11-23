@@ -1,0 +1,70 @@
+{% set visits = [
+  dict(id='olena', initials='ОМ', name='Олена Мельник', time='09:30', service='Стрижка', master='Анна Мороз', cost=750, done=true),
+  dict(id='ira', initials='ІЛ', name='Ірина Лисенко', time='11:00', service='Фарбування', master='Іван Коваль', cost=1200, done=true),
+  dict(id='marta', initials='МБ', name='Марта Бондар', time='15:30', service='Укладка', master='Анна Мороз', cost=550, done=false)
+] %}
+{% set completed = visits | selectattr('done') | list %}
+{% macro money(amount) -%}{{ '{:,}'.format(amount) | replace(',', ' ') }} ₴{%- endmacro %}
+<section class="workspace-stage" id="product" aria-labelledby="preview-title">
+  <div class="orbit-track" aria-hidden="true"><i></i></div>
+  <div class="demo-window">
+    <div class="window-bar">
+      <strong class="studio-sign"><i aria-hidden="true"></i>Studio Forma</strong>
+      <time datetime="2026-03-12">{{ icon('calendar') }} 12 березня</time>
+    </div>
+    <div class="workspace-body">
+      <h2 id="preview-title">День студії</h2>
+      <nav class="view-switch" aria-label="Огляд CRM">
+        {% for tab, label in [('schedule','Розклад'),('client','Клієнт'),('report','Підсумок')] %}
+        <a href="#panel-{{ tab }}" id="tab-{{ tab }}" data-tab="{{ tab }}">{{ label }}</a>
+        {% endfor %}
+      </nav>
+      <section class="demo-panel" id="panel-schedule" data-panel="schedule" aria-labelledby="tab-schedule">
+        <div class="schedule-view">
+          <ol class="agenda">
+            {% for visit in visits %}
+            <li><a href="#profile-{{ visit.id }}" data-client="{{ visit.id }}">
+              <time datetime="{{ visit.time }}">{{ visit.time }}</time>
+              <span class="agenda-entry tone-{{ loop.index }}"><strong>{{ visit.service }}</strong><small>{{ visit.name }}</small></span>
+              {{ icon('up') }}
+            </a></li>
+            {% endfor %}
+          </ol>
+          <a class="day-meter" data-preview-link="report" href="#panel-report">
+            <span class="meter-face" aria-hidden="true">
+              <svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="35"/><circle cx="40" cy="40" r="35" pathLength="{{ visits|length }}" stroke-dasharray="{{ completed|length }} {{ visits|length - completed|length }}"/></svg>
+              <b>{{ completed|length }}<small>/{{ visits|length }}</small></b>
+            </span>
+            <strong>Завершені візити</strong>
+            <span class="sr-only">{{ completed|length }} / {{ visits|length }}</span>
+            <span class="meter-detail">{{ money(completed | sum(attribute='cost')) }} {{ icon('up') }}</span>
+          </a>
+        </div>
+      </section>
+      <section class="demo-panel" id="panel-client" data-panel="client" aria-labelledby="tab-client">
+        {% for visit in visits %}
+        <article class="client-file" id="profile-{{ visit.id }}" data-profile="{{ visit.id }}">
+          <header><span class="monogram tone-{{ loop.index }}" aria-hidden="true" data-i18n-ignore>{{ visit.initials }}</span>
+            <div><small>Картка клієнта</small><h3>{{ visit.name }}</h3></div>
+          </header>
+          <dl class="receipt">
+            <div><dt>Час візиту</dt><dd>{{ visit.time }}</dd></div>
+            <div><dt>Послуга</dt><dd>{{ visit.service }}</dd></div>
+            <div><dt>Майстер</dt><dd>{{ visit.master }}</dd></div>
+            <div><dt>Вартість</dt><dd>{{ money(visit.cost) }}</dd></div>
+          </dl>
+        </article>
+        {% endfor %}
+      </section>
+      <section class="demo-panel" id="panel-report" data-panel="report" aria-labelledby="tab-report">
+        <div class="report-total"><span>Дохід від завершених візитів</span><strong>{{ money(completed | sum(attribute='cost')) }}</strong></div>
+        <dl class="receipt">
+          {% for visit in completed %}
+          <div><dt>{{ visit.service }}</dt><dd>{{ money(visit.cost) }}</dd></div>
+          {% endfor %}
+        </dl>
+      </section>
+    </div>
+  </div>
+  <p class="stage-caption"><span aria-hidden="true"></span>Демонстраційні дані</p>
+</section>

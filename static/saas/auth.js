@@ -57,9 +57,55 @@
     }, true);
   }
   document.querySelectorAll("form").forEach(form => {
+    if (form.hasAttribute("data-creem-checkout")) return;
     form.addEventListener("submit", () => {
       const button = form.querySelector('button[type="submit"]');
       if (button) { button.disabled = true; button.setAttribute("aria-busy", "true"); const label = button.querySelector("span"); if (label) { button.dataset.idleLabel = label.textContent; label.textContent = "Зачекайте…"; } }
+    });
+  });
+  document.querySelectorAll("[data-creem-checkout]").forEach(form => {
+    const button = form.querySelector('button[type="submit"]');
+    const feedback = form.querySelector("[data-checkout-feedback]");
+    const checkoutLink = form.querySelector("[data-checkout-link]");
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (button.disabled) return;
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      feedback.textContent = "Готуємо касу Creem…";
+      feedback.hidden = false;
+      checkoutLink.hidden = true;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          body: new FormData(form),
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Checkout request failed");
+        const { location } = await response.json();
+        if (typeof location !== "string" || !location) throw new Error("Checkout link missing");
+        const url = new URL(location, window.location.origin);
+        if (url.origin === window.location.origin) {
+          window.location.assign(url.href);
+          return;
+        }
+        if (url.protocol !== "https:" || !["creem.io", "www.creem.io", "checkout.creem.io"].includes(url.host)) {
+          throw new Error("Unexpected checkout host");
+        }
+        checkoutLink.href = url.href;
+        checkoutLink.hidden = false;
+        feedback.textContent = "Якщо каса не відкриється автоматично, скористайтеся посиланням нижче.";
+        window.location.assign(url.href);
+      } catch {
+        feedback.textContent = "Не вдалося відкрити касу Creem. Спробуйте ще раз.";
+      } finally {
+        clearTimeout(timeout);
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+      }
     });
   });
   window.addEventListener("pageshow", () => {

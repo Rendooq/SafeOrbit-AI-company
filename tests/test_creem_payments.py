@@ -1,4 +1,5 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock, patch
 
 from test_regressions import api
@@ -78,18 +79,19 @@ def test_creem_checkout_belongs_to_the_registration_and_confirms_first_charge():
                      "billing_type": "recurring", "billing_period": "every-month"},
                     {"id": "ch_monthly", "checkout_url": "https://creem.io/checkout/ch_monthly"},
                 ])
-                request = Request({"type": "http", "session": {"pending_business_id": 2}})
+                request = Request({"type": "http", "session": {"pending_business_id": 2},
+                                   "headers": [(b"accept", b"application/json")]})
                 with patch("routers.auth.creem.api", provider), patch(
                     "routers.auth.creem.charges",
                     return_value=(Charge("prod_setup", 13698, False), Charge("prod_monthly", 16742, True)),
                 ):
                     denied = await creem_pay(1, request, db)
-                    assert denied.headers["location"] == "/login"
+                    assert json.loads(denied.body)["location"] == "/login"
                     provider.assert_not_awaited()
                     request.session["pending_business_id"] = 1
                     redirect = await creem_pay(1, request, db)
 
-                assert redirect.headers["location"] == "https://creem.io/checkout/ch_monthly"
+                assert json.loads(redirect.body)["location"] == "https://creem.io/checkout/ch_monthly"
                 assert (await db.get(CreemPayment, "setup")).paid
                 assert not (await db.get(CreemPayment, "monthly")).paid
                 assert not company.is_active

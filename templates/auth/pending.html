@@ -43,8 +43,10 @@
       <p class="activation-note">Документи отримано.</p>
     {% endif %}
     {% if outstanding and payment_available %}
-      <form method="post" action="/pending-activation/{{ checkout_business_id }}/pay">
+      <form method="post" action="/pending-activation/{{ checkout_business_id }}/pay" data-creem-checkout>
         <button type="submit" class="button-primary"><span>{% if outstanding.checkout_id %}Перевірити або продовжити оплату{% else %}Купити доступ · Creem{% endif %}</span><span aria-hidden="true">→</span></button>
+        <p class="info-note" role="status" data-checkout-feedback hidden></p>
+        <a class="button-primary" target="_blank" rel="noopener" data-checkout-link hidden>Відкрити касу Creem ↗</a>
       </form>
       <p class="activation-note">Спочатку оплата налаштування, потім підписка. Податки відображаються в Creem.</p>
     {% elif outstanding or not prices %}

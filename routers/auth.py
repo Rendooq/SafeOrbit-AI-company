@@ -8,7 +8,7 @@ import logging
 
 import httpx
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
@@ -237,15 +237,20 @@ async def submit_access_documents(id: int, request: Request, nda: UploadFile = F
 
 @router.post("/pending-activation/{id}/pay")
 async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    def respond(location: str):
+        if request.headers.get("accept") == "application/json":
+            return JSONResponse({"location": location})
+        return RedirectResponse(location, status_code=303)
+
     if request.session.get("pending_business_id") != id:
-        return RedirectResponse("/login", status_code=303)
+        return respond("/login")
     pending = f"/pending-activation/{id}"
     biz = await db.get(Business, id, with_for_update=True)
     if not biz or biz.billing_country != "creem" or biz.payment_status != "pending":
-        return RedirectResponse(pending, status_code=303)
+        return respond(pending)
     charges = creem.charges(biz.plan_type)
     if not charges:
-        return RedirectResponse(f"{pending}?payment_error=1", status_code=303)
+        return respond(f"{pending}?payment_error=1")
     payments = (await db.scalars(select(CreemPayment).where(
         CreemPayment.business_id == id,
     ).order_by(CreemPayment.recurring))).all()
@@ -265,8 +270,8 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
                 if checkout.get("status") != "expired":
                     await db.commit()
                     if checkout.get("status") != "pending":
-                        return RedirectResponse(f"{pending}?payment_error=1", status_code=303)
-                    return RedirectResponse(creem.checkout_url(payment.checkout_url), status_code=303)
+                        return respond(f"{pending}?payment_error=1")
+                    return respond(creem.checkout_url(payment.checkout_url))
             product = await creem.get_product(payment.product_id)
             expected_type = "recurring" if payment.recurring else "onetime"
             if (product.get("id") != payment.product_id or product.get("currency") != "EUR"
@@ -285,13 +290,13 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
             payment.checkout_id = new_id
             payment.checkout_url = creem.checkout_url(checkout.get("checkout_url"))
             await db.commit()
-            return RedirectResponse(payment.checkout_url, status_code=303)
+            return respond(payment.checkout_url)
     except creem.CreemError as exc:
         await db.rollback()
         logger.warning("Failed to confirm or open Creem checkout for business %s: %s", id, exc)
-        return RedirectResponse(f"{pending}?payment_error=1", status_code=303)
+        return respond(f"{pending}?payment_error=1")
     await db.commit()
-    return RedirectResponse(pending, status_code=303)
+    return respond(pending)
 
 @router.get("/", response_class=HTMLResponse)
 async def public_home():

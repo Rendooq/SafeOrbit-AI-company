@@ -56,7 +56,10 @@ def test_root_is_new_marketing_page_not_cached_login():
         page=response.body.decode()
         assert response.status_code==200
         assert 'data-design="radical-v2"' in page
-        assert "Не десять сервісів. Один SafeOrbit." in page
+        assert "CRM для малого та сервісного бізнесу" in page
+        assert 'rel="canonical" href="https://safeorbit.com.pl/"' in page
+        assert "https://safeorbit.com.pl/sitemap.xml" in await auth.robots_txt()
+        assert b"<loc>https://safeorbit.com.pl/</loc>" in (await auth.sitemap_xml()).body
         assert 'class="hero-v2"' in page
         assert 'id="login-form"' not in page
         assert 'href="/login"' in page and 'href="/register"' in page

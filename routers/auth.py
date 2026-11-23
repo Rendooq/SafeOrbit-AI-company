@@ -8,7 +8,7 @@ import logging
 
 import httpx
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
@@ -26,6 +26,7 @@ from utils.auth import AttemptLimiter, normalize_username, login_limiter, regist
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Authentication"])
+PUBLIC_SITE = "https://safeorbit.com.pl"
 
 
 @router.get("/register", response_class=HTMLResponse)
@@ -300,7 +301,25 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
 
 @router.get("/", response_class=HTMLResponse)
 async def public_home():
-    return HTMLResponse(render_template("marketing/home.html"))
+    return HTMLResponse(render_template(
+        "marketing/home.html", public_site=PUBLIC_SITE,
+        site_verification=os.getenv("GOOGLE_SITE_VERIFICATION", "").strip(),
+    ))
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt():
+    return f"User-agent: *\nAllow: /\nSitemap: {PUBLIC_SITE}/sitemap.xml\n"
+
+
+@router.get("/sitemap.xml")
+async def sitemap_xml():
+    return Response(
+        f'<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f'<url><loc>{PUBLIC_SITE}/</loc></url></urlset>',
+        media_type="application/xml",
+    )
 
 
 @router.get("/login", response_class=HTMLResponse)

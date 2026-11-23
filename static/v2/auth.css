@@ -16,7 +16,7 @@
 .access-prices dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-block: 6px; }
 .access-prices dd { margin: 0; font-weight: 700; text-align: end; }
 .access-prices dd small { display: block; font-weight: 500; }
-.access-documents summary { cursor: pointer; font-weight: 600; }
+.access-documents h3 { margin: 0 0 8px; font-size: .95rem; }
 .access-documents p { font-size: .85rem; }
 .access-documents .field { margin-block: 12px; }
 

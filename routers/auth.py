@@ -267,7 +267,7 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
                     if checkout.get("status") != "pending":
                         return RedirectResponse(f"{pending}?payment_error=1", status_code=303)
                     return RedirectResponse(creem.checkout_url(payment.checkout_url), status_code=303)
-            product = await creem.api("GET", "products", params={"product_id": payment.product_id})
+            product = await creem.get_product(payment.product_id)
             expected_type = "recurring" if payment.recurring else "onetime"
             if (product.get("id") != payment.product_id or product.get("currency") != "EUR"
                     or product.get("price") != payment.cents or product.get("status") != "active"
@@ -286,9 +286,9 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
             payment.checkout_url = creem.checkout_url(checkout.get("checkout_url"))
             await db.commit()
             return RedirectResponse(payment.checkout_url, status_code=303)
-    except creem.CreemError:
+    except creem.CreemError as exc:
         await db.rollback()
-        logger.warning("Failed to confirm or open Creem checkout for business %s", id)
+        logger.warning("Failed to confirm or open Creem checkout for business %s: %s", id, exc)
         return RedirectResponse(f"{pending}?payment_error=1", status_code=303)
     await db.commit()
     return RedirectResponse(pending, status_code=303)

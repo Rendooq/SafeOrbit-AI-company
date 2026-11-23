@@ -42,11 +42,19 @@ async def api(method: str, resource: str, **kwargs) -> dict:
             response = await client.request(method, f"https://api.creem.io/v1/{resource}", headers=headers, **kwargs)
             response.raise_for_status()
             result = response.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        raise CreemError("Creem request failed") from exc
+    except httpx.HTTPStatusError as exc:
+        raise CreemError(f"{method} {resource.split('/')[0]} returned HTTP {exc.response.status_code}") from exc
+    except (httpx.RequestError, ValueError) as exc:
+        raise CreemError(f"{method} {resource.split('/')[0]} failed ({type(exc).__name__})") from exc
     if not isinstance(result, dict) or result.get("mode") != "prod":
         raise CreemError("Creem returned an invalid production object")
     return result
+
+
+async def get_product(product_id: str) -> dict:
+    if not re.fullmatch(r"prod_[A-Za-z0-9]+", product_id):
+        raise CreemError("Invalid product reference")
+    return await api("GET", f"products/{product_id}")
 
 
 def checkout_url(value: object) -> str:
@@ -64,14 +72,15 @@ def checkout_url(value: object) -> str:
 
 def is_paid(checkout: dict, checkout_id: str, request_id: str, product_id: str, cents: int) -> bool:
     product = checkout.get("product")
+    if isinstance(product, dict):
+        product = product.get("id")
     order = checkout.get("order")
     return (
         checkout.get("mode") == "prod"
         and checkout.get("id") == checkout_id
         and checkout.get("request_id") == request_id
         and checkout.get("status") == "completed"
-        and isinstance(product, dict)
-        and product.get("id") == product_id
+        and product == product_id
         and isinstance(order, dict)
         and order.get("status") == "paid"
         and order.get("currency") == "EUR"

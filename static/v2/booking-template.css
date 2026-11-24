@@ -1,0 +1,42 @@
+.booking-resource .resource-head {
+  min-height: 74px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+}
+.resource-head .text-action { margin-inline-start: auto; }
+.booking-resource .resource-main { padding-block: clamp(32px,6vw,85px); }
+.resource-layout {
+  display: grid; grid-template-columns: minmax(0,.88fr) minmax(0,1.12fr);
+  align-items: start; gap: clamp(24px,5vw,80px);
+}
+.resource-intro h1 { font-size: clamp(2.3rem,5vw,4.6rem); line-height: 1.07; letter-spacing: -.062em; margin-bottom: 17px; }
+.resource-intro p, .resource-notes p, .resource-notes li { color: var(--secondary); font-size: 1rem; line-height: 1.6; }
+.resource-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-block: 19px; }
+.resource-actions .action { min-height: 44px; font-size: .94rem; border: 1px solid transparent; }
+.paper-journal { border: 1px solid var(--rule); border-radius: 16px; background: var(--paper); padding: clamp(12px,2.2vw,27px); }
+.paper-journal h2, .resource-notes h2 { font-size: clamp(1.3rem,2.7vw,2rem); line-height: 1.2; letter-spacing: -.04em; }
+.paper-date { display: flex; align-items: baseline; gap: 8px; margin: 9px 0 12px; }
+.paper-date span { display: inline-block; width: 110px; border-bottom: 1px solid var(--rule); }
+.paper-journal table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: clamp(.72rem,1.1vw,.9rem); }
+.paper-journal th, .paper-journal td { border: 1px solid var(--rule); text-align: start; padding: 5px; overflow-wrap: anywhere; }
+.paper-journal th { background: var(--tint); }
+.paper-journal td { height: 25px; }
+.paper-journal th:first-child { width: 12%; }
+.resource-notes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: clamp(20px,5vw,72px); margin-top: 35px; padding-top: 24px; border-top: 1px solid var(--rule); }
+.resource-notes h2 { margin-bottom: 12px; }
+.resource-notes ol { margin: 0; padding-inline-start: 1.4em; }
+.resource-notes li + li { margin-top: 8px; }
+.resource-notes .text-action { margin-top: 10px; }
+@media (max-width: 780px) {
+  .resource-layout, .resource-notes { grid-template-columns: 1fr; }
+  .resource-head .theme-toggle span { display: none; }
+  .resource-head .text-action { font-size: .83rem; }
+}
+@media print {
+  @page { size: A4 portrait; margin: 14mm; }
+  .booking-resource { --rule: #6f6f6f; --tint: #eee; color: #111; background: #fff; }
+  .booking-resource .resource-head, .resource-intro, .resource-notes { display: none; }
+  .booking-resource .resource-main, .paper-journal { padding: 0; border: 0; }
+  .resource-layout { display: block; }
+  .paper-journal th, .paper-journal td { font-size: 11pt; padding: 5px 8px; }
+  .paper-journal td { height: 50px; }
+  .paper-journal tr { break-inside: avoid; }
+}

@@ -1,5 +1,17 @@
 // Homepage-only copy and fictional names from the studio preview.
 Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
+  "Шаблон журналу записів": {
+    "en": "Appointment log template",
+    "ru": "Шаблон журнала записей",
+    "pl": "Szablon rejestru wizyt",
+    "zh": "预约记录模板"
+  },
+  "Завантажити шаблон або роздрукувати": {
+    "en": "Download or print the template",
+    "ru": "Скачать или распечатать шаблон",
+    "pl": "Pobierz lub wydrukuj szablon",
+    "zh": "下载或打印模板"
+  },
   "Олена Мельник": {
     "en": "Olena Melnyk",
     "ru": "Елена Мельник",

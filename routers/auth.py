@@ -30,6 +30,7 @@ router = APIRouter(tags=["Authentication"])
 PUBLIC_SITE = "https://safeorbit.com.pl"
 SALON_PAGE = "/crm-dlia-saloniv"
 PRICING_PAGE = "/taryfy"
+BOOKING_TEMPLATE_PAGE = "/shablon-zhurnalu-zapysiv"
 CAMPAIGN_KEYS = ("utm_source", "utm_medium", "utm_campaign")
 CAMPAIGN_SESSION_KEY = "marketing_campaign"
 
@@ -359,6 +360,14 @@ async def public_pricing(db: AsyncSession = Depends(get_db), request: Request = 
     ))
 
 
+@router.get(BOOKING_TEMPLATE_PAGE, response_class=HTMLResponse)
+async def public_booking_template(request: Request):
+    campaign_attribution(request)
+    return HTMLResponse(render_template(
+        "marketing/booking-template.html", canonical=PUBLIC_SITE + BOOKING_TEMPLATE_PAGE, public_site=PUBLIC_SITE,
+    ))
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse)
 async def robots_txt():
     return f"User-agent: *\nAllow: /\nSitemap: {PUBLIC_SITE}/sitemap.xml\n"
@@ -371,7 +380,8 @@ async def sitemap_xml():
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
         f'<url><loc>{PUBLIC_SITE}/</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{SALON_PAGE}</loc></url>'
-        f'<url><loc>{PUBLIC_SITE}{PRICING_PAGE}</loc></url></urlset>',
+        f'<url><loc>{PUBLIC_SITE}{PRICING_PAGE}</loc></url>'
+        f'<url><loc>{PUBLIC_SITE}{BOOKING_TEMPLATE_PAGE}</loc></url></urlset>',
         media_type="application/xml",
     )
 

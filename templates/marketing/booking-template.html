@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Журнал запису клієнтів салону — шаблон Excel і друк | SafeOrbit</title>
+  <meta name="description" content="Безкоштовний шаблон журналу запису клієнтів салону краси. Завантажте Excel із перевіркою перетину візитів або роздрукуйте бланк на день.">
+  <link rel="canonical" href="{{ canonical }}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:title" content="Безкоштовний журнал запису клієнтів для салону">
+  <meta property="og:description" content="Таблиця Excel із перевіркою перетинів записів та готовий бланк для друку.">
+  <meta property="og:image" content="{{ public_site }}/static/templates/zhurnal-zapysu-preview.jpg">
+  <meta property="og:image:alt" content="Шаблон журналу SafeOrbit з колонками для дати, часу, майстра, послуги та статусу">
+  <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
+  <link rel="stylesheet" href="/static/v2/studio-home.css?v=product-guide2">
+  <link rel="stylesheet" href="/static/v2/booking-template.css?v=1">
+  <script src="/static/v2/booking-template.js?v=1" defer></script>
+</head>
+<body class="studio-home booking-resource">
+  <header class="resource-head frame">
+    <a href="/" class="brand-v2"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
+    <a href="/crm-dlia-saloniv" class="text-action">CRM для салонів</a>
+    {% include "partials/theme-toggle.html" %}
+  </header>
+  <main class="frame resource-main">
+    <div class="resource-layout">
+      <section class="resource-intro" aria-labelledby="resource-title">
+        <h1 id="resource-title">Журнал запису клієнтів для салону</h1>
+        <p>Запишіть, хто прийде, до якого майстра та на котру годину. Завантажте таблицю Excel з перевіркою перетинів або роздрукуйте бланк на день.</p>
+        <div class="resource-actions">
+          <a class="action action-violet" href="/static/templates/zhurnal-zapysu-salonu.xlsx" download>Завантажити Excel <span aria-hidden="true">↓</span></a>
+          <button id="print-journal" class="action action-ink" type="button" hidden>Роздрукувати бланк</button>
+        </div>
+        <noscript><p>Для друку відкрийте меню браузера та оберіть «Друк».</p></noscript>
+      </section>
+      <section class="paper-journal" aria-labelledby="paper-title">
+        <h2 id="paper-title">Записи на день</h2>
+        <p class="paper-date">Дата <span aria-hidden="true"></span></p>
+        <table aria-labelledby="paper-title">
+          <thead><tr>
+            <th scope="col">Час</th><th scope="col">Клієнт</th><th scope="col">Послуга</th>
+            <th scope="col">Майстер</th><th scope="col">Статус</th>
+          </tr></thead>
+          <tbody>{% for _ in range(14) %}<tr><td></td><td></td><td></td><td></td><td></td></tr>{% endfor %}</tbody>
+        </table>
+      </section>
+    </div>
+    <div class="resource-notes">
+      <section aria-labelledby="use-template">
+        <h2 id="use-template">Як вести журнал</h2>
+        <ol>
+          <li>Заповніть дату, початок і кінець візиту. Якщо після послуги потрібна перерва, врахуйте її в часі закінчення.</li>
+          <li>Пишіть ім’я майстра однаково в усіх рядках. Якщо два записи одного майстра перетинаються, Excel підсвітить поле перевірки.</li>
+          <li>Позначайте скасовані візити у колонці «Статус». Вони звільнять час у перевірці перетинів.</li>
+        </ol>
+      </section>
+      <section aria-labelledby="try-crm">
+        <h2 id="try-crm">Коли команді потрібен спільний календар</h2>
+        <p>У SafeOrbit клієнт записується за посиланням, а команда одразу бачить візит у календарі. Спробуйте створити візит і перевірити звіт у демо.</p>
+        <a href="/login-demo" class="text-action">Відкрити безкоштовне демо <span aria-hidden="true">→</span></a>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

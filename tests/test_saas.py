@@ -83,6 +83,21 @@ def test_home_shows_checkout_prices_and_first_month_totals():
     assert prices == ["10.50", "20.50", "11.50", "21.50", "22.00", "42.00"]
 
 
+def test_booking_template_is_discoverable_and_links_a_working_workbook():
+    from zipfile import ZipFile
+
+    request = Request({"type": "http", "query_string": b""})
+    page = asyncio.run(auth.public_booking_template(request)).body.decode()
+    assert f'rel="canonical" href="{auth.PUBLIC_SITE}{auth.BOOKING_TEMPLATE_PAGE}"' in page
+    assert '<button id="print-journal"' in page
+    path = "static/templates/zhurnal-zapysu-salonu.xlsx"
+    assert f'href="/{path}" download' in page
+    assert f"<loc>{auth.PUBLIC_SITE}{auth.BOOKING_TEMPLATE_PAGE}</loc>".encode() in asyncio.run(auth.sitemap_xml()).body
+    with ZipFile(ROOT / path) as workbook:
+        content = workbook.read("xl/worksheets/sheet1.xml")
+        assert b"SUMPRODUCT" in content and b"conditionalFormatting" in content
+
+
 def test_marketing_campaign_survives_demo_and_pricing_before_registration():
     from fastapi import FastAPI
     from httpx import ASGITransport, AsyncClient

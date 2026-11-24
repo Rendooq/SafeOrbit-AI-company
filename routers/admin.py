@@ -31,6 +31,7 @@ from ui import get_layout
 from utils.logger import log_action
 from utils.auth import ROOT, MAX_UPLOAD_BYTES
 from utils.security import hash_password, generate_api_key
+from utils.schedule import personal_schedule
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -1806,11 +1807,7 @@ async def get_calendar_data(start: Optional[str] = None, end: Optional[str] = No
     if not user: 
         return []
 
-    is_limited_master = False
-    if user.role == "master":
-        m_record = await db.get(Master, user.master_id)
-        if not m_record or m_record.role == "Експерт":
-            is_limited_master = True
+    is_limited_master = await personal_schedule(user, db)
 
     filters = [Appointment.business_id == user.business_id, Appointment.status != 'cancelled']
     if is_limited_master:
@@ -1845,11 +1842,7 @@ async def get_day_details(date: str, user: User = Depends(get_current_user), db:
     day_start = dt.replace(hour=0, minute=0, second=0)
     day_end = day_start + timedelta(days=1)
 
-    is_limited_master = False
-    if user.role == "master":
-        m_record = await db.get(Master, user.master_id)
-        if not m_record or m_record.role == "Експерт":
-            is_limited_master = True
+    is_limited_master = await personal_schedule(user, db)
 
     filters = [
         Appointment.business_id == user.business_id,
@@ -1860,7 +1853,7 @@ async def get_day_details(date: str, user: User = Depends(get_current_user), db:
     if is_limited_master:
         filters.append(Appointment.master_id == user.master_id)
 
-    stmt = select(Appointment).options(joinedload(Appointment.customer)).where(and_(*filters)).order_by(Appointment.appointment_time)
+    stmt = select(Appointment).options(joinedload(Appointment.customer.and_(Customer.business_id == user.business_id))).where(and_(*filters)).order_by(Appointment.appointment_time)
     
     res = await db.execute(stmt)
     appts = res.scalars().all()

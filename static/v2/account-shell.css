@@ -1,0 +1,150 @@
+/* Navigation and account controls are shared by every workspace role. */
+.radical-workspace {
+  --rail-paper: #f8f7fb;
+  --rail-surface: #fffefd;
+  --rail-ink: #272332;
+  --rail-muted: #5e5868;
+  --rail-rule: #e2dee8;
+  --rail-violet: #5838a4;
+  --rail-selected: #eae2fa;
+  --rail-hover: #f0edf5;
+  --rail-profile: #dce8c6;
+  --rail-profile-ink: #34432d;
+}
+[data-theme="dark"] .radical-workspace {
+  --rail-paper: #17151d;
+  --rail-surface: #201d27;
+  --rail-ink: #f4f0f9;
+  --rail-muted: #c1bacb;
+  --rail-rule: #393441;
+  --rail-violet: #dac8ff;
+  --rail-selected: #392c51;
+  --rail-hover: #292431;
+  --rail-profile: #344533;
+  --rail-profile-ink: #d8ebcd;
+}
+html body.radical-workspace #workspace-sidebar {
+  --ui-sidebar: var(--rail-paper);
+  --ui-sidebar-text: var(--rail-ink);
+  --ui-sidebar-muted: var(--rail-muted);
+  padding: 22px 14px 12px !important;
+  border-inline-end: 1px solid var(--rail-rule) !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rail-rule) var(--rail-paper);
+}
+#workspace-sidebar .workspace-brand {
+  width: fit-content;
+  padding: 0 9px;
+  gap: 9px;
+  font-size: 1.4rem;
+  letter-spacing: -.055em;
+}
+#workspace-sidebar .workspace-brand img { width: 28px; height: 28px; }
+#workspace-sidebar .workspace-switch {
+  margin-block: 20px 15px;
+  padding: 10px;
+  border: 1px solid var(--rail-rule);
+  border-radius: 12px;
+  background: var(--rail-surface);
+}
+#workspace-sidebar .workspace-avatar,
+#workspace-sidebar .profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: var(--rail-violet);
+  background: var(--rail-selected);
+  font-size: .75rem;
+}
+#workspace-sidebar .profile-avatar {
+  border-radius: 50%;
+  background: var(--rail-profile);
+  color: var(--rail-profile-ink);
+}
+#workspace-sidebar :is(.workspace-switch,.workspace-profile) strong { font-size: .85rem; }
+#workspace-sidebar :is(.workspace-switch,.workspace-profile) small { font-size: .73rem; }
+#workspace-sidebar .workspace-nav { gap: 2px; }
+#workspace-sidebar .nav-item {
+  gap: 11px;
+  min-height: 37px;
+  padding: 7px 12px !important;
+  font-size: .85rem !important;
+  line-height: 1.35;
+  border-radius: 9px !important;
+}
+#workspace-sidebar .nav-item i { font-size: .89rem !important; background: transparent !important; }
+#workspace-sidebar .nav-item:hover { background: var(--rail-hover) !important; color: var(--rail-ink) !important; }
+#workspace-sidebar .nav-item[aria-current] {
+  background: var(--rail-selected) !important;
+  color: var(--rail-violet) !important;
+  font-weight: 750;
+}
+#workspace-sidebar .nav-item[aria-current] i { color: var(--rail-violet) !important; }
+#workspace-sidebar .workspace-help {
+  padding: 12px 9px;
+  margin: 13px 0 3px;
+  border-color: var(--rail-rule);
+}
+#workspace-sidebar .workspace-help strong { font-size: .82rem; }
+#workspace-sidebar .workspace-help p { margin-block: 3px; font-size: .77rem; line-height: 1.5; }
+#workspace-sidebar .workspace-help a { color: var(--rail-violet); font-size: .77rem; text-underline-offset: 3px; }
+#workspace-sidebar .workspace-profile { padding: 10px 7px 0; border-color: var(--rail-rule); }
+#workspace-sidebar .workspace-profile a { color: var(--rail-muted); padding: 9px; }
+.radical-workspace .workspace-topbar {
+  min-height: 65px;
+  height: auto;
+  padding-block: 8px;
+}
+.radical-workspace .workspace-topbar .topbar-left strong { color: var(--rail-ink); font-size: .87rem; }
+.radical-workspace .workspace-topbar .breadcrumb-root { color: var(--rail-muted); font-size: .82rem; }
+.radical-workspace .workspace-topbar .breadcrumb-divider { color: var(--rail-muted); opacity: .75; }
+.radical-workspace .workspace-topbar .topbar-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.workspace-topbar :is(.theme-toggle,.command-trigger) { min-height: 39px; min-width: 39px; border-radius: 9px; }
+.workspace-topbar .theme-toggle [data-theme-label] { display: none; }
+.workspace-topbar .command-trigger { padding: 8px 10px; justify-content: center; font-size: .79rem; }
+.workspace-topbar .command-trigger i { font-size: .9rem; }
+.workspace-topbar .command-trigger kbd { font-size: .65rem; }
+.radical-workspace .workspace-topbar :is(.so-i18n-select,.so-currency-select) {
+  height: 39px !important;
+  padding-inline: 7px !important;
+  border-radius: 9px !important;
+  font-size: .8rem !important;
+}
+#workspace-command { border-radius: 16px; }
+#workspace-command .command-result { min-height: 40px; }
+.radical-workspace :is(#workspace-sidebar,.workspace-topbar,#workspace-command) :focus-visible {
+  outline: 2px solid var(--rail-violet);
+  outline-offset: 2px;
+}
+.radical-workspace .workspace-footer { font-size: .75rem; }
+@media (max-width: 900px) {
+  #workspace-sidebar { visibility: hidden; }
+  #workspace-sidebar.mobile-open { visibility: visible; }
+  #workspace-sidebar .nav-item { min-height: 44px; }
+  .radical-workspace .workspace-topbar #workspace-menu-toggle {
+    min-height: 42px; min-width: 42px; color: var(--rail-ink);
+    border: 1px solid var(--rail-rule); border-radius: 9px;
+  }
+}
+@media (max-width: 580px) {
+  .radical-workspace .workspace-topbar { min-height: 58px; gap: 4px; }
+  .radical-workspace .workspace-topbar .topbar-left strong { max-width: 25vw; }
+  .radical-workspace .workspace-topbar .topbar-right { gap: 4px; min-width: 0; }
+  html body.radical-workspace .workspace-topbar .topbar-right :is(.command-trigger,.theme-toggle),
+  html body.radical-workspace .workspace-topbar #workspace-menu-toggle {
+    width: 42px !important; min-width: 42px !important; max-width: 42px !important;
+    flex: 0 0 42px !important; padding-inline: 0 !important;
+  }
+}
+@media (max-width: 500px) {
+  .radical-workspace .workspace-topbar .so-pref-field:first-child { display: inline-flex; }
+  .radical-workspace .workspace-topbar .so-i18n-switcher { gap: 4px !important; }
+}
+@media (max-width: 435px) {
+  .radical-workspace .workspace-topbar .topbar-left strong { display: none; }
+  .radical-workspace .workspace-topbar { padding-inline: 8px; }
+}
+@media (max-width: 360px) {
+  .radical-workspace .workspace-topbar { padding: 3px 4px; gap: 2px; }
+  .radical-workspace .workspace-topbar .topbar-right { gap: 2px; }
+}

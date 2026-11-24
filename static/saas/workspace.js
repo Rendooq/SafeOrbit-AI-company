@@ -20,6 +20,24 @@
     toggle.setAttribute("aria-expanded", String(open));
   });
   overlay?.addEventListener("click", closeMenu);
+  sidebar?.querySelector(".workspace-nav")?.addEventListener("click", event => {
+    if (event.target.closest("a")) closeMenu();
+  });
+  if (document.body.dataset.active === "dash") {
+    const currentLinks = [document.getElementById("menu-dash"), document.getElementById("menu-agenda")];
+    const syncLocation = () => {
+      const inAgenda = location.hash === "#day-agenda";
+      currentLinks.forEach((link, index) => {
+        if (!link) return;
+        const selected = index === (inAgenda ? 1 : 0);
+        link.classList.toggle("active", selected);
+        if (selected) link.setAttribute("aria-current", inAgenda ? "location" : "page");
+        else link.removeAttribute("aria-current");
+      });
+    };
+    syncLocation();
+    window.addEventListener("hashchange", syncLocation);
+  }
   const dialog = document.getElementById("workspace-command");
   const input = document.getElementById("command-input");
   const results = document.getElementById("command-results");
@@ -29,6 +47,8 @@
     const query = input.value.trim().toLocaleLowerCase("uk");
     links.filter(link => link.textContent.toLocaleLowerCase("uk").includes(query)).forEach(link => {
       const item = link.cloneNode(true); item.className = "command-result"; item.removeAttribute("onclick");
+      item.removeAttribute("id");
+      item.removeAttribute("aria-current");
       results.append(item);
     });
     if (!results.children.length) { const text = document.createElement("p"); text.textContent = "Сторінок не знайдено."; text.className = "command-hint"; results.append(text); }
@@ -36,6 +56,9 @@
   const openCommand = () => { if (!dialog.open) { dialog.showModal(); input.value = ""; render(); input.focus(); } };
   document.getElementById("workspace-search-toggle")?.addEventListener("click", openCommand);
   document.getElementById("command-close")?.addEventListener("click", () => dialog.close());
+  results?.addEventListener("click", event => {
+    if (event.target.closest("a")) dialog.close();
+  });
   input?.addEventListener("input", render);
   input?.addEventListener("keydown", event => {
     if (event.key === "Enter") { const first = results.querySelector("a"); if (first) { event.preventDefault(); first.click(); } }

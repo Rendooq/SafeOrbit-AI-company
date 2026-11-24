@@ -20,7 +20,8 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     if is_super:
         menu_items.append(("/superadmin", "super", "fa-user-shield", "Адмінпанель"))
     else:
-        menu_items.append(("/admin", "dash", "fa-chart-pie", "Аналітика"))
+        menu_items.append(("/admin", "dash", "fa-house", "Огляд"))
+        menu_items.append(("/admin#day-agenda", "agenda", "fa-calendar-days", "Записи"))
         menu_items.append(("/admin/klienci", "kli", "fa-users", l['clients']))
         if not is_master:
             menu_items.append(("/admin/reports", "reports", "fa-chart-line", "Звіти"))
@@ -36,13 +37,13 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         menu_items.append(("/admin/help", "help", "fa-circle-question", "Підтримка"))
     
     if is_demo:
-        menu_items = [item for item in menu_items if item[1] in {"dash", "kli", "fin", "reports", "logs"}]
+        menu_items = [item for item in menu_items if item[1] in {"dash", "agenda", "kli", "fin", "reports", "logs"}]
 
     # Generate menu HTML
     menu_html = ""
     for href, key, icon, label in menu_items:
         is_active = 'active' if active == key else ''
-        menu_html += f'<a href="{href}" id="menu-{key}" class="nav-link {is_active}"><i class="fas {icon}"></i><span>{label}</span></a>'
+        menu_html += f'<a href="{href}" id="menu-{key}" class="nav-link {is_active}"><i class="fas {icon}" aria-hidden="true"></i><span>{label}</span></a>'
     
     # User pill
     user_dropdown = f"""
@@ -56,7 +57,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
     </div>"""
     
     if user.role in {"owner", "admin"} and not is_demo:
-        menu_html += '<a href="/admin/settings" class="nav-link"><i class="fas fa-code"></i><span>API та інтеграції</span></a>'
+        menu_html += '<a href="/admin/settings" class="nav-link"><i class="fas fa-code" aria-hidden="true"></i><span>API та інтеграції</span></a>'
     title_map = {
         "dash": "Огляд бізнесу", "reports": "Звіти", "super": "Панель адміністратора", "set": "Налаштування",
         "fin": "Фінанси та склад", "cust": l["clients"], "kli": l["clients"],

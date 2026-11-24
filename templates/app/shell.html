@@ -19,9 +19,11 @@
   {% if needs_chart %}<script src="/static/vendor/chart.umd.min.js"></script>{% endif %}
   {% if needs_calendar %}<script src="/static/vendor/fullcalendar.min.js"></script>{% endif %}
   <script src="/static/saas/legacy.js?v=20261121-4"></script>
-  <script src="/static/saas/workspace.js?v=20261121-4" defer></script>
+  <script src="/static/saas/workspace.js?v=account1" defer></script>
   <script src="/static/locales/catalog.js?v=sale-locales2" defer></script>
+  <script src="/static/locales/account.js?v=1" defer></script>
   <script src="/static/i18n.js?v=sale-locales2" defer></script>
+  <link rel="stylesheet" href="/static/v2/account-shell.css?v=3">
   <link rel="stylesheet" href="/static/v2/theme.css?v=mobile-contrast-1">
   <script src="/static/v2/theme.js?v=sale-locales2" defer></script>
 </head>
@@ -30,19 +32,26 @@
   <div class="mobile-nav-overlay" id="workspace-overlay"></div>
   <aside class="sidebar" id="workspace-sidebar">
     <a href="{{ home }}" class="workspace-brand"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
-    <div class="workspace-switch"><span class="workspace-avatar">{{ initials }}</span><div><strong>{{ business_name }}</strong><small>{{ role_label }}</small></div><span aria-hidden="true">⌄</span></div>
-    <div class="nav-kicker">WORKSPACE</div>
+    <div class="workspace-switch"><span class="workspace-avatar" aria-hidden="true" data-i18n-ignore>{{ initials }}</span><div><strong data-i18n-ignore>{{ business_name }}</strong><small>{{ role_label }}</small></div></div>
     <nav class="workspace-nav" aria-label="Основна навігація">{{ menu_html | safe }}</nav>
-{% if is_demo %}<div class="workspace-help"><strong>Демо SafeOrbit</strong><p>Тестові дані зберігаються до години бездіяльності.</p><a href="/taryfy">Тарифи для вашого бізнесу ↗</a></div>{% else %}    <div class="workspace-help"><span class="help-icon" aria-hidden="true">✦</span><strong>Менше хаосу. Більше руху.</strong><p>Ваш наступний крок починається тут.</p><a href="/api-docs">Документація API ↗</a></div>{% endif %}
-    <div class="workspace-profile"><span class="profile-avatar">{{ username_initial }}</span><div><strong>{{ username }}</strong><small>{{ role_label }}</small></div><a href="/logout" aria-label="Вийти з акаунту" title="Вийти"><i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i></a></div>
+    <div class="workspace-help">
+      {% if is_demo %}
+        <strong>Демо SafeOrbit</strong>
+        <p>Тестові дані зберігаються до години бездіяльності.</p>
+        <a href="/taryfy">Тарифи для вашого бізнесу ↗</a>
+      {% else %}
+        <a href="/api-docs">Документація API ↗</a>
+      {% endif %}
+    </div>
+    <div class="workspace-profile"><span class="profile-avatar" aria-hidden="true" data-i18n-ignore>{{ username_initial }}</span><div><strong data-i18n-ignore>{{ username }}</strong><small>{{ role_label }}</small></div><a href="/logout" aria-label="Вийти з акаунту" title="Вийти"><i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i></a></div>
   </aside>
   <div class="main-content">
     <header class="workspace-topbar">
       <div class="topbar-left"><button type="button" id="workspace-menu-toggle" class="icon-button" aria-label="Відкрити меню" aria-expanded="false" aria-controls="workspace-sidebar"><i class="fas fa-bars" aria-hidden="true"></i></button><span class="breadcrumb-root">Робочий простір</span><span class="breadcrumb-divider" aria-hidden="true">/</span><strong>{{ title }}</strong></div>
-      <div class="topbar-right">{% include "partials/theme-toggle.html" %}<span class="workspace-live"><span></span> {{ business_name }}</span><button type="button" class="command-trigger" id="workspace-search-toggle" aria-label="Швидкий перехід" aria-haspopup="dialog"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span>Швидкий перехід</span><kbd>Ctrl K</kbd></button><span class="topbar-avatar" title="{{ username }}">{{ username_initial }}</span></div>
+      <div class="topbar-right"><button type="button" class="command-trigger" id="workspace-search-toggle" aria-label="Швидкий перехід" aria-haspopup="dialog"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><span>Швидкий перехід</span><kbd>Ctrl K</kbd></button>{% include "partials/theme-toggle.html" %}</div>
     </header>
     <main id="workspace-content" class="workspace-content" tabindex="-1">{{ content | safe }}</main>
-    <footer class="workspace-footer"><span>© 2026 SafeOrbit</span><span>Business, in focus.</span></footer>
+    <footer class="workspace-footer"><span>© 2026 SafeOrbit</span></footer>
   </div>
   <dialog id="workspace-command" class="command-dialog" aria-labelledby="command-title"><div class="command-head"><strong id="command-title">Швидкий перехід</strong><button type="button" id="command-close" class="icon-button" aria-label="Закрити пошук">×</button></div><input type="search" id="command-input" placeholder="Знайти сторінку…" autocomplete="off" aria-label="Пошук сторінок"><div id="command-results"></div><small class="command-hint">Esc — закрити · Enter — перейти</small></dialog>
   {{ scripts | safe }}

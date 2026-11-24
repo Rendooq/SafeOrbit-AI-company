@@ -30,6 +30,22 @@ router = APIRouter(tags=["Authentication"])
 PUBLIC_SITE = "https://safeorbit.com.pl"
 SALON_PAGE = "/crm-dlia-saloniv"
 PRICING_PAGE = "/taryfy"
+CAMPAIGN_KEYS = ("utm_source", "utm_medium", "utm_campaign")
+CAMPAIGN_SESSION_KEY = "marketing_campaign"
+
+
+def campaign_attribution(request: Request | None) -> dict[str, str]:
+    if request is None:
+        return {}
+    campaign = {}
+    for key in CAMPAIGN_KEYS:
+        value = request.query_params.get(key, "").strip()[:100]
+        if value:
+            campaign[key] = value
+    session = request.scope.get("session", {})
+    if campaign:
+        session[CAMPAIGN_SESSION_KEY] = campaign
+    return session.get(CAMPAIGN_SESSION_KEY, campaign)
 
 
 @router.get("/register", response_class=HTMLResponse)
@@ -42,9 +58,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     return HTMLResponse(render_template(
         "auth/register.html",
         plan1_active=plan1_active, plan2_active=plan2_active, selected_plan=selected_plan,
-        utm_source=request.query_params.get("utm_source", ""),
-        utm_medium=request.query_params.get("utm_medium", ""),
-        utm_campaign=request.query_params.get("utm_campaign", ""),
+        **campaign_attribution(request),
     ))
 
 
@@ -317,7 +331,8 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
     return respond(pending)
 
 @router.get("/", response_class=HTMLResponse)
-async def public_home():
+async def public_home(request: Request = None):
+    campaign_attribution(request)
     return HTMLResponse(render_template(
         "marketing/home.html", public_site=PUBLIC_SITE, plans=creem.PLAN_PRICES,
         site_verification=os.getenv("GOOGLE_SITE_VERIFICATION", "").strip(),
@@ -325,20 +340,22 @@ async def public_home():
 
 
 @router.get(SALON_PAGE, response_class=HTMLResponse)
-async def salon_landing():
+async def salon_landing(request: Request = None):
+    campaign_attribution(request)
     return HTMLResponse(render_template(
-        "marketing/salons.html", canonical=PUBLIC_SITE + SALON_PAGE,
+        "marketing/salons.html", canonical=PUBLIC_SITE + SALON_PAGE, public_site=PUBLIC_SITE,
     ))
 
 
 @router.get(PRICING_PAGE, response_class=HTMLResponse)
-async def public_pricing(db: AsyncSession = Depends(get_db)):
+async def public_pricing(db: AsyncSession = Depends(get_db), request: Request = None):
     settings = await db.get(GlobalPaymentSettings, 1)
     active_plans = {plan for plan in creem.PLAN_PRICES
                     if settings is None or getattr(settings, f"is_{plan}_active")}
     return HTMLResponse(render_template(
         "marketing/pricing.html", canonical=PUBLIC_SITE + PRICING_PAGE,
         plans=creem.PLAN_PRICES, active_plans=active_plans,
+        has_campaign=bool(campaign_attribution(request)),
     ))
 
 
@@ -374,8 +391,11 @@ async def login_demo(request: Request):
     if not existing and not demo_limiter.allow(remote):
         raise HTTPException(429, "Забагато спроб відкрити демо. Спробуйте за хвилину.")
     key = await demo_workspaces.start(existing)
+    campaign = campaign_attribution(request)
     request.session.clear()
     request.session[DEMO_SESSION_KEY] = key
+    if campaign:
+        request.session[CAMPAIGN_SESSION_KEY] = campaign
     return RedirectResponse("/admin", status_code=303)
 
 

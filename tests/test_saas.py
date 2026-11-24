@@ -83,6 +83,41 @@ def test_home_shows_checkout_prices_and_first_month_totals():
     assert prices == ["10.50", "20.50", "11.50", "21.50", "22.00", "42.00"]
 
 
+def test_marketing_campaign_survives_demo_and_pricing_before_registration():
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+    from starlette.middleware.sessions import SessionMiddleware
+
+    async def scenario():
+        async with api() as (_, sessions):
+            app = FastAPI()
+            app.add_middleware(SessionMiddleware, secret_key="test-campaign-session")
+            app.include_router(auth.router)
+
+            async def isolated_db():
+                async with sessions() as db:
+                    yield db
+
+            app.dependency_overrides[auth.get_db] = isolated_db
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                original = await client.get("/taryfy")
+                assert "utm_source=pricing" in original.text
+                landing = await client.get("/crm-dlia-saloniv", params={
+                    "utm_source": "linkedin", "utm_medium": "organic_social", "utm_campaign": "salon_workday",
+                })
+                assert landing.status_code == 200
+                with patch.object(auth.demo_workspaces, "start", return_value="demo-session"):
+                    demo = await client.get("/login-demo")
+                assert demo.headers["location"] == "/admin"
+                pricing = await client.get("/taryfy")
+                assert "utm_source=pricing" not in pricing.text
+                signup = await client.get("/register", params={"plan": "plan2"})
+                assert 'name="utm_source" value="linkedin"' in signup.text
+                assert 'name="utm_medium" value="organic_social"' in signup.text
+                assert 'name="utm_campaign" value="salon_workday"' in signup.text
+    asyncio.run(scenario())
+
+
 def test_theme_switch_is_on_all_surfaces_and_style_is_final_layer():
     user=SimpleNamespace(role="superadmin",username="test",business=None)
     shell=get_layout("sample",user,"super")

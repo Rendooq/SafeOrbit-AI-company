@@ -39,7 +39,7 @@
           <div><dt>Разом за перший місяць</dt><dd>€{{ '%.2f'|format((setup + monthly) / 100) }}</dd></div>
         </dl>
         {% if plan in active_plans %}
-        <a class="button-v2 primary" href="/register?plan={{ plan }}&amp;utm_source=pricing">Обрати {{ name }} ↗</a>
+        <a class="button-v2 primary" href="/register?plan={{ plan }}{% if not has_campaign %}&amp;utm_source=pricing{% endif %}">Обрати {{ name }} ↗</a>
         {% else %}
         <p class="pricing-unavailable">Підключення тимчасово призупинено.</p>
         {% endif %}

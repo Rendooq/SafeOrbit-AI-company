@@ -287,5 +287,77 @@ Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
     "ru": "SafeOrbit предоставляет отдельную страницу записи. Ссылку можно добавить в профиль Instagram или отправить клиенту в мессенджере.",
     "pl": "SafeOrbit udostępnia osobną stronę rezerwacji. Dodaj jej link do profilu na Instagramie lub wyślij go klientowi w komunikatorze.",
     "zh": "SafeOrbit 提供独立预约页面。你可以把链接放在 Instagram 个人资料中，或通过即时通讯应用发给客户。"
+  },
+  "CRM для салону краси — онлайн-запис і календар майстрів | SafeOrbit": {
+    "en": "CRM for beauty salons — online booking and team calendar | SafeOrbit",
+    "ru": "CRM для салона красоты — онлайн-запись и календарь мастеров | SafeOrbit",
+    "pl": "CRM dla salonu beauty — rezerwacje online i grafik zespołu | SafeOrbit",
+    "zh": "美容院 CRM：在线预约与团队日程 | SafeOrbit"
+  },
+  "Як підключити онлайн-запис": {
+    "en": "How to set up online booking",
+    "ru": "Как подключить онлайн-запись",
+    "pl": "Jak włączyć rezerwacje online",
+    "zh": "如何开通在线预约"
+  },
+  "Календар майстрів у демо SafeOrbit": {
+    "en": "Team calendar in the SafeOrbit demo",
+    "ru": "Календарь мастеров в демо SafeOrbit",
+    "pl": "Grafik zespołu w wersji demo SafeOrbit",
+    "zh": "SafeOrbit 演示中的团队日程"
+  },
+  "Як підключити онлайн-запис для салону": {
+    "en": "How to set up online booking for your salon",
+    "ru": "Как подключить онлайн-запись для салона",
+    "pl": "Jak włączyć rezerwacje online dla salonu",
+    "zh": "如何为美容院开通在线预约"
+  },
+  "Підготуйте послуги й команду": {
+    "en": "Set up your services and team",
+    "ru": "Настройте услуги и команду",
+    "pl": "Skonfiguruj usługi i zespół",
+    "zh": "设置服务与团队"
+  },
+  "Додайте послуги з цінами й тривалістю. Призначте майстрів, які виконують кожну послугу.": {
+    "en": "Add services with their prices and durations. Assign the specialists who perform each service.",
+    "ru": "Добавьте услуги с ценами и длительностью. Назначьте мастеров, которые выполняют каждую услугу.",
+    "pl": "Dodaj usługi z cenami i czasem trwania. Przypisz specjalistów wykonujących daną usługę.",
+    "zh": "添加服务及其价格、时长，并为每项服务分配员工。"
+  },
+  "Додайте посилання в Instagram": {
+    "en": "Add your booking link to Instagram",
+    "ru": "Добавьте ссылку в Instagram",
+    "pl": "Dodaj link do Instagrama",
+    "zh": "将预约链接添加到 Instagram"
+  },
+  "У робочому кабінеті відкрийте «Календар і додаткові інструменти», оберіть «Список», потім «Віджет». Скопіюйте адресу з браузера й додайте її у профіль Instagram або надішліть клієнту в месенджері.": {
+    "en": "In your workspace, open Calendar and other tools, choose List, then Widget. Copy the address from your browser and add it to your Instagram profile or send it to a client in a message.",
+    "ru": "В рабочем кабинете откройте «Календарь и дополнительные инструменты», выберите «Список», затем «Виджет». Скопируйте адрес из браузера и добавьте его в профиль Instagram или отправьте клиенту в мессенджере.",
+    "pl": "W panelu otwórz „Kalendarz i dodatkowe narzędzia”, wybierz „Lista”, a potem „Widżet”. Skopiuj adres z przeglądarki i dodaj go do profilu na Instagramie lub wyślij klientowi w komunikatorze.",
+    "zh": "在工作区打开“日历和其他工具”，选择“列表”，再选择“小组件”。复制浏览器中的地址，添加到 Instagram 资料或通过消息发送给客户。"
+  },
+  "Перевірте запис із телефона": {
+    "en": "Test a booking from your phone",
+    "ru": "Проверьте запись с телефона",
+    "pl": "Sprawdź rezerwację na telefonie",
+    "zh": "在手机上测试预约"
+  },
+  "Клієнт обирає послугу, майстра, дату й час, залишає ім’я та номер телефона. Після відправлення форми візит з’являється в календарі команди.": {
+    "en": "Clients choose a service, specialist, date and time, then enter their name and phone number. The visit appears in the team calendar after they submit the form.",
+    "ru": "Клиент выбирает услугу, мастера, дату и время, оставляет имя и номер телефона. После отправки формы визит появляется в календаре команды.",
+    "pl": "Klient wybiera usługę, specjalistę, datę i godzinę, podaje imię i numer telefonu. Po wysłaniu formularza wizyta pojawia się w grafiku zespołu.",
+    "zh": "客户选择服务、员工、日期和时间，填写姓名和电话号码。提交表单后，预约会出现在团队日程中。"
+  },
+  "Посилання для клієнтів доступне в активованому кабінеті. У відкритому демо можна перевірити календар, картку клієнта та звіт за візитами.": {
+    "en": "The client booking link is available in an activated workspace. In the public demo you can try the calendar, client profile and appointments report.",
+    "ru": "Ссылка для клиентов доступна в активированном кабинете. В открытом демо можно проверить календарь, карточку клиента и отчёт по визитам.",
+    "pl": "Link dla klientów jest dostępny w aktywowanym panelu. W publicznym demo sprawdzisz kalendarz, kartę klienta i raport wizyt.",
+    "zh": "客户预约链接在已激活的工作区中可用。公开演示可体验日历、客户档案与预约报表。"
+  },
+  "Як відкрити власний кабінет": {
+    "en": "How to activate your workspace",
+    "ru": "Как открыть свой кабинет",
+    "pl": "Jak aktywować własny panel",
+    "zh": "如何激活工作区"
   }
 });

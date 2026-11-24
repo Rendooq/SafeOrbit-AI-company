@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CRM для салону краси й студії | SafeOrbit</title>
-  <meta name="description" content="CRM для салону краси, барбершопу та студії. Онлайн-запис, календар майстрів, база клієнтів і звіти про дохід. Перевірте в демо SafeOrbit.">
+  <title>CRM для салону краси — онлайн-запис і календар майстрів | SafeOrbit</title>
+  <meta name="description" content="Приймайте онлайн-записи з Instagram і месенджерів у календар майстрів SafeOrbit. Перегляньте, як підключити запис, і перевірте CRM у безкоштовному демо.">
   <link rel="canonical" href="{{ canonical }}">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="uk_UA">
@@ -18,11 +18,12 @@
   <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
   <link rel="stylesheet" href="/static/v2/home.css?v=conversion2">
+  <link rel="stylesheet" href="/static/v2/salon-guide.css?v=1">
   <script src="/static/locales/catalog.js?v=conversion2" defer></script>
-  <script src="/static/locales/studio.js?v=booking-template" defer></script>
+  <script src="/static/locales/studio.js?v=salon-guide1" defer></script>
   <script src="/static/i18n.js?v=sale-locales2" defer></script>
 </head>
-<body class="marketing-v2 marketing-secondary">
+<body class="marketing-v2 marketing-secondary salon-page">
 <header class="site-nav">
   <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
   <div class="nav-actions">{% include "partials/language-select.html" %}{% include "partials/theme-toggle.html" %}<a href="/login" class="nav-login">Увійти</a><a href="/register" class="button-v2 dark">Створити акаунт ↗</a></div>
@@ -32,17 +33,22 @@
     <div class="hero-copy">
       <h1>CRM для салону краси <span class="hero-chaos">та студії.</span></h1>
       <p>Приймайте онлайн-записи, розподіляйте візити між майстрами та ведіть історію клієнтів в одному просторі.</p>
-      <div class="hero-actions"><a class="button-v2 primary" href="/login-demo">Відкрити безкоштовне демо ↗</a></div>
+      <div class="hero-actions"><a class="button-v2 primary" href="/login-demo">Відкрити безкоштовне демо ↗</a><a class="salon-inline-link" href="#online-booking">Як підключити онлайн-запис</a></div>
     </div>
-    <div class="hero-visual">
-      <div class="product-mockup p-0">
-        <div class="mock-top"><strong>Що перевірити в демо</strong></div>
-        <div class="mock-content">
-          <p>Створіть запис на послугу, призначте майстра й подивіться, як візит відображається в календарі.</p>
-          <p>Відкрийте картку клієнта й перевірте звіт за записами та доходом.</p>
-        </div>
-      </div>
-    </div>
+    <figure class="salon-dashboard">
+      <img src="/static/v2/social-demo.jpg" width="1274" height="717" decoding="async" alt="Календар майстрів салону та графік доходу в демо SafeOrbit">
+      <figcaption>Календар майстрів у демо SafeOrbit</figcaption>
+    </figure>
+  </section>
+  <section class="feature-section salon-setup" id="online-booking" aria-labelledby="online-booking-title">
+    <div class="section-top"><h2 id="online-booking-title">Як підключити онлайн-запис для салону</h2></div>
+    <ol>
+      <li><strong>Підготуйте послуги й команду</strong><p>Додайте послуги з цінами й тривалістю. Призначте майстрів, які виконують кожну послугу.</p></li>
+      <li><strong>Додайте посилання в Instagram</strong><p>У робочому кабінеті відкрийте «Календар і додаткові інструменти», оберіть «Список», потім «Віджет». Скопіюйте адресу з браузера й додайте її у профіль Instagram або надішліть клієнту в месенджері.</p></li>
+      <li><strong>Перевірте запис із телефона</strong><p>Клієнт обирає послугу, майстра, дату й час, залишає ім’я та номер телефона. Після відправлення форми візит з’являється в календарі команди.</p></li>
+    </ol>
+    <p class="salon-setup-note">Посилання для клієнтів доступне в активованому кабінеті. У відкритому демо можна перевірити календар, картку клієнта та звіт за візитами.</p>
+    <a class="salon-inline-link" href="/#pidkliuchennia">Як відкрити власний кабінет</a>
   </section>
   <section class="feature-section">
     <div class="section-top"><h2>Щоденна робота салону</h2></div>

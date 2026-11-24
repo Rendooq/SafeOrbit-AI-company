@@ -22,9 +22,9 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"SafeOrbit","url":{{ (public_site ~ '/') | tojson }}}</script>
   <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
-  <link rel="stylesheet" href="/static/v2/studio-home.css?v=buyers1">
+  <link rel="stylesheet" href="/static/v2/studio-home.css?v=product-guide2">
   <script src="/static/locales/catalog.js?v=studio3" defer></script>
-  <script src="/static/locales/studio.js?v=buyers1" defer></script>
+  <script src="/static/locales/studio.js?v=product-guide2" defer></script>
   <script src="/static/i18n.js?v=sale-locales2" defer></script>
   <script src="/static/v2/studio-home.js?v=1" defer></script>
 </head>
@@ -43,7 +43,7 @@
   <header class="masthead frame">
     <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
     <nav class="top-links" aria-label="Головна навігація">
-      <a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="/taryfy">Тарифи</a>
+      <a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="#vartist">Тарифи</a>
     </nav>
     <div class="mast-tools">
       {% include "partials/language-select.html" %}
@@ -51,7 +51,7 @@
       <a class="sign-in" href="/login">Увійти</a>
       <a class="action action-ink nav-register" href="/register">Створити акаунт {{ icon('up') }}</a>
       <details class="mobile-menu"><summary aria-label="Меню">{{ icon('menu') }}</summary>
-        <nav aria-label="Меню"><a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="/taryfy">Тарифи</a><a href="/login">Увійти</a><a href="/register">Створити акаунт</a></nav>
+        <nav aria-label="Меню"><a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="#vartist">Тарифи</a><a href="#faq">Запитання й відповіді</a><a href="/login">Увійти</a><a href="/register">Створити акаунт</a></nav>
       </details>
     </div>
   </header>
@@ -83,6 +83,32 @@
         </a>
         {% endfor %}
       </div>
+    </section>
+    <section class="product-guide frame" id="inside" aria-labelledby="inside-title">
+      <div class="guide-copy">
+        <h2 id="inside-title">Що є в робочому кабінеті</h2>
+        <dl class="guide-list">
+          <div><dt>Послуги й команда</dt><dd>Додайте ціни й тривалість послуг, призначте майстрів і переглядайте календар за датою та спеціалістом.</dd></div>
+          <div><dt>Робота із записами</dt><dd>Створюйте та переносьте візити, редагуйте їхню вартість і позначайте завершені або скасовані записи.</dd></div>
+          <div><dt>Товари й залишки</dt><dd>Ведіть список товарів із цінами, артикулами й кількістю. У звіті видно, яких товарів залишилося п’ять або менше.</dd></div>
+        </dl>
+      </div>
+      <figure class="guide-screen">
+        <img src="/static/v2/social-demo.jpg" width="1274" height="717" loading="lazy" decoding="async" alt="Демокабінет SafeOrbit з розкладом команди та графіком доходу">
+        <figcaption><a class="text-action" href="/static/v2/social-demo.jpg">Збільшити зображення {{ icon('up') }}</a></figcaption>
+      </figure>
+    </section>
+    <section class="demo-guide frame" id="demo-guide" aria-labelledby="demo-guide-title">
+      <div>
+        <h2 id="demo-guide-title">Що перевірити в демо</h2>
+        <p>Відкрийте кабінет із прикладами. Для демо не потрібні акаунт чи банківська картка. Зміни зберігаються до години бездіяльності.</p>
+        <a class="action action-violet" href="/login-demo">Спробувати демо {{ icon('arrow') }}</a>
+      </div>
+      <ol class="demo-steps">
+        <li>Створіть візит і призначте майстра.</li>
+        <li>Відкрийте клієнта зі списку «Клієнти на день» і додайте нотатку.</li>
+        <li>Завершіть візит, перевірте дохід за день і завантажте звіт у CSV.</li>
+      </ol>
     </section>
     <section class="buyer-guide frame" id="vartist" aria-labelledby="cost-title">
       <div class="cost-intro">
@@ -119,6 +145,16 @@
         <li><h3>Передайте документи на перевірку</h3><p>Завантажте підписані угоду про конфіденційність (NDA) і договір. Коли обидва платежі підтверджено й документи перевірено, адміністратор відкриє робочий кабінет.</p></li>
       </ol>
     </section>
+    <section class="product-faq frame" id="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">Запитання й відповіді</h2>
+      <div class="faq-items">
+        <details><summary>Чи потрібно встановлювати програму?</summary><p>SafeOrbit відкривається у браузері на комп’ютері чи телефоні. Клієнти можуть записуватися з браузера за вашим посиланням.</p></details>
+        <details><summary>Чи потрібен власний сайт для онлайн-запису?</summary><p>SafeOrbit дає окрему сторінку запису. Посилання можна додати у профіль Instagram або надіслати клієнту в месенджері.</p></details>
+        <details><summary>Чи можна працювати з кількома майстрами?</summary><p>Так. Для кожного майстра можна вказати послуги й графік, а в календарі відфільтрувати записи за спеціалістом.</p></details>
+        <details><summary>Чи можна працювати зі звітом у таблиці?</summary><p>Так. Виберіть період і, за потреби, спеціаліста. Звіт за записами можна завантажити у CSV та відкрити в Excel або Google Таблицях.</p></details>
+        <details><summary>Що буде з доступом, якщо підписка припиниться?</summary><p>Наразі адміністратор керує доступом вручну після скасування підписки або невдалого продовження.</p></details>
+      </div>
+    </section>
     <section class="closing frame">
       <div><h2>Проведіть день у демо.</h2><p>Створіть запис і перегляньте результат у робочому кабінеті.</p></div>
       <a class="action action-light" href="/login-demo">Відкрити демо {{ icon('arrow') }}</a>
@@ -126,7 +162,7 @@
   </main>
   <footer class="colophon frame">
     <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
-    <nav aria-label="Посилання внизу сторінки"><a href="/taryfy">Тарифи</a><a href="/login">Вхід</a><a href="/register">Створити акаунт</a></nav>
+    <nav aria-label="Посилання внизу сторінки"><a href="/taryfy">Тарифи</a><a href="#faq">Запитання й відповіді</a><a href="/login">Вхід</a><a href="/register">Створити акаунт</a></nav>
     <small>© 2026 SafeOrbit</small>
   </footer>
 </body>

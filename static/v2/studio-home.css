@@ -156,6 +156,43 @@
 .work-link h3 { font-size: clamp(1rem,1.25vw,1.22rem); letter-spacing: -.04em; margin-bottom: 3px; }
 .work-link p, .closing p { color: var(--secondary); font-size: .9rem; line-height: 1.55; }
 .work-link:hover { background: var(--well); }
+.product-guide, .demo-guide, .product-faq {
+  display: grid;
+  grid-template-columns: minmax(0,.83fr) minmax(0,1.17fr);
+  align-items: start;
+  gap: clamp(20px,5vw,72px);
+}
+.product-guide, .product-faq { padding-bottom: clamp(38px,6vw,88px); }
+.studio-home :is(.product-guide,.demo-guide,.product-faq) h2 {
+  margin: 0 0 .5em; font-size: clamp(1.8rem,2.85vw,2.85rem);
+  font-weight: 680; letter-spacing: -.059em; line-height: 1.15;
+}
+.guide-list { margin: 19px 0 0; }
+.guide-list div { padding-block: 11px; border-top: 1px solid var(--rule); }
+.guide-list dt { font-size: 1rem; font-weight: 750; }
+.guide-list dd, .demo-guide p, .faq-items p {
+  margin: 3px 0 0; color: var(--secondary); line-height: 1.65;
+}
+.guide-screen { margin: 0; padding: clamp(10px,1.5vw,20px); border: 1px solid var(--rule); border-radius: 16px; background: var(--tint); }
+.guide-screen img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 9px; }
+.guide-screen figcaption { display: flex; justify-content: flex-end; padding-top: 6px; font-size: .85rem; }
+.demo-guide.frame {
+  width: min(calc(100% - 2 * clamp(20px,4vw,68px)),1324px);
+  padding: clamp(23px,3vw,42px); margin-bottom: clamp(40px,6vw,88px);
+  background: var(--tint); border-radius: 18px;
+}
+.demo-guide .action { margin-top: 16px; }
+.demo-steps {
+  margin: 0; padding-inline-start: 1.5em; align-self: center;
+}
+.demo-steps li { padding: 11px 0 11px .35em; border-bottom: 1px solid var(--rule); }
+.demo-steps li:first-child { border-top: 1px solid var(--rule); }
+.demo-steps li::marker { font-weight: 750; color: var(--link); }
+.faq-items { border-top: 1px solid var(--rule); }
+.faq-items details { border-bottom: 1px solid var(--rule); }
+.faq-items summary { cursor: pointer; padding-block: 12px; font-weight: 750; }
+.faq-items summary::marker { color: var(--link); }
+.faq-items details[open] p { margin: 0 0 13px 1.15em; max-width: 63ch; }
 .buyer-guide {
   display: grid;
   grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr);
@@ -201,6 +238,7 @@
   .work-link { grid-template-columns: 32px 1fr; gap: 9px; padding-inline: 10px; }.work-link > .glyph { display: none; }.tile-icon { width: 30px; }
 }
 @media (max-width: 800px) {
+  .product-guide, .demo-guide, .product-faq { grid-template-columns: 1fr; gap: 16px; }
   .buyer-guide { grid-template-columns: 1fr; gap: 14px; }
   .buyer-start ol { grid-template-columns: 1fr; }
   .buyer-start li p { max-width: none; }
@@ -227,6 +265,7 @@
 }
 @media (max-width: 365px) {
   .studio-home .frame { padding-inline: 14px; }.mast-tools .language-select { max-width: 78px; }
+  .demo-guide.frame { width: calc(100% - 28px); padding: 18px; }
   .workspace-stage { padding-inline: 9px; }.workspace-body { padding: 11px; }
   .view-switch a { padding-inline: 8px; }
 }

@@ -319,7 +319,7 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
 @router.get("/", response_class=HTMLResponse)
 async def public_home():
     return HTMLResponse(render_template(
-        "marketing/home.html", public_site=PUBLIC_SITE,
+        "marketing/home.html", public_site=PUBLIC_SITE, plans=creem.PLAN_PRICES,
         site_verification=os.getenv("GOOGLE_SITE_VERIFICATION", "").strip(),
     ))
 

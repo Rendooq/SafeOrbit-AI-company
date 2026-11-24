@@ -72,11 +72,21 @@ def test_radical_assets_and_font_license_are_local():
         assert (ROOT/"static"/"v2"/file).stat().st_size>100
 
 
+def test_home_shows_checkout_prices_and_first_month_totals():
+    from re import findall
+
+    plans = {"plan1": (("setup", 1050), ("monthly", 1150)),
+             "plan2": (("setup", 2050), ("monthly", 2150))}
+    with patch.object(auth.creem, "PLAN_PRICES", plans):
+        page = asyncio.run(auth.public_home()).body.decode()
+    prices = findall(r"<td>€([\d.]+)</td>", page)
+    assert prices == ["10.50", "20.50", "11.50", "21.50", "22.00", "42.00"]
+
+
 def test_theme_switch_is_on_all_surfaces_and_style_is_final_layer():
-    from utils.templates import render_template
     user=SimpleNamespace(role="superadmin",username="test",business=None)
     shell=get_layout("sample",user,"super")
-    for page in (shell,login_html(),render_template("marketing/home.html")):
+    for page in (shell,login_html(),asyncio.run(auth.public_home()).body.decode()):
         assert "data-theme-toggle" in page
         assert page.count('src="/static/v2/theme-init.js') == 1
         assert page.count('src="/static/v2/theme.js') == 1

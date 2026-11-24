@@ -156,6 +156,34 @@
 .work-link h3 { font-size: clamp(1rem,1.25vw,1.22rem); letter-spacing: -.04em; margin-bottom: 3px; }
 .work-link p, .closing p { color: var(--secondary); font-size: .9rem; line-height: 1.55; }
 .work-link:hover { background: var(--well); }
+.buyer-guide {
+  display: grid;
+  grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr);
+  gap: clamp(24px,5vw,80px);
+  align-items: start;
+}
+.buyer-guide h2, .buyer-start h2 {
+  margin: 0 0 .5em; font-size: clamp(1.8rem,2.85vw,2.85rem);
+  font-weight: 680; letter-spacing: -.059em; line-height: 1.15;
+}
+.cost-intro p, .buyer-start li p { color: var(--secondary); line-height: 1.65; max-width: 47ch; }
+.cost-intro .text-action { margin-top: 12px; }
+.cost-sheet { border: 1px solid var(--rule); border-radius: 14px; background: var(--paper); padding: clamp(12px,2vw,26px); }
+.cost-sheet table { width: 100%; border-collapse: collapse; font-size: clamp(.85rem,1.1vw,1rem); }
+.cost-sheet :is(th,td) { padding: 12px 6px; text-align: end; vertical-align: middle; }
+.cost-sheet th:first-child { text-align: start; }
+.cost-sheet thead th { padding-top: 0; color: var(--secondary); }
+.cost-sheet tbody tr { border-top: 1px solid var(--rule); }
+.cost-sheet tbody th { font-weight: 550; }
+.cost-sheet td { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
+.cost-sheet tbody tr:last-child { background: var(--tint); color: var(--link); }
+.cost-sheet tbody tr:last-child th { font-weight: 750; }
+.cost-sheet p { margin: 12px 6px 0; color: var(--secondary); font-size: .82rem; line-height: 1.55; }
+.buyer-start { padding-block: clamp(38px,5vw,76px); }
+.buyer-start ol { margin: 20px 0 0; padding-inline-start: 0; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: clamp(14px,3vw,40px); counter-reset: step; list-style: none; }
+.buyer-start li { border-top: 1px solid var(--rule); padding-top: 13px; counter-increment: step; }
+.buyer-start li::before { content: counter(step) "."; font-variant-numeric: tabular-nums; font-weight: 750; color: var(--link); }
+.buyer-start h3 { margin: .4em 0; font-size: 1.04rem; line-height: 1.4; }
 .tile-icon { display: grid; place-items: center; width: 36px; aspect-ratio: 1; border-radius: 9px; color: #38303e; }
 .tile-icon .glyph { width: 20px; height: 20px; }
 .tile-schedule { background: #dfd5f2; }.tile-client { background: #dce8bd; }.tile-report { background: #f7d5c3; }
@@ -173,6 +201,9 @@
   .work-link { grid-template-columns: 32px 1fr; gap: 9px; padding-inline: 10px; }.work-link > .glyph { display: none; }.tile-icon { width: 30px; }
 }
 @media (max-width: 800px) {
+  .buyer-guide { grid-template-columns: 1fr; gap: 14px; }
+  .buyer-start ol { grid-template-columns: 1fr; }
+  .buyer-start li p { max-width: none; }
   .hero-v2 { grid-template-columns: minmax(0,1fr); gap: 28px; padding-block: 35px; }
   .intro h1 { font-size: clamp(3.25rem,8.8vw,4.65rem); }
   .workspace-stage { padding: clamp(22px,5vw,36px) clamp(14px,6vw,48px) 33px; }

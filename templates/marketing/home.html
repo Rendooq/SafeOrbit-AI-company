@@ -19,9 +19,9 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"SafeOrbit","url":{{ (public_site ~ '/') | tojson }}}</script>
   <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
-  <link rel="stylesheet" href="/static/v2/studio-home.css?v=2">
+  <link rel="stylesheet" href="/static/v2/studio-home.css?v=buyers1">
   <script src="/static/locales/catalog.js?v=studio3" defer></script>
-  <script src="/static/locales/studio.js?v=1" defer></script>
+  <script src="/static/locales/studio.js?v=buyers1" defer></script>
   <script src="/static/i18n.js?v=sale-locales2" defer></script>
   <script src="/static/v2/studio-home.js?v=1" defer></script>
 </head>
@@ -71,15 +71,50 @@
       <div class="workflow-heading"><h2 id="workflow-title">Від запису до розрахунку</h2><a class="text-action" href="/crm-dlia-saloniv">Для салонів і студій {{ icon('up') }}</a></div>
       <div class="work-links">
         {% for tab, glyph, title, copy in [
-          ('schedule','calendar','Календар команди','Побачте найближчий візит і відкрийте його деталі просто з розкладу.'),
-          ('client','person','Картка клієнта','Дізнайтеся, хто прийде, до якого майстра й на яку послугу.'),
-          ('report','report','Підсумок дня','Перевірте, які візити вже завершилися і скільки вони принесли.')] %}
+          ('schedule','calendar','Онлайн-запис і календар','Поділіться посиланням на запис. Клієнт обере послугу й час, а команда побачить візит у календарі.'),
+          ('client','person','Картка клієнта','Перед повторним візитом відкрийте історію, перевірте контакти й прочитайте нотатки колеги.'),
+          ('report','report','Дохід і звіти','Порівнюйте дохід за послугами й майстрами. Оберіть період і завантажте записи у CSV для роботи в таблиці.')] %}
         <a class="work-link" data-preview-link="{{ tab }}" href="#panel-{{ tab }}">
           <span class="tile-icon tile-{{ tab }}">{{ icon(glyph) }}</span>
           <div><h3>{{ title }}</h3><p>{{ copy }}</p></div>{{ icon('up') }}
         </a>
         {% endfor %}
       </div>
+    </section>
+    <section class="buyer-guide frame" id="vartist" aria-labelledby="cost-title">
+      <div class="cost-intro">
+        <h2 id="cost-title">За що ви платите</h2>
+        <p>Підключення власного кабінету сплачується один раз. Щомісячна підписка дає команді доступ до онлайн-запису, клієнтської бази та звітів.</p>
+        <a class="text-action" href="/taryfy">Умови тарифів {{ icon('arrow') }}</a>
+      </div>
+      <div class="cost-sheet">
+        <table aria-labelledby="cost-title" aria-describedby="cost-note">
+          <thead><tr><th scope="col">Платіж</th><th scope="col">Business</th><th scope="col">Business Pro</th></tr></thead>
+          <tbody>
+            {% set business = plans['plan1'] %}
+            {% set pro = plans['plan2'] %}
+            {% for label, business_cents, pro_cents in [
+              ('Разове підключення', business[0][1], pro[0][1]),
+              ('Щомісячна підписка', business[1][1], pro[1][1]),
+              ('Разом за перший місяць', business[0][1] + business[1][1], pro[0][1] + pro[1][1])
+            ] %}
+            <tr><th scope="row">{{ label }}</th>
+              <td>€{{ '%.2f'|format(business_cents / 100) }}</td>
+              <td>€{{ '%.2f'|format(pro_cents / 100) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p id="cost-note">Усі суми в євро до застосовних податків. Остаточну суму покаже Creem перед оплатою.</p>
+      </div>
+    </section>
+    <section class="buyer-start frame" id="pidkliuchennia" aria-labelledby="access-title">
+      <h2 id="access-title">Коли відкриється доступ?</h2>
+      <ol>
+        <li><h3>Зареєструйтеся без оплати</h3><p>Ви одразу побачите сторінку підключення зі статусами платежів і документів. Перевірити CRM на прикладі можна в безкоштовному демо.</p></li>
+        <li><h3>Сплатіть підключення та підписку</h3><p>У Creem це дві окремі оплати. Спочатку сплатіть разове підключення, потім оформіть щомісячну підписку.</p></li>
+        <li><h3>Передайте документи на перевірку</h3><p>Завантажте підписані угоду про конфіденційність (NDA) і договір. Коли обидва платежі підтверджено й документи перевірено, адміністратор відкриє робочий кабінет.</p></li>
+      </ol>
     </section>
     <section class="closing frame">
       <div><h2>Проведіть день у демо.</h2><p>Створіть запис і перегляньте результат у робочому кабінеті.</p></div>

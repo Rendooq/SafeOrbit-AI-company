@@ -1,5 +1,11 @@
 // Homepage-only copy and fictional names from the studio preview.
 Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
+  "Розібрати розклад": {
+    "en": "Audit the schedule",
+    "ru": "Разобрать расписание",
+    "pl": "Przeanalizuj grafik",
+    "zh": "分析排班"
+  },
   "Шаблон журналу записів": {
     "en": "Appointment log template",
     "ru": "Шаблон журнала записей",

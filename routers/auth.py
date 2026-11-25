@@ -31,6 +31,7 @@ PUBLIC_SITE = "https://safeorbit.com.pl"
 SALON_PAGE = "/crm-dlia-saloniv"
 PRICING_PAGE = "/taryfy"
 BOOKING_TEMPLATE_PAGE = "/shablon-zhurnalu-zapysiv"
+SCHEDULE_AUDIT_PAGE = "/rozbir-rozkladu"
 CAMPAIGN_KEYS = ("utm_source", "utm_medium", "utm_campaign")
 CAMPAIGN_SESSION_KEY = "marketing_campaign"
 
@@ -373,6 +374,14 @@ async def robots_txt():
     return f"User-agent: *\nAllow: /\nSitemap: {PUBLIC_SITE}/sitemap.xml\n"
 
 
+@router.get(SCHEDULE_AUDIT_PAGE, response_class=HTMLResponse)
+async def public_schedule_audit(request: Request):
+    campaign_attribution(request)
+    return HTMLResponse(render_template(
+        "marketing/schedule-audit.html", canonical=PUBLIC_SITE + SCHEDULE_AUDIT_PAGE,
+    ))
+
+
 @router.get("/sitemap.xml")
 async def sitemap_xml():
     return Response(
@@ -381,7 +390,8 @@ async def sitemap_xml():
         f'<url><loc>{PUBLIC_SITE}/</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{SALON_PAGE}</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{PRICING_PAGE}</loc></url>'
-        f'<url><loc>{PUBLIC_SITE}{BOOKING_TEMPLATE_PAGE}</loc></url></urlset>',
+        f'<url><loc>{PUBLIC_SITE}{BOOKING_TEMPLATE_PAGE}</loc></url>'
+        f'<url><loc>{PUBLIC_SITE}{SCHEDULE_AUDIT_PAGE}</loc></url></urlset>',
         media_type="application/xml",
     )
 

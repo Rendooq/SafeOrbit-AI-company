@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Розбір розкладу салону — вільні вікна та скасування | SafeOrbit</title>
+  <meta name="description" content="Знайдіть вільні вікна за тривалістю послуги та підберіть час клієнтам зі списку очікування. Безкоштовний розбір розкладу салону в браузері.">
+  <link rel="canonical" href="{{ canonical }}">
+  <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
+  <link rel="stylesheet" href="/static/v2/studio-home.css?v=product-guide2">
+  <link rel="stylesheet" href="/static/v2/schedule-audit.css?v=2">
+  <script type="module" src="/static/v2/schedule-audit.mjs?v=2"></script>
+</head>
+<body class="studio-home audit-page">
+  <header class="audit-head frame">
+    <a href="/" class="brand-v2"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
+    <a href="/crm-dlia-saloniv" class="text-action">CRM для салонів</a>
+    {% include "partials/theme-toggle.html" %}
+  </header>
+  <main class="frame audit-main">
+    <section class="audit-intro" aria-labelledby="audit-title">
+      <h1 id="audit-title">Де в розкладі є місце <em>ще для одного клієнта?</em></h1>
+      <p>Знайдіть вільні вікна за тривалістю послуги. Якщо у файлі є список очікування, побачите, кому підійде час після скасування.</p>
+    </section>
+    <noscript><p>Для розбору розкладу ввімкніть JavaScript у браузері.</p></noscript>
+    <div class="audit-layout" id="audit-tool" hidden>
+      <section class="audit-controls audit-card" aria-labelledby="audit-input-title">
+        <h2 id="audit-input-title">Розклад і послуга</h2>
+        <div class="audit-input-actions">
+          <button class="action action-ink" id="audit-example" type="button">Показати приклад</button>
+          <div class="audit-picker">
+            <label class="action" for="audit-file">Вибрати свій CSV</label>
+            <input id="audit-file" type="file" accept=".csv,text/csv" aria-describedby="audit-privacy">
+          </div>
+        </div>
+        <p class="audit-note" id="audit-privacy">Файл обробляється у браузері. Імена, телефони та інші контакти для розрахунку не потрібні.</p>
+        <a class="text-action" href="/static/templates/rozklad-salonu.csv" download>Завантажити приклад CSV <span aria-hidden="true">↓</span></a>
+        <form id="audit-options">
+          <div>
+            <label class="audit-label" for="audit-duration">Тривалість послуги, хв</label>
+            <input id="audit-duration" type="number" required min="5" max="720" step="1" value="60">
+          </div>
+          <div>
+            <label class="audit-label" for="audit-buffer">Перерва після візиту, хв</label>
+            <input id="audit-buffer" type="number" required min="0" max="180" step="1" value="0">
+          </div>
+          <button class="action action-violet" type="submit">Розібрати розклад</button>
+        </form>
+        <details class="audit-help">
+          <summary>Як підготувати CSV</summary>
+          <p>Відкрийте приклад у таблиці. Збережіть файл як CSV UTF-8. Дата має формат РРРР-ММ-ДД або ДД.ММ.РРРР, час — ГГ:ХХ. Вкажіть однакові години зміни для кожного майстра в межах дня. Якщо візит потребує прибирання, врахуйте цей час у кінці наявного запису.</p>
+          <p>Позначте зайнятий час як «запис». Для «скасовано» вкажіть час скасованого візиту. Для «очікує» вкажіть проміжок, коли клієнт може прийти на послугу вибраної тривалості, і додайте псевдонім, наприклад «Запит 1». Для зміни без візитів залиште початок і кінець візиту порожніми та вкажіть статус «зміна».</p>
+        </details>
+        <p id="audit-message" class="audit-note" role="status" aria-live="polite"></p>
+      </section>
+      <section class="audit-card audit-results" aria-labelledby="audit-results-title">
+        <div class="audit-results-heading">
+          <div><h2 id="audit-results-title">Можливості для запису</h2><p class="audit-note" id="audit-source"></p></div>
+          <label class="audit-filter" hidden id="audit-filter">
+            <input id="audit-cancelled" type="checkbox"> Лише після скасувань
+          </label>
+        </div>
+        <p id="audit-empty">Відкрийте приклад або виберіть свій CSV.</p>
+        <div id="audit-data" hidden>
+          <dl class="audit-metrics">
+            <div><dt>Вікон потрібної тривалості</dt><dd id="audit-count"></dd></div>
+            <div><dt>З них після скасувань</dt><dd id="audit-released"></dd></div>
+            <div><dt>Збігів зі списком очікування</dt><dd id="audit-matches"></dd></div>
+          </dl>
+          <p id="audit-results-note" class="audit-note" role="status"></p>
+          <ul id="audit-windows" class="audit-windows"></ul>
+        </div>
+      </section>
+    </div>
+    <section class="audit-next" aria-labelledby="audit-next-title">
+      <div><h2 id="audit-next-title">Ведіть записи в календарі SafeOrbit</h2><p>Перегляньте розклад команди, створіть пробний запис і відкрийте звіт про візити.</p></div>
+      <a class="action action-ink" href="/login-demo">Відкрити демо CRM <span aria-hidden="true">→</span></a>
+    </section>
+  </main>
+</body>
+</html>

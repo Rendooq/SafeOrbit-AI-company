@@ -16,7 +16,7 @@
     <section class="access-progress" aria-labelledby="access-progress-title">
       <h3 id="access-progress-title">Кроки підключення</h3>
       <ol>
-        <li><span>Разове налаштування</span><strong class="{{ 'done' if setup_paid else '' }}">{{ 'Оплачено' if setup_paid else 'Очікує оплати' }}</strong></li>
+        {% if setup_required %}<li><span>Разове налаштування</span><strong class="{{ 'done' if setup_paid else '' }}">{{ 'Оплачено' if setup_paid else 'Очікує оплати' }}</strong></li>{% endif %}
         <li><span>Щомісячна підписка</span><strong class="{{ 'done' if monthly_paid else '' }}">{{ 'Оплачено' if monthly_paid else 'Очікує оплати' }}</strong></li>
         <li><span>NDA та договір</span><strong class="{{ 'done' if documents_ready else '' }}">{{ 'Отримано' if documents_ready else 'Потрібні документи' }}</strong></li>
         <li><span>Активація доступу</span><strong>{{ 'На перевірці' if setup_paid and monthly_paid and documents_ready else 'Після оплати й документів' }}</strong></li>
@@ -57,7 +57,7 @@
         <p class="info-note" role="status" data-checkout-feedback hidden></p>
         <a class="button-primary" target="_blank" rel="noopener" data-checkout-link hidden>Відкрити касу Creem ↗</a>
       </form>
-      <p class="activation-note">Спочатку оплата налаштування, потім підписка. Податки відображаються в Creem.</p>
+      <p class="activation-note">{% if setup_required %}Спочатку оплата налаштування, потім підписка. {% endif %}Податки відображаються в Creem.</p>
     {% elif outstanding or not prices %}
       <p class="info-note">Оплата тимчасово недоступна. Поверніться на цю сторінку після входу.</p>
     {% endif %}

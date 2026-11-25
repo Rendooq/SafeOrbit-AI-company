@@ -84,11 +84,11 @@ Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
     "pl": "Za co płacisz",
     "zh": "费用包含什么"
   },
-  "Підключення власного кабінету сплачується один раз. Щомісячна підписка дає команді доступ до онлайн-запису, клієнтської бази та звітів.": {
-    "en": "There’s a one-time fee to set up your workspace. The monthly subscription gives your team access to online booking, client records and reports.",
-    "ru": "Вы один раз платите за подключение своего кабинета. Ежемесячная подписка даёт команде доступ к онлайн-записи, клиентской базе и отчётам.",
-    "pl": "Za uruchomienie własnego panelu płacisz raz. Abonament miesięczny daje zespołowi dostęp do rezerwacji online, bazy klientów i raportów.",
-    "zh": "开通专属工作区只需支付一次设置费。月费包含团队在线预约、客户档案和报表功能。"
+  "Business має одну щомісячну оплату й включає онлайн-запис, клієнтську базу та звіти. Індивідуальне підключення входить до Business Pro та оплачується окремо.": {
+    "en": "Business has one monthly payment and includes online booking, client records and reports. Business Pro includes a separately billed custom setup.",
+    "ru": "У Business один ежемесячный платёж, который включает онлайн-запись, клиентскую базу и отчёты. Индивидуальная настройка Business Pro оплачивается отдельно.",
+    "pl": "Business to jedna miesięczna opłata za rezerwacje online, bazę klientów i raporty. Indywidualne wdrożenie Business Pro jest płatne osobno.",
+    "zh": "Business 每月付款一次，包含在线预约、客户档案和报表。Business Pro 的个性化配置单独收费。"
   },
   "Умови тарифів": {
     "en": "Plan details",
@@ -120,17 +120,17 @@ Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
     "pl": "Po rejestracji zobaczysz stronę aktywacji ze statusem płatności i dokumentów. CRM z przykładowymi danymi możesz wypróbować w bezpłatnej wersji demo.",
     "zh": "注册后即可看到付款和文件的审核状态。你也可以在免费演示中用示例数据体验 CRM。"
   },
-  "Сплатіть підключення та підписку": {
-    "en": "Pay for setup and start the subscription",
-    "ru": "Оплатите подключение и подписку",
-    "pl": "Opłać uruchomienie i abonament",
-    "zh": "支付设置费并开通订阅"
+  "Оформіть підписку в Creem": {
+    "en": "Start your subscription in Creem",
+    "ru": "Оформите подписку в Creem",
+    "pl": "Wykup abonament w Creem",
+    "zh": "通过 Creem 开通订阅"
   },
-  "У Creem це дві окремі оплати. Спочатку сплатіть разове підключення, потім оформіть щомісячну підписку.": {
-    "en": "There are two separate checkouts in Creem. Pay the one-time setup fee first, then start the monthly subscription.",
-    "ru": "В Creem это две отдельные оплаты. Сначала оплатите разовое подключение, затем оформите ежемесячную подписку.",
-    "pl": "W Creem są to dwie osobne płatności. Najpierw opłać jednorazowe uruchomienie, następnie rozpocznij miesięczną subskrypcję.",
-    "zh": "Creem 分两次结账。先支付一次性设置费，然后开通月度订阅。"
+  "Для Business достатньо щомісячної підписки. Для Business Pro спочатку сплатіть разове підключення.": {
+    "en": "Business requires a monthly subscription. For Business Pro, pay the one-time setup fee first.",
+    "ru": "Для Business нужна ежемесячная подписка. Для Business Pro сначала оплатите разовое подключение.",
+    "pl": "Business wymaga miesięcznego abonamentu. W Business Pro najpierw opłać jednorazowe wdrożenie.",
+    "zh": "Business 只需按月订阅。Business Pro 需要先支付一次性配置费。"
   },
   "Передайте документи на перевірку": {
     "en": "Submit your documents for review",
@@ -138,11 +138,11 @@ Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
     "pl": "Prześlij dokumenty do weryfikacji",
     "zh": "提交文件进行审核"
   },
-  "Завантажте підписані угоду про конфіденційність (NDA) і договір. Коли обидва платежі підтверджено й документи перевірено, адміністратор відкриє робочий кабінет.": {
-    "en": "Upload the signed non-disclosure agreement (NDA) and contract. An administrator opens your workspace once both payments are confirmed and your documents have been reviewed.",
-    "ru": "Загрузите подписанные соглашение о конфиденциальности (NDA) и договор. Администратор откроет кабинет после подтверждения обоих платежей и проверки документов.",
-    "pl": "Prześlij podpisane porozumienie o poufności (NDA) i umowę. Administrator udostępni panel po potwierdzeniu obu płatności i sprawdzeniu dokumentów.",
-    "zh": "上传签署的保密协议（NDA）和合同。两笔付款确认且文件审核通过后，管理员会开通你的工作区。"
+  "Завантажте підписані угоду про конфіденційність (NDA) і договір. Після підтвердження оплати та перевірки документів адміністратор відкриє робочий кабінет.": {
+    "en": "Upload the signed non-disclosure agreement (NDA) and contract. An administrator opens your workspace after payment confirmation and document review.",
+    "ru": "Загрузите подписанные соглашение о конфиденциальности (NDA) и договор. Администратор откроет кабинет после подтверждения оплаты и проверки документов.",
+    "pl": "Prześlij podpisane porozumienie o poufności (NDA) i umowę. Administrator udostępni panel po potwierdzeniu płatności i sprawdzeniu dokumentów.",
+    "zh": "上传签署的保密协议（NDA）和合同。付款确认且文件审核通过后，管理员会开通你的工作区。"
   },
   "Що є в робочому кабінеті": {
     "en": "What’s in your workspace",

@@ -13,7 +13,7 @@ from starlette.requests import Request
 
 from models import ActivationDocument, Business, CreemPayment, User
 from routers.auth import creem_pay, pending_activation_page, register_post, submit_access_documents
-from services.creem import Charge, is_paid
+from services.creem import Charge, charges, is_paid
 from utils.static import CachedStaticFiles
 
 
@@ -53,9 +53,9 @@ def test_free_registration_creates_a_restricted_workspace_without_payment_or_doc
     async def scenario():
         async with api() as (_, sessions):
             async with sessions() as db:
-                request = Request({"type": "http", "session": {}, "client": ("free-registration", 1)})
+                request = Request({"type": "http", "session": {}, "headers": [], "client": ("free-registration", 1)})
                 with patch("routers.auth.creem.charges", return_value=(
-                    Charge("prod_setup", 13698, False), Charge("prod_monthly", 16742, True),
+                    Charge("prod_newmonthly", 990, True),
                 )), patch("routers.auth.creem.api", new_callable=AsyncMock) as provider:
                     response = await register_post(
                         request, BackgroundTasks(), "New business", "+380671112233", "secure-password",
@@ -70,8 +70,61 @@ def test_free_registration_creates_a_restricted_workspace_without_payment_or_doc
                     assert not any((company.receipt_url, company.nda_url, company.contract_url))
                     page = (await pending_activation_page(company.id, request, db)).body.decode()
                     assert "Обмежений доступ" in page and "Купити доступ · Creem" in page
-                    assert "€136.98" in page and "€167.42" in page
+                    assert "€9.90" in page and "Разове налаштування" not in page
+                    assert "/static/contract_business_monthly.pdf" in page
+                    payments = (await db.scalars(select(CreemPayment).where(CreemPayment.business_id == company.id))).all()
+                    assert [(row.product_id, row.cents, row.recurring) for row in payments] == [("prod_newmonthly", 990, True)]
                     provider.assert_not_awaited()
+                    provider.side_effect = [
+                        {"id": "prod_newmonthly", "currency": "EUR", "price": 990, "status": "active",
+                         "billing_type": "recurring", "billing_period": "every-month"},
+                        {"id": "ch_businessmonthly", "checkout_url": "https://checkout.creem.io/ch_businessmonthly"},
+                    ]
+                    checkout = await creem_pay(company.id, request, db)
+                    assert checkout.headers["location"] == "https://checkout.creem.io/ch_businessmonthly"
+                    assert provider.await_count == 2
+                    assert provider.await_args.kwargs["json"]["product_id"] == "prod_newmonthly"
+
+    asyncio.run(scenario())
+
+
+def test_business_creem_configuration_needs_only_the_new_monthly_product():
+    with patch.dict("os.environ", {
+        "CREEM_API_KEY": "creem_local_unit_test",
+        "CREEM_ENABLED": "1",
+        "CREEM_BUSINESS_MONTHLY_V2_PRODUCT_ID": "prod_newmonthly",
+    }, clear=True):
+        assert charges("plan1") == (Charge("prod_newmonthly", 990, True),)
+        assert charges("plan2") == ()
+
+
+def test_single_paid_business_subscription_can_be_approved_with_documents():
+    from routers.superadmin import approve_payment
+
+    async def scenario():
+        async with api() as (_, sessions):
+            async with sessions() as db:
+                company = await db.get(Business, 1)
+                company.billing_country = "creem"
+                company.payment_status = "pending"
+                company.is_active = False
+                operator = User(id=200, username="price-approver", password="unused", role="superadmin")
+                payment = CreemPayment(id="business-monthly", business_id=1, product_id="prod_newmonthly",
+                                       cents=990, recurring=True, paid=True)
+                db.add_all([operator, payment])
+                await db.commit()
+                with pytest.raises(HTTPException, match="підписані документи"):
+                    await approve_payment(1, operator, db)
+                company.nda_url = "/static/uploads/documents/signed-nda.pdf"
+                company.contract_url = "/static/uploads/documents/signed-contract.pdf"
+                company.plan_type = "plan2"
+                await db.commit()
+                with pytest.raises(HTTPException, match="підтвердження оплати"):
+                    await approve_payment(1, operator, db)
+                company.plan_type = "plan1"
+                await db.commit()
+                assert (await approve_payment(1, operator, db)).status_code == 303
+                assert company.is_active and company.payment_status == "approved"
 
     asyncio.run(scenario())
 

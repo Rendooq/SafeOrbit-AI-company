@@ -179,7 +179,9 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
         if online:
             plan_name = "Business" if plan_type == "plan1" else "Business Pro"
             (_, setup), (_, monthly) = creem.PLAN_PRICES[plan_type]
-            msg = f"Нова заявка SafeOrbit\nБізнес: {name}\nТелефон: {phone}\n{plan_name} · Creem\nПідключення: €{setup / 100:.2f}\nПідписка: €{monthly / 100:.2f}/міс"
+            msg = f"Нова заявка SafeOrbit\nБізнес: {name}\nТелефон: {phone}\n{plan_name} · Creem\nПідписка: €{monthly / 100:.2f}/міс"
+            if setup:
+                msg += f"\nПідключення: €{setup / 100:.2f}"
         elif plan_type == "plan1":
             msg = f"🆕 Нова заявка на підключення!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: Базовий (8 250 грн/міс)"
         else:
@@ -214,6 +216,8 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
             CreemPayment.business_id == id,
         ).order_by(CreemPayment.recurring))).all()
         available = creem.charges(biz.plan_type)
+    prices = payments or available
+    setup_required = (any(not row.recurring for row in prices) if prices else biz.plan_type == "plan2")
     outstanding = next((row for row in payments if not row.paid), None)
     if not payments and available:
         outstanding = available[0]
@@ -222,7 +226,9 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
     elif status == "rejected":
         title, description, label = "Потрібно уточнити деталі.", "Адміністратор залишив повідомлення щодо вашої заявки.", "Потребує уточнення"
     elif limited and (outstanding or not payments):
-        title, description, label = "Ваш акаунт створено.", "Оплатіть підключення та підписку, щоб відкрити робочий простір SafeOrbit.", "Обмежений доступ"
+        title, label = "Ваш акаунт створено.", "Обмежений доступ"
+        description = ("Оплатіть підключення та підписку, щоб відкрити робочий простір SafeOrbit."
+                       if setup_required else "Оформіть щомісячну підписку, щоб відкрити робочий простір SafeOrbit.")
     else:
         title, description, label = "Дякуємо. Заявка вже у нас.", "Адміністратор перевірить підключення та активує ваш бізнес-простір.", "На перевірці"
     return HTMLResponse(render_template(
@@ -230,11 +236,12 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
         kicker="ПІДКЛЮЧЕННЯ SAFEORBIT",
         business_name=biz.name, message=biz.admin_message if status == "rejected" else None,
         checkout_business_id=id, outstanding=outstanding, checkout_error=payment_error == "1",
-        limited=limited, payment_available=bool(available), prices=payments or available,
-        setup_paid=any(row.paid and not row.recurring for row in payments),
+        limited=limited, payment_available=bool(available) or (bool(payments) and creem.enabled()), prices=prices,
+        setup_required=setup_required, setup_paid=not setup_required or any(row.paid and not row.recurring for row in payments),
         monthly_paid=any(row.paid and row.recurring for row in payments),
         plan_name="Business" if biz.plan_type == "plan1" else "Business Pro",
-        contract_path="/static/contract_plan1.pdf" if biz.plan_type == "plan1" else "/static/contract_plan2.pdf",
+        contract_path=("/static/contract_plan2.pdf" if biz.plan_type == "plan2" else
+                       "/static/contract_plan1.pdf" if setup_required else "/static/contract_business_monthly.pdf"),
         documents_ready=bool(biz.nda_url and biz.contract_url), document_error=payment_error == "documents",
     ))
 
@@ -276,12 +283,12 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
     biz = await db.get(Business, id, with_for_update=True)
     if not biz or biz.billing_country != "creem" or biz.payment_status != "pending":
         return respond(pending)
-    charges = creem.charges(biz.plan_type)
-    if not charges:
-        return respond(f"{pending}?payment_error=1")
     payments = (await db.scalars(select(CreemPayment).where(
         CreemPayment.business_id == id,
     ).order_by(CreemPayment.recurring))).all()
+    charges = creem.charges(biz.plan_type)
+    if not charges and not (payments and creem.enabled()):
+        return respond(f"{pending}?payment_error=1")
     if not payments and not verify_only:
         payments = [CreemPayment(id=uuid4().hex, business_id=id, product_id=charge.product_id,
                                  cents=charge.cents, recurring=charge.recurring) for charge in charges]

@@ -12,7 +12,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (HTMLResponse, RedirectResponse,
                                StreamingResponse)
-from sqlalchemy import and_, delete, desc, func, select, text
+from sqlalchemy import and_, case, delete, desc, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -82,12 +82,14 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
     pending_bizs = [b for b in bizs if getattr(b, 'payment_status', 'approved') in ['pending', 'rejected'] and not b.parent_id]
     approved_bizs = [b for b in bizs if getattr(b, 'payment_status', 'approved') == 'approved']
     online_ids = [b.id for b in pending_bizs if b.billing_country == "creem"]
-    online_confirmed = {}
+    online_progress = {}
     if online_ids:
-        confirmed = await db.execute(select(CreemPayment.business_id, func.count()).where(
-            CreemPayment.business_id.in_(online_ids), CreemPayment.paid.is_(True),
+        progress = await db.execute(select(
+            CreemPayment.business_id, func.sum(case((CreemPayment.paid.is_(True), 1), else_=0)), func.count(),
+        ).where(
+            CreemPayment.business_id.in_(online_ids),
         ).group_by(CreemPayment.business_id))
-        online_confirmed = dict(confirmed.all())
+        online_progress = {business_id: (paid, total) for business_id, paid, total in progress.all()}
 
     pending_rows = ""
     for b in pending_bizs:
@@ -100,7 +102,8 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         receipt_html = f"<a href='{b.receipt_url}' target='_blank' class='btn btn-sm btn-outline-info'><i class='fas fa-receipt'></i> Чек</a>" if getattr(b, 'receipt_url', None) else ""
         if b.billing_country == "creem":
             country_badge = "<span class='badge bg-info bg-opacity-10 text-info ms-1'>Creem · EUR</span>"
-            receipt_html = f"<span class='badge bg-secondary'>Creem {online_confirmed.get(b.id, 0)}/2</span>"
+            paid, total = online_progress.get(b.id, (0, 2 if b.plan_type == "plan2" else 1))
+            receipt_html = f"<span class='badge bg-secondary'>Creem {paid}/{total}</span>"
         nda_html = f"<a href='{b.nda_url}' target='_blank' class='btn btn-sm btn-outline-primary'><i class='fas fa-file-signature'></i> NDA</a>" if getattr(b, 'nda_url', None) else ""
         contract_html = f"<a href='{b.contract_url}' target='_blank' class='btn btn-sm btn-outline-success'><i class='fas fa-file-contract'></i> Договір</a>" if getattr(b, 'contract_url', None) else ""
         utm_info = f"<br><span class='badge bg-light text-dark mt-1' style='font-size:9px;' title='Кампанія: {html.escape(b.utm_campaign or '')}'><i class='fas fa-link'></i> {html.escape(b.utm_source)} / {html.escape(b.utm_medium or '')}</span>" if getattr(b, 'utm_source', None) else ""
@@ -578,7 +581,9 @@ async def approve_payment(business_id: int, user: User = Depends(get_current_use
     if biz:
         if biz.billing_country == "creem":
             payments = (await db.scalars(select(CreemPayment).where(CreemPayment.business_id == biz.id))).all()
-            if len(payments) != 2 or not all(payment.paid for payment in payments):
+            payment_types = sorted(payment.recurring for payment in payments)
+            required_types = [False, True] if biz.plan_type == "plan2" or False in payment_types else [True]
+            if payment_types != required_types or not all(payment.paid for payment in payments):
                 raise HTTPException(409, "Очікується підтвердження оплати від Creem.")
             if not biz.nda_url or not biz.contract_url:
                 raise HTTPException(409, "Очікуються підписані документи.")

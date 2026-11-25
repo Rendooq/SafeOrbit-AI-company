@@ -34,7 +34,7 @@
         {% if plan2_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan2" {% if selected_plan == "plan2" %}checked{% endif %}><span class="plan-top"><strong>Business Pro</strong><span class="radio-dot"></span></span><span class="plan-desc">Індивідуальне підключення</span><span class="plan-includes">Розширений супровід бізнесу</span></label>{% endif %}
       </div>
       {% if not plan1_active and not plan2_active %}<div class="info-note">Нові підключення тимчасово призупинено. Зверніться до адміністратора.</div>{% endif %}
-      <label class="consent"><input type="checkbox" name="terms_accepted" value="yes" required><span>Я ознайомився з <a href="/static/contract_plan1.pdf" target="_blank" rel="noopener">умовами Business</a> та <a href="/static/contract_plan2.pdf" target="_blank" rel="noopener">Business Pro</a> і погоджуюся з умовами обраного тарифу.</span></label>
+      <label class="consent"><input type="checkbox" name="terms_accepted" value="yes" required><span>Я ознайомився з <a href="/static/contract_business_monthly.pdf" target="_blank" rel="noopener">умовами Business</a> та <a href="/static/contract_plan2.pdf" target="_blank" rel="noopener">Business Pro</a> і погоджуюся з умовами обраного тарифу.</span></label>
       <div class="button-row"><button type="button" class="button-secondary" id="back-registration">← Назад</button><button class="button-primary" type="submit" {% if not plan1_active and not plan2_active %}disabled{% endif %}><span>Створити акаунт</span><span aria-hidden="true">↗</span></button></div>
       <p class="activation-note">Реєстрація без оплати. Після входу ви зможете переглянути умови та придбати доступ.</p>
     </fieldset>

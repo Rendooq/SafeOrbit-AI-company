@@ -1,0 +1,46 @@
+{% extends "platform/base.html" %}
+{% block title %}Знайти барбершоп або майстра — SafeOrbit{% endblock %}
+{% block meta %}<meta name="description" content="Знайдіть барбершоп, салон або майстра. Перегляньте послуги, ціни, відгуки й доступний час для запису."><link rel="canonical" href="https://safeorbit.com.pl/maistry">{% endblock %}
+{% block links %}<a href="/maistry/account">{{ 'Мої візити' if client else 'Увійти клієнтом' }}</a><a href="/register">Для бізнесу</a>{% endblock %}
+{% block content %}
+<section class="directory-intro">
+  <div class="intro-copy"><p class="platform-kicker">SafeOrbit · Онлайн-запис</p>
+    <h1>Знайдіть свого майстра.</h1>
+    <p>Обирайте барбершопи, салони й майстрів за послугами, цінами та вільним часом.</p>
+  </div>
+  <div class="directory-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+</section>
+<form class="platform-panel search-panel" action="/maistry" method="get" role="search">
+  <label>Послуга, майстер або заклад<input name="q" placeholder="Наприклад, чоловіча стрижка" maxlength="100" value="{{ q }}"></label>
+  <label>Місто<input name="city" maxlength="100" placeholder="Наприклад, Київ" value="{{ city }}"></label>
+  <label>Дата<input type="date" name="day" value="{{ day }}"></label>
+  <label>Ціна до, грн<input type="number" name="max_price" min="0" max="100000" value="{{ max_price if max_price else '' }}"></label>
+  <button class="platform-button">Шукати</button>
+</form>
+<section class="directory-results" aria-label="Результати пошуку">
+  {% if results %}
+  <div class="profile-grid">
+    {% for row in results %}
+    <a class="module-tile profile-tile" href="/maistry/zaklad/{{ row.id }}{% if day %}?day={{ day }}{% endif %}">
+      <p class="platform-kicker">{{ row.city }}</p><h2>{{ row.name }}</h2>
+      <p>{{ row.address }}</p>{% if row.description %}<p class="clamp">{{ row.description }}</p>{% endif %}
+      <div class="profile-meta">
+        {% if row.price is not none %}<strong>від {{ '%g'|format(row.price) }} грн</strong>{% endif %}
+        {% if row.review_count %}<span>★ {{ '%.1f'|format(row.rating) }} ({{ row.review_count }})</span>{% endif %}
+      </div>
+      <span class="tile-arrow" aria-hidden="true">↗</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="platform-panel"><h2>Закладів поки не знайдено</h2><p>Спробуйте інше місто, дату або назву послуги.</p>
+    {% if q or day or city or max_price %}<a href="/maistry">Скинути фільтри</a>{% else %}<a href="/workspace/listing">Опублікувати свій заклад</a>{% endif %}
+  </div>
+  {% endif %}
+  {% if page > 1 or next_page %}
+  <nav class="paging" aria-label="Сторінки">
+    {% if page > 1 %}<a href="/maistry?{{ search }}&amp;page={{ page - 1 }}">← Попередня</a>{% endif %}
+    <span>{{ page }}</span>{% if next_page %}<a href="/maistry?{{ search }}&amp;page={{ page + 1 }}">Наступна →</a>{% endif %}
+  </nav>{% endif %}
+</section>
+{% endblock %}

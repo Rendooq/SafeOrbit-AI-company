@@ -283,3 +283,16 @@
 }
 @keyframes arrive { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 @keyframes satellite-arrive { from { translate: -13px 3px; } to { translate: 0; } }
+.industry-guide { padding-block: 3.2rem; }
+.industry-guide-head { max-width: 640px; margin-bottom: 1.25rem; }
+.industry-guide-head h2 { margin: 0 0 .75rem; font-size: clamp(1.8rem, 4vw, 2.9rem); line-height: 1.12; letter-spacing: -.045em; }
+.industry-guide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: .75rem; }
+.industry-guide-item { display: grid; gap: .5rem; padding: 1rem; border: 1px solid currentColor; border-color: var(--line, #dddded); border-radius: 12px; text-decoration: none; transition: border-color .16s; }
+.industry-guide-item:hover { border-color: var(--link); }
+.industry-guide-item h3, .industry-guide-item p { margin: 0; }
+.industry-guide-item p { font-size: .88rem; }
+.industry-guide-item strong { color: var(--link, #5730a9); font-size: .9rem; }
+.mobile-directory-link { display: none; }
+@media (max-width: 850px) {
+  .mobile-directory-link { display: inline-flex; margin-top: 1.15rem; }
+}

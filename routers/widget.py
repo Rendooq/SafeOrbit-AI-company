@@ -16,6 +16,7 @@ from services.integrations import (push_to_beauty_pro, push_to_cleverbox,
                                     push_to_integrica, push_to_luckyfit,
                                     push_to_uspacy)
 from services.notifications import send_new_appointment_notifications
+from services.marketplace import conflicts
 
 router = APIRouter(prefix="/widget", tags=["Widget"])
 logger = logging.getLogger(__name__)
@@ -438,31 +439,14 @@ async def process_public_booking(
     if dt < datetime.now(UA_TZ).replace(tzinfo=None):
         return RedirectResponse(f"/widget/{business_id}?msg=past_time", status_code=303)
 
-    day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = day_start + timedelta(days=1)
-    
-    srv = (await db.execute(select(Service).where(and_(Service.name == service, Service.business_id == business_id)))).scalar_one_or_none()
+    srv = await db.scalar(select(Service).where(Service.name == service, Service.business_id == business_id).order_by(Service.id).limit(1))
     if not srv:
         return HTMLResponse("Недоступна послуга", status_code=400)
     duration = srv.duration if srv and srv.duration else 90
     cost = srv.price if srv else 0.0
     
-    new_start = dt
-    new_end = dt + timedelta(minutes=duration)
-    
-    stmt_overlap = select(Appointment).where(and_(Appointment.business_id == business_id, Appointment.status != 'cancelled', Appointment.appointment_time >= day_start, Appointment.appointment_time < day_end))
-    if mid:
-        stmt_overlap = stmt_overlap.where(Appointment.master_id == mid)
-    existing_apps = (await db.execute(stmt_overlap)).scalars().all()
-    
-    for app in existing_apps:
-        app_dur = 90
-        s_ex = (await db.execute(select(Service).where(and_(Service.name == app.service_type, Service.business_id == business_id)))).scalar_one_or_none()
-        if s_ex and s_ex.duration: app_dur = s_ex.duration
-        app_end = app.appointment_time + timedelta(minutes=app_dur)
-        
-        if new_start < app_end and new_end > app.appointment_time:
-            return RedirectResponse(f"/widget/{business_id}?msg=taken", status_code=303)
+    if await conflicts(db, business_id, dt, mid, service, duration=duration):
+        return RedirectResponse(f"/widget/{business_id}?msg=taken", status_code=303)
     
     cust = (await db.execute(select(Customer).where(and_(Customer.phone_number == phone, Customer.business_id == business_id)))).scalar_one_or_none()
     if not cust:
@@ -614,19 +598,7 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
         
         if appt_time < datetime.now(UA_TZ).replace(tzinfo=None):
             return {"success": False, "error": "Цей час вже минув."}
-        end = appt_time + timedelta(minutes=service.duration or 30)
-        candidates = (await db.execute(select(Appointment).where(
-            Appointment.business_id == business_id, Appointment.status != "cancelled",
-            Appointment.appointment_time >= appt_time - timedelta(hours=24),
-            Appointment.appointment_time < end,
-            Appointment.master_id == (master.id if master else None),
-        ))).scalars().all()
-        durations = dict((await db.execute(select(Service.name, Service.duration).where(
-            Service.business_id == business_id,
-            Service.name.in_({item.service_type for item in candidates}),
-        ))).all()) if candidates else {}
-        if any(item.appointment_time + timedelta(minutes=durations.get(item.service_type) or 90) > appt_time
-               for item in candidates):
+        if await conflicts(db, business_id, appt_time, master.id if master else None, service.name, duration=service.duration or 30):
             return {"success": False, "error": "Цей час уже зайнятий"}
 
         appt = Appointment(
@@ -637,7 +609,6 @@ async def widget_book_api(data: dict, db: AsyncSession = Depends(get_db)):
             service_type=service.name,
             cost=service.price,
             source="widget",
-            duration=service.duration or 30,
             status="confirmed"
         )
         db.add(appt)

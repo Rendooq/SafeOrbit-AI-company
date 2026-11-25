@@ -37,7 +37,23 @@
     };
     showStep(1);
     const type = document.getElementById("business-type");
-    type.addEventListener("change", () => { document.getElementById("retail-category").hidden = type.value !== "retail"; });
+    const updateIndustry = () => {
+      document.getElementById("retail-category").hidden = type.value !== "retail";
+      const standard = type.selectedOptions[0]?.dataset.plan === "plan1";
+      form.querySelectorAll("[data-industry]").forEach(summary => {
+        summary.hidden = summary.dataset.industry !== type.value;
+      });
+      form.querySelector("[data-standard-plans]").hidden = !standard;
+      form.querySelector("[data-standard-terms]").hidden = !standard;
+      form.querySelector("[data-industry-terms]").hidden = standard;
+      const unavailable = form.querySelector("[data-standard-unavailable]");
+      if (unavailable) {
+        unavailable.hidden = !standard;
+        form.querySelector('button[type="submit"]').disabled = standard;
+      }
+    };
+    updateIndustry();
+    type.addEventListener("change", updateIndustry);
     document.getElementById("continue-registration").addEventListener("click", () => {
       for (const field of steps[0].querySelectorAll("input,select")) {
         if (!field.reportValidity()) return;

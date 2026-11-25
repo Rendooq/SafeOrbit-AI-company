@@ -1,0 +1,114 @@
+{% extends "platform/base.html" %}
+{% block title %}{{ module.label }} — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% macro table_view(data) %}
+  {% if data.summary %}<p class="summary">{{ data.summary }}</p>{% endif %}
+  {% if data.rows %}
+  <div class="table-scroll"><table><thead><tr>{% for header in data.headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for line in data.rows %}<tr>{% for cell in line %}<td>{% if key == 'cars' and loop.first %}<a href="{{ cell }}" target="_blank" rel="noopener noreferrer">{{ cell }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+  {% if data.questions %}<h4>Що запитати польською</h4><ul>{% for item in data.questions %}<li lang="pl">{{ item }}</li>{% endfor %}</ul>{% endif %}
+{% endmacro %}
+{% block content %}
+<header class="page-intro split-head">
+  <div><a class="back-link" href="/workspace">← Простір</a><h1>{{ module.label }}</h1><p>{{ module.description }}</p></div>
+  {% if key == 'book' and rows %}<a class="platform-button secondary" href="/workspace/book/print">Відкрити книгу ↗</a>{% endif %}
+</header>
+{% if key == 'checkout' %}
+<section class="platform-panel">
+  <h2>Перевірки магазинів</h2>
+  <p>Запустіть браузерний сценарій на своєму комп’ютері або сервері. Тут з’являтимуться результати перевірки та проблемний крок.</p>
+  <form action="/workspace/probes" method="post" class="inline-form">
+    <label>Домен магазину<input name="domain" placeholder="shop.example.com" maxlength="253" required></label>
+    <button class="platform-button">Створити ключ</button>
+  </form>
+  {% for probe in probes %}
+    <div class="record-actions"><strong>{{ probe.domain }}</strong><form method="post" action="/workspace/probes/{{ probe.id }}/delete"><button class="text-button" type="submit">Відкликати ключ</button></form></div>
+  {% endfor %}
+</section>
+{% else %}
+<details class="platform-panel record-form" {% if not rows or error or editing %}open{% endif %}>
+  <summary>{{ 'Редагувати запис' if editing else 'Додати запис' }}</summary>
+  {% set saved = editing[1] if editing else {} %}
+  <form method="post" enctype="multipart/form-data" action="/workspace/module/{{ key }}">
+    {% if editing %}<input type="hidden" name="record_id" value="{{ editing[0].id }}">{% endif %}
+    <label>Назва<input name="title" maxlength="160" required value="{{ editing[0].title if editing else '' }}"></label>
+    {% if format or key in ('extras', 'feeds') %}
+      {% if format %}<p class="fine">Заголовок таблиці: <code data-no-translate>{{ format[0] }}</code></p>{% endif %}
+      {% if key == 'invoices' %}<p class="fine"><code>package</code> — розмір пакування, <code>price</code> — його ціна, <code>ordered</code> — закуплено одиниць kg, l або pcs.</p>{% endif %}
+      {% if key == 'cutting' %}<p class="fine">Розміри в міліметрах. <code>rotate</code> — 1, якщо деталь можна повернути, або 0.</p>{% endif %}
+      {% if key == 'extras' %}<p class="fine">Стовпці для допробіт: <code data-no-translate>item;cost</code>.</p>{% endif %}
+      <label>{{ format[1] if format else ('XML фіда' if key == 'feeds' else 'Роботи та суми') }}<textarea name="first" rows="5" maxlength="450000"></textarea></label>
+      <label>Або виберіть файл<input type="file" name="first_file" accept=".csv,.tsv,.txt,.xml{{ ',.xlsx' if key == 'reconcile' else '' }}"></label>
+      {% if key == 'feeds' %}
+        <label>Контрольна таблиця магазину (необов’язково)<input type="file" name="second_file" accept=".csv,.tsv,.txt"></label>
+        <p class="fine"><code>id;price;availability</code> — фактичні ціни й наявність, щоб порівняти їх із фідом.</p>
+      {% endif %}
+      {% if format and format[2] %}
+      <label>{{ format[2] }}<textarea name="second" rows="5" maxlength="450000"></textarea></label>
+      <label>Або виберіть файл<input type="file" name="second_file" accept=".csv,.tsv,.txt{{ ',.xlsx' if key == 'reconcile' else '' }}"></label>
+      {% endif %}
+    {% endif %}
+    {% if key in ('cutting', 'preflight') %}
+      <div class="field-grid">
+        <label>Ширина, мм<input type="number" name="width" min="1" max="10000" step="0.01" required></label>
+        <label>Висота, мм<input type="number" name="height" min="1" max="10000" step="0.01" required></label>
+        {% if key == 'cutting' %}<label>Пропил, мм<input type="number" name="kerf" min="0" max="30" step="0.01" value="3" required></label>
+        {% else %}<label>Виліт, мм<input type="number" name="bleed" min="0" max="100" step="0.01" value="3" required></label><label>Роздільність, ppi<input type="number" name="dpi" min="36" max="1200" value="300" required></label>{% endif %}
+      </div>
+    {% endif %}
+    {% if key in ('tender', 'preflight', 'files', 'book', 'extras') %}
+      <label>{{ 'Голосовий запис або фото' if key == 'book' else 'Фото до погодження' if key == 'extras' else 'Документ' }}
+        <input type="file" name="file" {% if key in ('tender', 'preflight', 'files') %}required{% endif %}
+        accept="{{ '.pdf' if key in ('tender','preflight') else '.jpg,.png' if key == 'extras' else '.mp3,.ogg,.wav,.webm,.m4a,.jpg,.png' if key == 'book' else '.pdf,.jpg,.png,.mp3,.ogg,.wav,.webm,.m4a' }}">
+      </label><p class="fine">До 4 МБ на файл.</p>
+    {% endif %}
+    {% if key == 'tender' %}
+      <label>Поточні вимоги, по одній фразі в рядку<textarea name="body" maxlength="16000" required></textarea></label>
+      <label>Попередній список вимог<textarea name="previous" maxlength="16000"></textarea></label>
+    {% elif key in ('notes','tasks','budget','time','decisions','extras','book','files') %}
+      <label>{{ 'Текст розділу' if key == 'book' else 'Деталі' }}<textarea name="body" maxlength="{{ 3000 if key == 'extras' else 12000 }}" {% if key in ('notes','decisions') %}required{% endif %}>{{ saved.get('body','') }}</textarea></label>
+    {% endif %}
+    {% if key == 'links' %}<label>Посилання<input type="url" name="url" maxlength="2000" value="{{ saved.get('url','') }}" required></label>{% endif %}
+    {% if key == 'contacts' %}<label>Телефон або email<input name="contact" maxlength="300" value="{{ saved.get('contact','') }}" required></label>{% endif %}
+    {% if key == 'extras' %}<label>Додаткові дні<input type="number" name="days" min="0" max="365" value="0" required></label>{% endif %}
+    {% if key == 'tasks' %}<label>Термін<input type="date" name="due" value="{{ saved.get('due','') }}"></label><label class="check"><input type="checkbox" name="done" value="yes" {% if saved.get('done') %}checked{% endif %}> Виконано</label>{% endif %}
+    {% if key == 'budget' %}<div class="field-grid"><label>Сума, грн<input type="number" name="value" step="0.01" min="0" required></label><label>Тип<select name="direction"><option value="expense">Витрата</option><option value="income">Дохід</option></select></label></div>{% endif %}
+    {% if key == 'time' %}<div class="field-grid"><label>Години<input type="number" name="hours" step="0.01" min="0.01" required></label><label>Ставка за годину, грн<input type="number" name="rate" step="0.01" min="0" required></label></div>{% endif %}
+    <button class="platform-button" type="submit">{{ 'Зберегти' if editing else 'Додати' }}</button>
+  </form>
+</details>
+{% endif %}
+{% if total is not none %}<p class="feedback">Підсумок за останніми записами <strong>{{ total }} грн</strong></p>{% endif %}
+<section class="records" aria-label="Збережені записи">
+  {% for record,data,attachments in rows %}
+    <article class="platform-panel record" id="record-{{ record.id }}">
+      <div class="split-head"><h2>{{ record.title }}</h2><time>{{ record.created_at.strftime('%d.%m.%Y') }}</time></div>
+      {{ table_view(data) }}
+      {% if data.body %}<p class="preserve">{{ data.body }}</p>{% endif %}
+      {% if data.url %}<a href="{{ data.url }}" target="_blank" rel="noopener noreferrer">{{ data.url }} ↗</a>{% endif %}
+      {% if data.contact %}<p>{{ data.contact }}</p>{% endif %}
+      {% if key == 'tasks' %}<p>{{ 'Виконано' if data.done else 'В роботі' }}{% if data.due %} · {{ data.due }}{% endif %}</p>{% endif %}
+      {% if key == 'budget' %}<p>{{ 'Дохід' if data.direction == 'income' else 'Витрата' }} · {{ data.value }} грн</p>{% endif %}
+      {% if key == 'time' %}<p>{{ data.hours }} год × {{ data.rate }} грн = {{ data.value }} грн</p>{% endif %}
+      {% if key == 'checkout' %}<p class="feedback {{ 'error' if data.status == 'failed' else '' }}">{{ 'Помилка' if data.status == 'failed' else 'Успішно' }} · {{ data.ms }} мс</p>{% endif %}
+      {% if key == 'cutting' %}<details><summary>Схема розкрою</summary><div data-cutting='{{ data|tojson }}' class="cutting-map"></div></details>{% endif %}
+      {% if key == 'extras' %}
+        <p>{{ {'approved':'Погоджено','declined':'Відхилено','pending':'Очікує відповіді'}[data.state] }} {{ data.responded_by|default('') }} {{ data.responded_at|default('') }}</p>
+        <a href="/proposals/{{ record.id }}/{{ data.token }}">Відкрити посилання для замовника ↗</a>
+      {% endif %}
+      {% for asset in attachments %}
+        {% if asset.media_type.startswith('audio/') %}<audio controls preload="none" src="/workspace/attachments/{{ asset.id }}"></audio>{% endif %}
+        <a href="/workspace/attachments/{{ asset.id }}">{{ asset.filename }} ↗</a>
+      {% endfor %}
+      <div class="record-actions">
+        {% if transcribe and not data.body and attachments and attachments[0].media_type.startswith('audio/') %}<form action="/workspace/records/{{ record.id }}/transcribe" method="post" data-confirm="Надіслати аудіо до Groq для розпізнавання?"><button class="text-button" type="submit">Розпізнати голос</button></form>{% endif %}
+        {% if data.headers and export %}<a href="/workspace/records/{{ record.id }}/export">CSV ↓</a>{% endif %}
+        {% if key in ('notes','tasks','links','contacts','decisions') %}<a href="/workspace/records/{{ record.id }}/edit">Редагувати</a>{% endif %}
+        <form action="/workspace/records/{{ record.id }}/delete" method="post" data-confirm="Видалити цей запис?"><button class="text-button danger">Видалити</button></form>
+      </div>
+    </article>
+  {% else %}<p class="fine">Збережені записи з’являться тут.</p>{% endfor %}
+</section>
+{% endblock %}

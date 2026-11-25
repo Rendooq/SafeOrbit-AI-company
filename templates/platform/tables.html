@@ -1,0 +1,22 @@
+{% extends "platform/base.html" %}
+{% block title %}Власні таблиці — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block content %}
+<div class="page-intro"><a href="/workspace">← Простір</a><h1>Власні таблиці</h1><p>Додайте свої поля та ведіть дані у власному модулі.</p></div>
+<details class="platform-panel record-form" {% if not tables %}open{% endif %}>
+  <summary>Нова таблиця</summary>
+  <form action="/workspace/tables" method="post">
+    <label>Назва таблиці<input name="title" maxlength="120" required></label>
+    <div class="records" data-columns>
+      <div class="field-grid" data-column><label>Назва поля<input name="name" maxlength="70" required></label>
+        <label>Тип<select name="kind">{% for key,label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label></div>
+      <div class="field-grid" data-column><label>Назва поля<input name="name" maxlength="70"></label>
+        <label>Тип<select name="kind">{% for key,label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label></div>
+    </div>
+    <button type="button" class="text-button" data-add-column>Додати поле +</button><button class="platform-button">Створити таблицю</button>
+  </form>
+</details>
+<div class="records">
+  {% for table in tables %}<a class="module-tile" href="/workspace/tables/{{ table.id }}"><h2>{{ table.title }}</h2><span class="tile-arrow">↗</span></a>{% endfor %}
+</div>
+{% endblock %}

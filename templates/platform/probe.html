@@ -1,0 +1,22 @@
+{% extends "platform/base.html" %}
+{% block title %}Ключ перевірки — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block layout %}narrow-frame{% endblock %}
+{% block content %}
+<div class="page-intro"><a class="back-link" href="/workspace/module/checkout">← Моніторинг покупки</a><h1>{{ probe.domain }}</h1></div>
+<section class="platform-panel">
+  <h2>Ключ перевірки</h2><p>Збережіть ключ зараз. Він показується один раз.</p>
+  <p><code class="secret" data-no-translate>{{ token }}</code></p>
+  <p>Установіть Playwright та завантажте сценарій. Скопіюйте конфігурацію, задайте елементи для свого магазину й запустіть <code>node checkout-check.mjs checkout.json</code>. Ключ передається через змінну середовища <code>SAFEORBIT_CHECK_KEY</code>.</p>
+  <p>Перевірка зупиняється до фактичної оплати чи відправлення замовлення. Перед регулярним запуском перевірте налаштування у тестовому магазині.</p>
+  <div class="record-actions"><a href="/static/v2/checkout-check.mjs" download>Завантажити сценарій ↓</a></div>
+  <pre data-no-translate>{
+  "reportTo": "https://safeorbit.com.pl/signals/checkout/{{ probe.id }}",
+  "url": "https://{{ probe.domain }}/PRODUCT_PATH",
+  "steps": [
+    {"name": "Кошик", "click": "[data-add-to-cart]", "expect": "[data-cart]"},
+    {"name": "Оформлення", "click": "[data-checkout]", "expect": "[data-delivery-method]"}
+  ]
+}</pre>
+</section>
+{% endblock %}

@@ -22,8 +22,9 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"SafeOrbit","url":{{ (public_site ~ '/') | tojson }}}</script>
   <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
-  <link rel="stylesheet" href="/static/v2/studio-home.css?v=product-guide2">
+  <link rel="stylesheet" href="/static/v2/studio-home.css?v=platform1">
   <script src="/static/locales/catalog.js?v=studio3" defer></script>
+  <script src="/static/locales/platform.js?v=1" defer></script>
   <script src="/static/locales/studio.js?v=business-monthly" defer></script>
   <script src="/static/i18n.js?v=sale-locales2" defer></script>
   <script src="/static/v2/studio-home.js?v=1" defer></script>
@@ -43,7 +44,7 @@
   <header class="masthead frame">
     <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
     <nav class="top-links" aria-label="Головна навігація">
-      <a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="#vartist">Тарифи</a>
+      <a href="#product">Огляд CRM</a><a href="#solutions">За сферами</a><a href="/maistry">Знайти майстра</a><a href="#vartist">Тарифи</a>
     </nav>
     <div class="mast-tools">
       {% include "partials/language-select.html" %}
@@ -51,7 +52,7 @@
       <a class="sign-in" href="/login">Увійти</a>
       <a class="action action-ink nav-register" href="/register">Створити акаунт {{ icon('up') }}</a>
       <details class="mobile-menu"><summary aria-label="Меню">{{ icon('menu') }}</summary>
-        <nav aria-label="Меню"><a href="#product">Огляд CRM</a><a href="#workflow">Можливості</a><a href="#vartist">Тарифи</a><a href="#faq">Запитання й відповіді</a><a href="/login">Увійти</a><a href="/register">Створити акаунт</a></nav>
+        <nav aria-label="Меню"><a href="#product">Огляд CRM</a><a href="#solutions">За сферами</a><a href="/maistry">Знайти майстра</a><a href="#vartist">Тарифи</a><a href="#faq">Запитання й відповіді</a><a href="/login">Увійти</a><a href="/register">Створити акаунт</a></nav>
       </details>
     </div>
   </header>
@@ -66,6 +67,7 @@
             <a class="action action-violet" href="/login-demo">Спробувати демо {{ icon('arrow') }}</a>
             <a class="text-action" href="/rozbir-rozkladu">Розібрати розклад {{ icon('up') }}</a>
           </div>
+          <a class="text-action mobile-directory-link" href="/maistry">Знайти майстра {{ icon('arrow') }}</a>
         </div>
         {% include "marketing/studio-preview.html" %}
       </section>
@@ -110,6 +112,18 @@
         <li>Завершіть візит, перевірте дохід за день і завантажте звіт у CSV.</li>
       </ol>
     </section>
+    <section class="industry-guide frame" id="solutions" aria-labelledby="solutions-title">
+      <div class="industry-guide-head"><h2 id="solutions-title">Інструменти для вашої роботи.</h2><p>Обирайте сферу під час реєстрації. SafeOrbit підготує робочий простір з потрібними модулями.</p></div>
+      <div class="industry-guide-grid">
+        {% for key, industry, items in industries %}
+        <a class="industry-guide-item" href="/register?industry={{ key }}">
+          <h3>{{ industry.label }}</h3>
+          <p>{% if key == 'other' %}Усі модулі, власний порядок і оформлення{% else %}{% for item in items %}<span>{{ item }}</span>{% if not loop.last %} · {% endif %}{% endfor %}{% endif %}</p>
+          {% if industry.plan in plans %}<strong>€{{ '%.2f'|format(plans[industry.plan][1][1] / 100) }} / міс</strong>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </section>
     <section class="buyer-guide frame" id="vartist" aria-labelledby="cost-title">
       <div class="cost-intro">
         <h2 id="cost-title">За що ви платите</h2>
@@ -152,7 +166,7 @@
         <details><summary>Чи потрібен власний сайт для онлайн-запису?</summary><p>SafeOrbit дає окрему сторінку запису. Посилання можна додати у профіль Instagram або надіслати клієнту в месенджері.</p></details>
         <details><summary>Чи можна працювати з кількома майстрами?</summary><p>Так. Для кожного майстра можна вказати послуги й графік, а в календарі відфільтрувати записи за спеціалістом.</p></details>
         <details><summary>Чи можна працювати зі звітом у таблиці?</summary><p>Так. Виберіть період і, за потреби, спеціаліста. Звіт за записами можна завантажити у CSV та відкрити в Excel або Google Таблицях.</p></details>
-        <details><summary>Що буде з доступом, якщо підписка припиниться?</summary><p>Наразі адміністратор керує доступом вручну після скасування підписки або невдалого продовження.</p></details>
+        <details><summary>Що буде з доступом, якщо підписка припиниться?</summary><p>Після завершення оплаченого періоду доступ може бути призупинено. Поновити підписку можна через Creem.</p></details>
       </div>
     </section>
     <section class="closing frame">
@@ -162,7 +176,7 @@
   </main>
   <footer class="colophon frame">
     <a class="brand-v2" href="/"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
-    <nav aria-label="Посилання внизу сторінки"><a href="/taryfy">Тарифи</a><a href="#faq">Запитання й відповіді</a><a href="/shablon-zhurnalu-zapysiv">Шаблон журналу записів</a><a href="/rozbir-rozkladu">Розібрати розклад</a><a href="/login">Вхід</a><a href="/register">Створити акаунт</a></nav>
+    <nav aria-label="Посилання внизу сторінки"><a href="/maistry">Знайти майстра</a><a href="/taryfy">Тарифи</a><a href="#faq">Запитання й відповіді</a><a href="/shablon-zhurnalu-zapysiv">Шаблон журналу записів</a><a href="/rozbir-rozkladu">Розібрати розклад</a><a href="/login">Вхід</a><a href="/register">Створити акаунт</a></nav>
     <small>© 2026 SafeOrbit</small>
   </footer>
 </body>

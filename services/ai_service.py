@@ -13,6 +13,7 @@ from sqlalchemy.orm import joinedload
 from config import GROQ_API_KEY, UA_TZ
 from models import Business, Appointment, Customer, Master, Service, ChatLog, User, Product, ActionLog, Integration
 from services.notifications import send_admin_alert_notification, send_new_appointment_notifications
+from services.marketplace import conflicts
 from services.integrations import push_to_beauty_pro, push_to_cleverbox, push_to_integrica, push_to_luckyfit, push_to_uspacy
 
 logger = logging.getLogger(__name__)
@@ -305,34 +306,8 @@ async def process_ai_request(business_id: int, question: str, db: AsyncSession, 
                     if dt < datetime.now(UA_TZ).replace(tzinfo=None):
                         return "⚠️ На жаль, цей час вже минув. Будь ласка, оберіть інший час.", None
                     
-                    duration = 90
-                    service_name = data.get('service')
-                    if service_name:
-                        srv = (await db.execute(select(Service).where(and_(Service.name == service_name, Service.business_id == business_id)))).scalar_one_or_none()
-                        if srv and srv.duration: duration = srv.duration
-                    
-                    new_start = dt
-                    new_end = dt + timedelta(minutes=duration)
-
-                    day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                    day_end = day_start + timedelta(days=1)
-                    
-                    stmt_overlap = select(Appointment).where(and_(
-                        Appointment.business_id == business_id,
-                        Appointment.status != 'cancelled',
-                        Appointment.appointment_time >= day_start,
-                        Appointment.appointment_time < day_end
-                    ))
-                    existing_apps_on_day = (await db.execute(stmt_overlap)).scalars().all()
-
-                    for app in existing_apps_on_day:
-                        app_duration = 90
-                        s_existing = (await db.execute(select(Service).where(and_(Service.name == app.service_type, Service.business_id == business_id)))).scalar_one_or_none()
-                        if s_existing and s_existing.duration: app_duration = s_existing.duration
-                        app_start = app.appointment_time
-                        app_end = app_start + timedelta(minutes=app_duration)
-                        if new_start < app_end and new_end > app_start:
-                            return f"⚠️ На жаль, час о {data['time']} вже зайнятий. Будь ласка, оберіть інший.", None
+                    if await conflicts(db, business_id, dt, None, data.get("service")):
+                        return f"⚠️ На жаль, час о {data['time']} вже зайнятий. Будь ласка, оберіть інший.", None
 
                     new_app = Appointment(
                         business_id=business_id,

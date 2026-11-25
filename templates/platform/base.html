@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}SafeOrbit{% endblock %}</title>
+  {% block meta %}{% endblock %}
+  <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/v2/core.css">
+  <link rel="stylesheet" href="/static/v2/platform.css?v=1">
+  <script defer src="/static/locales/catalog.js"></script>
+  <script defer src="/static/locales/platform.js?v=1"></script>
+  <script defer src="/static/i18n.js"></script>
+  <script defer src="/static/v2/platform.js?v=1"></script>
+</head>
+<body class="platform {% block surface %}{% endblock %}">
+  <header class="platform-header">
+    <div class="frame mast">
+      <a class="platform-brand" href="/"><img src="/static/v2/brand.svg" width="31" height="31" alt="">SafeOrbit</a>
+      <nav aria-label="Навігація">
+        {% block links %}<a href="/maistry">Знайти майстра</a><a href="/workspace">Робочий простір</a>{% endblock %}
+      </nav>
+      {% include "partials/language-select.html" %}
+      {% include "partials/theme-toggle.html" %}
+    </div>
+  </header>
+  <main class="frame platform-content {% block layout %}{% endblock %}">
+    {% if error %}<p class="feedback error" role="alert">{{ error }}</p>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

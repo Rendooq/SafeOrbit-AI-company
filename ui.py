@@ -21,6 +21,8 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         menu_items.append(("/superadmin", "super", "fa-user-shield", "Адмінпанель"))
     else:
         menu_items.append(("/admin", "dash", "fa-house", "Огляд"))
+        if user.role in {"owner", "admin"}:
+            menu_items.append(("/workspace", "workspace", "fa-table-cells-large", "Робочий простір"))
         menu_items.append(("/admin#day-agenda", "agenda", "fa-calendar-days", "Записи"))
         menu_items.append(("/admin/klienci", "kli", "fa-users", l['clients']))
         if not is_master:

@@ -16,7 +16,27 @@ class Charge:
 PLAN_PRICES = {
     "plan1": (("BUSINESS_SETUP", 0), ("BUSINESS_MONTHLY_V2", 990)),
     "plan2": (("PRO_SETUP", 80668), ("PRO_MONTHLY", 1674)),
+    "commerce": (("COMMERCE_SETUP", 0), ("COMMERCE_MONTHLY", 1490)),
+    "production": (("WORKSHOP_SETUP", 0), ("WORKSHOP_MONTHLY", 1290)),
+    "custom": (("CUSTOM_SETUP", 0), ("CUSTOM_MONTHLY", 1980)),
 }
+
+
+def advertised(plan: str) -> tuple[Charge, ...]:
+    return tuple(Charge("", cents, index == 1)
+                 for index, (_, cents) in enumerate(PLAN_PRICES.get(plan, ())) if cents)
+
+
+def agreement_path(plan: str) -> str:
+    if plan == "plan1":
+        return "/static/contract_business_monthly.pdf"
+    if plan == "plan2":
+        return "/static/contract_plan2.pdf"
+    filename = os.getenv(f"CREEM_{plan.upper()}_TERMS_FILE", "")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,90}\.pdf", filename):
+        return ""
+    from pathlib import Path
+    return f"/static/{filename}" if (Path(__file__).resolve().parents[1] / "static" / filename).is_file() else ""
 
 
 def enabled() -> bool:
@@ -26,6 +46,8 @@ def enabled() -> bool:
 
 def charges(plan: str) -> tuple[Charge, ...]:
     if not enabled():
+        return ()
+    if plan in {"commerce", "production", "custom"} and not agreement_path(plan):
         return ()
     configured = tuple(
         Charge(os.getenv(f"CREEM_{name}_PRODUCT_ID", "").strip(), cents, index == 1)

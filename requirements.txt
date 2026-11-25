@@ -16,3 +16,6 @@ pydantic[email]
 fastapi-mail
 bcrypt
 jinja2>=3.1,<4
+defusedxml>=0.7,<1
+pypdf>=7.1,<8
+qrcode[pil]>=8,<9

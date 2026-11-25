@@ -44,7 +44,8 @@ class RequestSecurityMiddleware(BaseHTTPMiddleware):
                     if len(body) > limit:
                         return JSONResponse({"detail": "Request too large"}, status_code=413)
                 request._body = bytes(body)
-                if request.cookies.get("session") or request.url.path in {"/login", "/register"}:
+                if (request.cookies.get("session") or request.url.path in {"/login", "/register"}
+                        or request.url.path.startswith(("/maistry/", "/proposals/"))):
                     origin = request.headers.get("origin")
                     if origin:
                         parsed = urlsplit(origin)

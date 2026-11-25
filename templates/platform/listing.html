@@ -1,0 +1,33 @@
+{% extends "platform/base.html" %}
+{% block title %}Публічний профіль — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block content %}
+<div class="page-intro split-head"><div><a class="back-link" href="/workspace">← Простір</a><h1>Публічний профіль</h1><p>{{ business.name }}</p></div>
+{% if listing and listing.published %}<a href="/maistry/zaklad/{{ business.id }}" class="platform-button secondary">Переглянути профіль ↗</a>{% endif %}</div>
+<div class="detail-grid">
+  <section class="platform-panel">
+    <form method="post" action="/workspace/listing">
+      <div class="field-grid"><label>Місто<input name="city" maxlength="100" required value="{{ listing.city if listing else business.city or '' }}"></label>
+      <label>Адреса<input name="address" maxlength="220" required value="{{ listing.address if listing else business.address or '' }}"></label></div>
+      <label>Опис закладу<textarea name="description" maxlength="1500" rows="5">{{ listing.description if listing else '' }}</textarea></label>
+      <fieldset class="weekday-set"><legend>Робочі дні</legend>{% for day in days %}<label class="check"><input type="checkbox" name="days" value="{{ loop.index0 }}" {% if not listing or loop.index0|string in listing.open_days %}checked{% endif %}>{{ day }}</label>{% endfor %}</fieldset>
+      <div class="field-grid"><label>З котрої години<input type="time" name="opens" required value="{{ listing.opens if listing else '09:00' }}"></label>
+      <label>До котрої години<input type="time" name="closes" required value="{{ listing.closes if listing else '18:00' }}"></label></div>
+      <label class="check"><input type="checkbox" name="published" value="yes" {% if listing and listing.published %}checked{% endif %}> Показувати в каталозі й приймати онлайн-записи</label>
+      <button class="platform-button">Зберегти профіль</button>
+    </form>
+  </section>
+  <aside class="platform-panel"><h2>Команда і послуги</h2><p>Активних майстрів: {{ team|length }}. Послуг: {{ services|length }}.</p>
+  <p>Вільний час визначається за цим графіком, годинами майстра й наявними записами.</p><a href="/admin/settings">Редагувати команду та послуги ↗</a></aside>
+</div>
+{% if listing %}
+<section class="platform-panel custom-panel" id="photos">
+  <h2>Фото робіт</h2>
+  <form method="post" action="/workspace/listing/photos" enctype="multipart/form-data">
+    <div class="field-grid"><label>JPG або PNG до 4 МБ<input type="file" name="file" accept="image/jpeg,image/png" required></label><label>Підпис<input name="caption" maxlength="120"></label></div>
+    <button class="platform-button">Додати фото</button>
+  </form>
+  {% for photo in photos %}<div class="record-actions"><span>{{ photo.caption or ('Фото № ' ~ loop.index) }}</span><form method="post" action="/workspace/listing/photos/{{ photo.id }}/delete" data-confirm="Видалити фото?"><button class="text-button danger">Видалити</button></form></div>{% endfor %}
+</section>
+{% endif %}
+{% endblock %}

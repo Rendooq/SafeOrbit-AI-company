@@ -24,7 +24,7 @@
     </section>
     <div class="access-features">
       <h3>Що відкриється після активації</h3>
-      <ul><li>CRM та база клієнтів</li><li>Календар і записи</li><li>Аналітика та звіти</li></ul>
+      <ul>{% for module in plan_modules %}<li>{{ module }}</li>{% endfor %}</ul>
     </div>
     {% if prices %}
       <div class="access-prices">
@@ -37,7 +37,7 @@
         </dl>
       </div>
     {% endif %}
-    {% if not documents_ready %}
+    {% if not documents_ready and contract_path %}
       <section class="access-documents" aria-labelledby="access-documents-title">
         <h3 id="access-documents-title">Обов’язкові документи для активації</h3>
         <p>Завантажте підписані NDA і договір. Адміністратор відкриє доступ після оплати та перевірки документів.</p>
@@ -48,7 +48,7 @@
           <button type="submit" class="button-primary"><span>Надіслати документи</span></button>
         </form>
       </section>
-    {% else %}
+    {% elif documents_ready %}
       <p class="activation-note">Документи отримано.</p>
     {% endif %}
     {% if outstanding and payment_available %}
@@ -58,7 +58,7 @@
         <a class="button-primary" target="_blank" rel="noopener" data-checkout-link hidden>Відкрити касу Creem ↗</a>
       </form>
       <p class="activation-note">{% if setup_required %}Спочатку оплата налаштування, потім підписка. {% endif %}Податки відображаються в Creem.</p>
-    {% elif outstanding or not prices %}
+    {% elif not payment_available or outstanding %}
       <p class="info-note">Оплата тимчасово недоступна. Поверніться на цю сторінку після входу.</p>
     {% endif %}
   {% else %}

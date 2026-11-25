@@ -20,7 +20,7 @@
       <legend class="sr-only">Ваш бізнес та акаунт</legend>
       <div class="field"><label for="business-name">Назва бізнесу</label><input id="business-name" name="name" type="text" placeholder="Наприклад, Studio North" autocomplete="organization" maxlength="160" required></div>
       <div class="field-grid">
-        <div class="field"><label for="business-type">Напрямок роботи</label><select id="business-type" name="type" required><option value="barbershop">Барбершоп / салон</option><option value="clinic">Клініка / стоматологія</option><option value="carwash">Детейлінг / СТО</option><option value="spa">SPA / масаж</option><option value="retail">Онлайн-магазин</option><option value="restaurant">Ресторан / кафе</option><option value="other">Інший бізнес</option></select></div>
+        <div class="field"><label for="business-type">Напрямок роботи</label><select id="business-type" name="type" required>{% for key,industry,items,prices,plan,agreement in industries %}<option value="{{ key }}" data-plan="{{ industry.plan }}" {% if key == selected_industry %}selected{% endif %}>{{ industry.label }}</option>{% endfor %}</select></div>
         <div class="field"><label for="register-phone">Ваш телефон</label><input id="register-phone" name="phone" type="tel" placeholder="+380 00 000 00 00" autocomplete="tel" maxlength="32" required></div>
       </div>
       <div class="field retail-field" id="retail-category" hidden><label for="retail-subcategory">Категорія магазину</label><select id="retail-subcategory" name="retail_subcategory"><option value="clothing">Одяг / взуття</option><option value="electronics">Електроніка</option><option value="cosmetics">Косметика</option><option value="furniture">Меблі / декор</option><option value="food">Продукти харчування</option><option value="other">Інше</option></select></div>
@@ -29,13 +29,29 @@
     </fieldset>
     <fieldset class="form-step" data-step="2">
       <legend class="sr-only">Тариф та підключення</legend>
-      <div class="plan-grid">
-        {% if plan1_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan1" {% if selected_plan == "plan1" %}checked{% endif %}><span class="plan-top"><strong>Business</strong><span class="radio-dot"></span></span><span class="plan-desc">Для щоденної роботи команди</span><span class="plan-includes">CRM · Записи · Аналітика</span></label>{% endif %}
-        {% if plan2_active %}<label class="plan-card"><input type="radio" name="plan_type" value="plan2" {% if selected_plan == "plan2" %}checked{% endif %}><span class="plan-top"><strong>Business Pro</strong><span class="radio-dot"></span></span><span class="plan-desc">Індивідуальне підключення</span><span class="plan-includes">Розширений супровід бізнесу</span></label>{% endif %}
+      {% for key,industry,items,prices,plan,agreement in industries %}
+      <section class="industry-summary info-note" data-industry="{{ key }}" {% if key != selected_industry %}hidden{% endif %}>
+        <strong>{{ industry.label }}</strong>
+        {% if industry.plan != 'plan1' %}<p>{{ plan }}{% for price in prices %} · €{{ "%.2f"|format(price.cents / 100) }} / міс{% endfor %}</p>{% endif %}
+        {% if key == 'other' %}<p>Доступ до всього каталогу модулів. Зберіть свій простір і налаштуйте вигляд.</p>
+        {% else %}<p>{% for item in items %}<span>{{ item }}</span>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+        {% if agreement and industry.plan != 'plan1' %}<a href="{{ agreement }}" target="_blank" rel="noopener">Умови тарифу</a>{% endif %}
+      </section>
+      {% endfor %}
+      <div class="plan-grid" data-standard-plans>
+        {% for key, name, active in [('plan1','Business',plan1_active), ('plan2','Business Pro',plan2_active)] %}
+        {% if active %}<label class="plan-card">
+          <input type="radio" name="plan_type" value="{{ key }}" {% if selected_plan == key %}checked{% endif %}>
+          <span class="plan-top"><strong>{{ name }}</strong><span class="radio-dot"></span></span>
+          {% for price in standard_prices[key] %}
+          <span class="{{ 'plan-price' if price.recurring else 'plan-detail' }}">€{{ '%.2f'|format(price.cents / 100) }} <small>{{ '/ міс' if price.recurring else 'разове підключення' }}</small></span>
+          {% endfor %}
+        </label>{% endif %}
+        {% endfor %}
       </div>
-      {% if not plan1_active and not plan2_active %}<div class="info-note">Нові підключення тимчасово призупинено. Зверніться до адміністратора.</div>{% endif %}
-      <label class="consent"><input type="checkbox" name="terms_accepted" value="yes" required><span>Я ознайомився з <a href="/static/contract_business_monthly.pdf" target="_blank" rel="noopener">умовами Business</a> та <a href="/static/contract_plan2.pdf" target="_blank" rel="noopener">Business Pro</a> і погоджуюся з умовами обраного тарифу.</span></label>
-      <div class="button-row"><button type="button" class="button-secondary" id="back-registration">← Назад</button><button class="button-primary" type="submit" {% if not plan1_active and not plan2_active %}disabled{% endif %}><span>Створити акаунт</span><span aria-hidden="true">↗</span></button></div>
+      {% if not plan1_active and not plan2_active %}<div class="info-note" data-standard-unavailable>Нові підключення Business тимчасово призупинено.</div>{% endif %}
+      <label class="consent"><input type="checkbox" name="terms_accepted" value="yes" required><span><span data-standard-terms>Я ознайомився з <a href="/static/contract_business_monthly.pdf" target="_blank" rel="noopener">умовами Business</a> та <a href="/static/contract_plan2.pdf" target="_blank" rel="noopener">Business Pro</a> і погоджуюся з умовами обраного тарифу.</span><span data-industry-terms hidden>Я створюю безплатний акаунт. Умови підписки можна переглянути перед оплатою.</span></span></label>
+      <div class="button-row"><button type="button" class="button-secondary" id="back-registration">← Назад</button><button class="button-primary" type="submit"><span>Створити акаунт</span><span aria-hidden="true">↗</span></button></div>
       <p class="activation-note">Реєстрація без оплати. Після входу ви зможете переглянути умови та придбати доступ.</p>
     </fieldset>
     <noscript><style>.next-step,#back-registration{display:none}</style><p class="info-note">Заповніть обидва розділи форми нижче.</p></noscript>

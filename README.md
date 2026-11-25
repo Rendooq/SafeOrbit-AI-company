@@ -127,6 +127,36 @@ Do not commit `.env`, database files, uploads, or session secrets.
 
 ## Verification
 
+### Industry workspaces and marketplace
+
+- Owners enter through `/workspace`. Industry presets determine the new module
+  entitlements. The constructor includes the full catalog and custom tables.
+- Existing businesses can publish a salon profile through `/workspace/listing`.
+  The customer directory is `/maistry`. Customer accounts require SMS
+  verification. Configure `MARKETPLACE_SMS_TOKEN` and
+  `MARKETPLACE_SMS_SENDER` for the platform's TurboSMS account.
+- The EUR monthly Creem products for the new plans are
+  `CREEM_COMMERCE_MONTHLY_PRODUCT_ID` (€14.90),
+  `CREEM_WORKSHOP_MONTHLY_PRODUCT_ID` (€12.90), and
+  `CREEM_CUSTOM_MONTHLY_PRODUCT_ID` (€19.80). Set the corresponding
+  `CREEM_COMMERCE_TERMS_FILE`, `CREEM_PRODUCTION_TERMS_FILE`, and
+  `CREEM_CUSTOM_TERMS_FILE` to the reviewed agreement filenames in `static/`.
+  Checkout stays disabled for an unconfigured plan.
+- Configure the production Creem webhook at `/billing/creem/events` with
+  `CREEM_WEBHOOK_SECRET`. A verified checkout records the payment. The
+  existing document approval remains the first activation step. Synced
+  subscriptions control access on pause, on the end of the paid period,
+  and after a confirmed renewal. Existing subscriptions without a mapped
+  checkout remain in the original manual flow.
+- The checkout monitor runs the downloadable Playwright scenario on a
+  storefront owner's machine or CI runner. Use selectors for the cart and
+  delivery screens, stop before submitting orders, and schedule regular runs.
+  Each run reports the result and any captured failure screenshot.
+- Family audio is private by default. Optionally configure
+  `WORKSPACE_TRANSCRIPTION_KEY` for Groq transcription. The workspace owner
+  explicitly sends a recording for transcription or creates a revocable
+  sharing link and QR codes.
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe test_syntax.py

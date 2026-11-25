@@ -28,6 +28,7 @@ from utils.security import generate_api_key
 from services.idempotency import (create_idempotency_key, get_idempotency_key,
                                   update_idempotency_key, scoped_idempotency_key)
 from services.webhooks import dispatch_webhooks
+from services.marketplace import conflicts, local_time
 from ui import get_chat_widget_html
 
 logger = logging.getLogger(__name__)
@@ -266,6 +267,10 @@ async def create_appointment(
         if not master or master.business_id != business_id:
             raise APIError(code="invalid_master", message="Master not found or does not belong to this business")
 
+    if await conflicts(db, business_id, appointment_data.appointment_time, appointment_data.master_id,
+                       appointment_data.service_type, published_only=True):
+        raise APIError(code="appointment_conflict", message="That time is already booked.", status_code=409)
+
     if idempotency_key:
         try:
             idempotency_record = await create_idempotency_key(db, idempotency_key, business_id, request_payload)
@@ -276,7 +281,9 @@ async def create_appointment(
                 return Response(content=existing.response_data, status_code=existing.status_code, media_type="application/json")
             raise IdempotencyKeyError("Idempotency key is already used or being processed.")
 
-    new_appointment = Appointment(business_id=business_id, **appointment_data.model_dump())
+    values = appointment_data.model_dump()
+    values["appointment_time"] = local_time(values["appointment_time"])
+    new_appointment = Appointment(business_id=business_id, **values)
     db.add(new_appointment)
     await db.flush()
     await db.refresh(new_appointment)
@@ -343,6 +350,16 @@ async def update_appointment(
     for field in ("appointment_time", "service_type", "status", "cost", "source", "delivery_status"):
         if field in update_data and update_data[field] is None:
             raise APIError(code="invalid_appointment", message=f"{field} cannot be null")
+    if "appointment_time" in update_data:
+        update_data["appointment_time"] = local_time(update_data["appointment_time"])
+    if update_data.keys() & {"appointment_time", "master_id", "service_type", "status"}:
+        next_status = update_data.get("status", appointment.status)
+        if next_status in {"confirmed", "pending"} and await conflicts(
+            db, business_id, update_data.get("appointment_time", appointment.appointment_time),
+            update_data.get("master_id", appointment.master_id), update_data.get("service_type", appointment.service_type),
+            exclude=appointment.id, published_only=True,
+        ):
+            raise APIError(code="appointment_conflict", message="That time is already booked.", status_code=409)
 
     for field, value in update_data.items():
         setattr(appointment, field, value)

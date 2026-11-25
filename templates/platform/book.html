@@ -1,0 +1,31 @@
+{% extends "platform/base.html" %}
+{% block title %}Сімейна книга — {{ business }}{% endblock %}
+{% block meta %}<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">{% endblock %}
+{% block layout %}book-frame{% endblock %}
+{% block surface %}print-surface{% endblock %}
+{% block content %}
+<div class="page-intro split-head"><div>{% if owner %}<a class="back-link" href="/workspace/module/book">← Розділи</a>{% endif %}<p class="platform-kicker">Сімейна книга</p><h1>{{ business }}</h1></div>
+<button class="platform-button" type="button" data-print>Друкувати / PDF</button></div>
+{% if owner %}
+<section class="platform-panel share-controls">
+  <h2>Посилання для родини</h2>
+  {% if share %}<p><a href="/books/{{ share.token }}">Відкрити спільну книгу ↗</a></p>{% endif %}
+  <form action="/workspace/book/share" method="post" {% if not share %}data-confirm="Усі, хто має посилання, зможуть відкрити книгу та записи. Увімкнути?"{% endif %}>
+    <button class="platform-button secondary" name="share" value="{{ 'no' if share else 'yes' }}">{{ 'Вимкнути доступ' if share else 'Створити посилання й QR для аудіо' }}</button>
+  </form>
+</section>
+{% endif %}
+{% for record, data, assets in chapters %}
+<article class="book-chapter">
+  <h2>{{ record.title }}</h2>
+  {% if data.body %}<p class="preserve">{{ data.body }}</p>{% endif %}
+  {% for asset in assets %}
+    {% set source = '/workspace/attachments/' ~ asset.id if owner else '/books/' ~ share.token ~ '/asset/' ~ asset.id %}
+    {% if asset.media_type.startswith('audio/') %}
+      <audio controls preload="none" src="{{ source }}"></audio>
+      {% if share %}<a class="audio-qr" href="/books/{{ share.token }}/audio/{{ asset.id }}"><img src="/books/{{ share.token }}/qr/{{ asset.id }}" alt="QR для голосового запису" width="96" height="96"><span>Голосовий запис</span></a>{% endif %}
+    {% else %}<img class="record-photo" src="{{ source }}" alt="Фото до розділу">{% endif %}
+  {% endfor %}
+</article>
+{% else %}<p>Додайте перший розділ, щоб зібрати книгу.</p>{% endfor %}
+{% endblock %}

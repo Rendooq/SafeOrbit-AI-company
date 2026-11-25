@@ -1,0 +1,41 @@
+{% extends "platform/base.html" %}
+{% block title %}Мої візити — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block links %}<a href="/maistry">Знайти майстра</a><form method="post" action="/maistry/logout"><button class="text-button">Вийти</button></form>{% endblock %}
+{% block content %}
+<div class="page-intro"><p class="platform-kicker">{{ client.name }}</p><h1>Мої візити</h1></div>
+{% set messages = {'booked':'Візит підтверджено.','moved':'Візит перенесено.','cancelled':'Візит скасовано.','review':'Дякуємо за відгук.'} %}
+{% if done in messages %}<p class="feedback" role="status">{{ messages[done] }}</p>{% endif %}
+<div class="detail-grid">
+  <section class="records" aria-label="Візити">
+  {% for appointment, business, specialist, review in rows %}
+    <article class="platform-panel record">
+      <div class="split-head"><h2>{{ appointment.service_type }}</h2><span class="badge">{{ statuses.get(appointment.status, appointment.status) }}</span></div>
+      <p>{{ business }}{% if specialist %} · {{ specialist }}{% endif %}</p>
+      <p><strong>{{ appointment.appointment_time.strftime('%d.%m.%Y · %H:%M') }}</strong> · {{ '%g'|format(appointment.cost) }} грн</p>
+      {% if appointment.appointment_time > now and appointment.status == 'confirmed' %}
+      <div class="record-actions">
+        <a href="/maistry/visits/{{ appointment.id }}/move">Перенести</a>
+        <form action="/maistry/visits/{{ appointment.id }}/cancel" method="post" data-confirm="Скасувати цей візит?"><button class="text-button danger">Скасувати</button></form>
+      </div>
+      {% elif appointment.appointment_time <= now and appointment.status == 'completed' %}
+        {% if review %}<p>Ваша оцінка {{ review.rating }} / 5 ★</p>
+        {% else %}
+        <details><summary>Залишити відгук</summary>
+          <form action="/maistry/visits/{{ appointment.id }}/review" method="post">
+            <label>Оцінка<select name="rating" required><option value="">Оберіть оцінку</option>{% for n in range(5,0,-1) %}<option>{{ n }}</option>{% endfor %}</select></label>
+            <label>Коментар<textarea name="comment" maxlength="1200" rows="3"></textarea></label>
+            <button class="platform-button">Опублікувати відгук</button>
+          </form>
+        </details>
+        {% endif %}
+      {% endif %}
+    </article>
+  {% else %}<div class="platform-panel"><h2>Візитів поки немає</h2><a href="/maistry">Знайти майстра ↗</a></div>{% endfor %}
+  </section>
+  <section class="platform-panel">
+    <h2>Мій профіль</h2><p>{{ client.phone }}</p>
+    <form action="/maistry/account" method="post"><label>Ваше ім’я<input name="name" maxlength="120" value="{{ client.name }}" required></label><button class="platform-button secondary">Зберегти</button></form>
+  </section>
+</div>
+{% endblock %}

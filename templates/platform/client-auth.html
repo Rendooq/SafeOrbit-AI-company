@@ -1,0 +1,40 @@
+{% extends "platform/base.html" %}
+{% block title %}{{ 'Вхід' if mode == 'login' else 'Кабінет клієнта' }} — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block links %}<a href="/maistry">← У каталог</a>{% endblock %}
+{% block layout %}narrow-frame{% endblock %}
+{% block content %}
+<section class="platform-panel auth-surface">
+  <p class="platform-kicker">Кабінет клієнта</p>
+  {% if mode == 'login' %}
+  <h1>Увійти</h1>
+  <form method="post" action="/maistry/login">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Номер телефону<input type="tel" name="phone" maxlength="40" autocomplete="tel" placeholder="+380" required></label>
+    <label>Пароль<input type="password" name="password" maxlength="1024" autocomplete="current-password" required></label>
+    <button class="platform-button">Увійти</button>
+  </form>
+  <p>Вперше тут? <a href="/maistry/register?next={{ next|urlencode }}">Створити акаунт</a></p>
+  {% elif mode == 'register' %}
+  <h1>Створити акаунт</h1>
+  {% if sms %}
+  <form method="post" action="/maistry/register">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Номер телефону<input type="tel" name="phone" maxlength="40" autocomplete="tel" placeholder="+380" required></label>
+    <button class="platform-button">Отримати код SMS</button>
+  </form>
+  {% else %}<p class="feedback">Реєстрація тимчасово недоступна. Спробуйте згодом.</p>{% endif %}
+  <p>Вже маєте акаунт? <a href="/maistry/login?next={{ next|urlencode }}">Увійти</a></p>
+  {% else %}
+  <h1>Підтвердити номер</h1>
+  <form method="post" action="/maistry/verify">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Код із SMS<input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
+    <label>Ваше ім’я<input name="name" autocomplete="given-name" maxlength="120" required></label>
+    <label>Створіть пароль<input type="password" name="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
+    <button class="platform-button">Підтвердити й увійти</button>
+  </form>
+  <a href="/maistry/register?next={{ next|urlencode }}">Надіслати код знову</a>
+  {% endif %}
+</section>
+{% endblock %}

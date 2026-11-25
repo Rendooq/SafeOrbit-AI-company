@@ -19,6 +19,7 @@ from models import User, Appointment, Master, Service, Customer, Business, Actio
 from ui import get_layout
 from utils.templates import render_template
 from utils.schedule import personal_schedule
+from services.marketplace import conflicts
 from utils.logger import log_action
 from sqlalchemy import case
 from services.ai_service import process_ai_request
@@ -980,6 +981,8 @@ async def add_appointment(
         parsed_master_id = user.master_id
     if not await valid_assignment(user, parsed_master_id, db):
         return RedirectResponse("/admin?error=master", status_code=303)
+    if await conflicts(db, user.business_id, dt, parsed_master_id, actual_service, published_only=True):
+        return RedirectResponse("/admin?error=taken", status_code=303)
     
     customer = await db.scalar(select(Customer).where(and_(Customer.business_id == user.business_id, Customer.phone_number == phone)))
     if not customer:
@@ -1013,7 +1016,11 @@ async def api_update_appt_time(id: int = Form(...), date: str = Form(...), time:
     appt = res.scalar_one_or_none()
     if appt and await can_manage_appointment(user, appt, db):
         try:
-            appt.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            selected_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            if await conflicts(db, user.business_id, selected_time, appt.master_id, appt.service_type,
+                               exclude=appt.id, published_only=True):
+                return {"ok": False, "error": "Цей час уже зайнятий."}
+            appt.appointment_time = selected_time
             await db.commit()
             return {"ok": True}
         except ValueError: pass
@@ -1054,9 +1061,13 @@ async def update_appointment(
             return RedirectResponse("/admin?error=master", status_code=303)
 
         try:
-            app.appointment_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+            selected_time = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
         except ValueError:
             return RedirectResponse("/admin?error=fields", status_code=303)
+        if status in {"confirmed", "pending"} and await conflicts(db, user.business_id, selected_time, parsed_master_id,
+                                                                   app.service_type, exclude=app.id, published_only=True):
+            return RedirectResponse("/admin?error=taken", status_code=303)
+        app.appointment_time = selected_time
         app.cost, app.master_id, app.delivery_address = parsed_cost, parsed_master_id, delivery_address
         app.ttn, app.delivery_status, app.status = ttn, delivery_status, status
         await db.commit()
@@ -1127,7 +1138,7 @@ async def generate_receipt(id: int, user: User = Depends(get_current_user), db: 
             <div class="border-bottom"></div>
             <div class="d-flex"><span>Чек №:</span><span>{appt.id}</span></div>
             <div class="d-flex"><span>Дата:</span><span>{appt.appointment_time.strftime('%d.%m.%Y %H:%M')}</span></div>
-            <div class="d-flex"><span>Профіль гостя:</span><span>{html.escape(customer.name or 'Гість')}</span></div>
+            <div class="d-flex"><span>Профіль гостя:</span><span>{html.escape((customer.name if customer else None) or 'Гість')}</span></div>
             <div class="d-flex"><span>Касир:</span><span>{html.escape(master_name)}</span></div>
             <div class="border-bottom"></div>
             {delivery_info}

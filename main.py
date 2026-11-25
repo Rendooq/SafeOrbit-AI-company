@@ -39,7 +39,7 @@ from utils.static import CachedStaticFiles
 from utils.localization import application_strings
 from utils.request_security import RequestSecurityMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from routers import admin, api_v1, auth, dashboard, superadmin, webhooks, widget, api_schools
+from routers import admin, api_v1, auth, creem_events, dashboard, marketplace, superadmin, webhooks, widget, workspace, workspace_tables, api_schools
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
                                        nps_collection_loop, reminder_loop,
@@ -123,15 +123,15 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    if request.url.path in {"/", "/login", "/register"} or request.url.path.startswith("/pending-activation/"):
+    if request.url.path in {"/", "/login", "/register", "/maistry", "/workspace"} or request.url.path.startswith(("/pending-activation/", "/maistry/", "/workspace/", "/proposals/", "/books/")):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+            "img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; "
             "form-action 'self'; base-uri 'self'; frame-ancestors 'self'"
         )
     elif IS_PRODUCTION:
         response.headers["Content-Security-Policy"] = "upgrade-insecure-requests"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Referrer-Policy"] = "no-referrer" if request.url.path.startswith(("/proposals/", "/books/")) else "strict-origin-when-cross-origin"
     if not request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "private, no-store"
     return response
@@ -141,6 +141,10 @@ app.include_router(dashboard.router, include_in_schema=False)
 app.include_router(superadmin.router, include_in_schema=False)
 app.include_router(admin.router, include_in_schema=False)
 app.include_router(widget.router, include_in_schema=False)
+app.include_router(workspace.router, include_in_schema=False)
+app.include_router(workspace_tables.router, include_in_schema=False)
+app.include_router(marketplace.router, include_in_schema=False)
+app.include_router(creem_events.router, include_in_schema=False)
 app.include_router(webhooks.router, include_in_schema=False)
 app.include_router(api_v1.public_chat_router)
 app.include_router(api_v1.router)
@@ -361,6 +365,8 @@ async def startup():
                 nps_collection_loop, rfm_segmentation_loop,
             )
         ]
+        if creem_events.configured():
+            app.state.background_tasks.append(asyncio.create_task(creem_events.expire_subscriptions()))
     except Exception as e:
         logger.error(f"Database startup error: {e}")
         raise

@@ -22,6 +22,7 @@ from models import ActivationDocument, Business, CreemPayment, GlobalPaymentSett
 from utils.security import hash_password, verify_password
 from services.demo_workspace import DEMO_SESSION_KEY, demo_workspaces
 from services import creem
+from services.workspace_catalog import INDUSTRIES, MODULES, PLAN_NAMES, allowed_modules, industry_plan
 from utils.templates import login_html, render_template
 from utils.auth import AttemptLimiter, normalize_username, login_limiter, registration_limiter, dummy_password_hash, read_document, save_document, remove_documents, ROOT
 
@@ -57,9 +58,16 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     plan2_active = settings.is_plan2_active if settings else True
     preferred = request.query_params.get("plan")
     selected_plan = "plan2" if plan2_active and (preferred == "plan2" or not plan1_active) else "plan1"
+    industries = [
+        (key, industry, [MODULES[module].label for module in industry.modules], creem.advertised(industry.plan),
+         PLAN_NAMES[industry.plan], creem.agreement_path(industry.plan))
+        for key, industry in INDUSTRIES.items()
+    ]
     return HTMLResponse(render_template(
         "auth/register.html",
         plan1_active=plan1_active, plan2_active=plan2_active, selected_plan=selected_plan,
+        industries=industries, selected_industry=request.query_params.get("industry", "barbershop"),
+        standard_prices={plan: creem.advertised(plan) for plan in ("plan1", "plan2")},
         **campaign_attribution(request),
     ))
 
@@ -70,14 +78,19 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
     if not registration_limiter.allow(remote):
         return RedirectResponse("/register?error=rate", status_code=303)
     name, phone = name.strip(), normalize_username(phone)
-    if not name or len(name) > 160 or not re.fullmatch(r"\+?[0-9]{7,15}", phone) or len(password) < 8 or len(password) > 1024 or type not in {"barbershop", "clinic", "carwash", "spa", "retail", "restaurant", "other"}:
+    if not name or len(name) > 160 or not re.fullmatch(r"\+?[0-9]{7,15}", phone) or len(password) < 8 or len(password) > 1024 or type not in INDUSTRIES:
         return RedirectResponse("/register?error=fields", status_code=303)
     if terms_accepted != "yes":
         return RedirectResponse("/register?error=terms", status_code=303)
     existing = (await db.execute(select(User).where(User.username == phone))).scalar_one_or_none()
     if existing: return RedirectResponse("/register?error=exists", status_code=303)
     settings = await db.scalar(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))
-    if plan_type not in {"plan1", "plan2"} or (settings and not getattr(settings, f"is_{plan_type}_active")):
+    if plan_type not in creem.PLAN_PRICES:
+        return RedirectResponse("/register?error=plan", status_code=303)
+    if registration_flow == "access":
+        plan_type = industry_plan(type, plan_type)
+    if ((registration_flow != "access" and plan_type not in {"plan1", "plan2"})
+            or (settings and plan_type in {"plan1", "plan2"} and not getattr(settings, f"is_{plan_type}_active"))):
         return RedirectResponse("/register?error=plan", status_code=303)
     total_discount = 0
     promo_duration = 0
@@ -177,7 +190,7 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
     if bot_token and chat_id:
         country_label = {"us": "США", "creem": "Creem (EUR)"}.get(billing_country, "Україна")
         if online:
-            plan_name = "Business" if plan_type == "plan1" else "Business Pro"
+            plan_name = PLAN_NAMES.get(plan_type, plan_type)
             (_, setup), (_, monthly) = creem.PLAN_PRICES[plan_type]
             msg = f"Нова заявка SafeOrbit\nБізнес: {name}\nТелефон: {phone}\n{plan_name} · Creem\nПідписка: €{monthly / 100:.2f}/міс"
             if setup:
@@ -216,13 +229,15 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
             CreemPayment.business_id == id,
         ).order_by(CreemPayment.recurring))).all()
         available = creem.charges(biz.plan_type)
-    prices = payments or available
+    prices = payments or available or (creem.advertised(biz.plan_type) if limited else ())
     setup_required = (any(not row.recurring for row in prices) if prices else biz.plan_type == "plan2")
     outstanding = next((row for row in payments if not row.paid), None)
     if not payments and available:
         outstanding = available[0]
     if status == "approved":
         title, description, label = "Ваш простір готовий.", "Підключення підтверджено. Увійдіть, щоб почати роботу.", "Активовано"
+    elif status == "expired":
+        title, description, label = "Дію підписки призупинено.", "Поновіть оплату за посиланням Creem з вашого листа про підписку.", "Потрібне поновлення"
     elif status == "rejected":
         title, description, label = "Потрібно уточнити деталі.", "Адміністратор залишив повідомлення щодо вашої заявки.", "Потребує уточнення"
     elif limited and (outstanding or not payments):
@@ -239,9 +254,9 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
         limited=limited, payment_available=bool(available) or (bool(payments) and creem.enabled()), prices=prices,
         setup_required=setup_required, setup_paid=not setup_required or any(row.paid and not row.recurring for row in payments),
         monthly_paid=any(row.paid and row.recurring for row in payments),
-        plan_name="Business" if biz.plan_type == "plan1" else "Business Pro",
-        contract_path=("/static/contract_plan2.pdf" if biz.plan_type == "plan2" else
-                       "/static/contract_plan1.pdf" if setup_required else "/static/contract_business_monthly.pdf"),
+        plan_name=PLAN_NAMES.get(biz.plan_type, "Business"),
+        plan_modules=[MODULES[module].label for module in allowed_modules(biz)[:8]],
+        contract_path=("/static/contract_plan1.pdf" if biz.plan_type == "plan1" and setup_required else creem.agreement_path(biz.plan_type)),
         documents_ready=bool(biz.nda_url and biz.contract_url), document_error=payment_error == "documents",
     ))
 
@@ -344,6 +359,8 @@ async def public_home(request: Request = None):
     campaign_attribution(request)
     return HTMLResponse(render_template(
         "marketing/home.html", public_site=PUBLIC_SITE, plans=creem.PLAN_PRICES,
+        industries=[(key, INDUSTRIES[key], [MODULES[m].label for m in INDUSTRIES[key].modules[:3]])
+                    for key in ("retail", "construction", "restaurant", "tenders", "furniture", "print", "cars", "family", "other")],
         site_verification=os.getenv("GOOGLE_SITE_VERIFICATION", "").strip(),
     ))
 
@@ -359,7 +376,7 @@ async def salon_landing(request: Request = None):
 @router.get(PRICING_PAGE, response_class=HTMLResponse)
 async def public_pricing(db: AsyncSession = Depends(get_db), request: Request = None):
     settings = await db.get(GlobalPaymentSettings, 1)
-    active_plans = {plan for plan in creem.PLAN_PRICES
+    active_plans = {plan for plan in ("plan1", "plan2")
                     if settings is None or getattr(settings, f"is_{plan}_active")}
     return HTMLResponse(render_template(
         "marketing/pricing.html", canonical=PUBLIC_SITE + PRICING_PAGE,
@@ -397,6 +414,7 @@ async def sitemap_xml():
         f'<url><loc>{PUBLIC_SITE}/</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{SALON_PAGE}</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{PRICING_PAGE}</loc></url>'
+        f'<url><loc>{PUBLIC_SITE}/maistry</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{BOOKING_TEMPLATE_PAGE}</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{SCHEDULE_AUDIT_PAGE}</loc></url></urlset>',
         media_type="application/xml",
@@ -448,7 +466,14 @@ async def login(request: Request, username: str = Form(...), password: str = For
         return RedirectResponse("/login?error=inactive", status_code=303)
     request.session.clear()
     request.session["user_id"] = user.id
-    return RedirectResponse("/superadmin" if user.role == "superadmin" else "/admin", status_code=303)
+    if user.role == "superadmin":
+        return RedirectResponse("/superadmin", status_code=303)
+    if user.role == "owner" and user.business and (
+        user.business.plan_type in {"commerce", "production", "custom"}
+        or user.business.type in {"cars", "family", "construction", "tenders", "furniture", "print"}
+    ):
+        return RedirectResponse("/workspace", status_code=303)
+    return RedirectResponse("/admin", status_code=303)
 
 
 @router.get("/logout")

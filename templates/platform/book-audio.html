@@ -1,0 +1,9 @@
+{% extends "platform/base.html" %}
+{% block title %}Голосовий запис — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">{% endblock %}
+{% block links %}<a href="/books/{{ token }}">← Сімейна книга</a>{% endblock %}
+{% block layout %}narrow-frame{% endblock %}
+{% block content %}
+<div class="page-intro"><h1>Голосовий запис</h1></div>
+<section class="platform-panel"><p>{{ filename }}</p><audio controls preload="none" src="/books/{{ token }}/asset/{{ attachment_id }}"></audio></section>
+{% endblock %}

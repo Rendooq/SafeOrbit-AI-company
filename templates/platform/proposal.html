@@ -6,6 +6,7 @@
 <div class="page-intro"><p class="platform-kicker">{{ business }}</p><h1>{{ record.title }}</h1></div>
 <section class="platform-panel">
   <h2>Додаткові роботи</h2>
+  {% if data.project %}<p class="fine">Об’єкт · {{ data.project }}</p>{% endif %}
   {% if data.description %}<p class="preserve">{{ data.description }}</p>{% endif %}
   {% if photo %}<img class="record-photo" src="/proposals/{{ record.id }}/{{ secret }}/photo" alt="Фото додаткових робіт">{% endif %}
   <div class="table-scroll"><table><thead><tr>{% for header in data.headers %}<th>{{ header }}</th>{% endfor %}</tr></thead>

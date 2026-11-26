@@ -80,12 +80,14 @@
     const data = JSON.parse(map.dataset.cutting);
     const boards = new Map();
     for (const [index, name, x, y, width, height] of data.rows) {
+      const boardWidth = data.boards?.[index]?.width || data.board_width;
+      const boardHeight = data.boards?.[index]?.height || data.board_height;
       if (!boards.has(index)) {
         const label = document.createElement("p");
         label.textContent = "№ " + index;
         const board = document.createElement("div");
         board.className = "board";
-        board.style.aspectRatio = data.board_width + " / " + data.board_height;
+        board.style.aspectRatio = boardWidth + " / " + boardHeight;
         map.append(label, board);
         boards.set(index, board);
       }
@@ -93,10 +95,10 @@
       part.className = "cut-part";
       part.title = name;
       part.textContent = name;
-      part.style.left = 100 * x / data.board_width + "%";
-      part.style.top = 100 * y / data.board_height + "%";
-      part.style.width = 100 * width / data.board_width + "%";
-      part.style.height = 100 * height / data.board_height + "%";
+      part.style.left = 100 * x / boardWidth + "%";
+      part.style.top = 100 * y / boardHeight + "%";
+      part.style.width = 100 * width / boardWidth + "%";
+      part.style.height = 100 * height / boardHeight + "%";
       boards.get(index).append(part);
     }
   }

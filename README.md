@@ -156,10 +156,22 @@ Do not commit `.env`, database files, uploads, or session secrets.
   checkout remain in the original manual flow.
 - The checkout monitor runs the downloadable Playwright scenario on a
   storefront owner's machine or CI runner. Use selectors for the cart and
-  delivery screens, stop before submitting orders, and schedule regular runs.
-  Each run reports the result and any captured failure screenshot.
+  delivery screens and stop before submitting orders. Add `--watch` and set
+  `intervalMinutes` in the configuration for recurring checks. Each run
+  reports its result and a failure screenshot when available. Workspaces with
+  Telegram notifications enabled receive a message on failure and recovery.
+- Reconciliation shows expected and received totals. Invoice comparison
+  normalizes g/kg and ml/l across pack sizes. Feed validation can save a
+  corrected XML copy using reference prices and availability. The cutting
+  tool accepts rectangular offcuts. Preflight supports revocable links for
+  clients to inspect a PDF against a print profile without saving the upload.
+- Tender comparison accepts a public Prozorro API reference and compares
+  published document revisions between saved checks. Change approvals can
+  be grouped by project. Car comparison accepts Excel or direct form entry
+  and sorts by price, mileage, or model year.
 - Family audio is private by default. Optionally configure
-  `WORKSPACE_TRANSCRIPTION_KEY` for Groq transcription. The workspace owner
+  `WORKSPACE_TRANSCRIPTION_KEY` for Groq transcription, or reuse the service's
+  configured `GROQ_API_KEY`. The workspace owner
   explicitly sends a recording for transcription or creates a revocable
   sharing link and QR codes.
 

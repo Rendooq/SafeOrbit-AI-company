@@ -139,17 +139,26 @@ def reconcile(expected, paid):
             rows.append([tracking, printable(due), printable(received), printable(due - received), ", ".join(flags)])
     difference = sum(left.values()) - sum(right.values())
     return report(["ТТН", "Очікувалось", "Перераховано", "Різниця", "Що перевірити"], rows,
-                  f"Унікальних ТТН: {len(left.keys() | right.keys())}. З розбіжностями: {len(rows)}. Різниця сум: {difference:.2f} грн.")
+                  f"Унікальних ТТН: {len(left.keys() | right.keys())}. З розбіжностями: {len(rows)}. Різниця сум: {difference:.2f} грн.",
+                  metrics=[("Очікувані виплати", f"{sum(left.values()):.2f} грн"),
+                           ("Фактично отримано", f"{sum(right.values()):.2f} грн"),
+                           ("Відправлення без виплат", str(len(left.keys() - right.keys()))),
+                           ("Виплати без відправлень", str(len(right.keys() - left.keys())))])
 
 
 def invoices(previous, current):
+    units = {"kg": ("kg", 1), "g": ("kg", 1000), "l": ("l", 1), "ml": ("l", 1000), "pcs": ("pcs", 1)}
+
     def rates(source):
         values = {}
         for name, unit, package, price, ordered in table(source, ("item", "unit", "package", "price", "ordered")):
-            key = (name.casefold(), unit.casefold())
-            if not name or unit.casefold() not in {"kg", "l", "pcs"} or key in values:
-                raise ToolError("Позиції мають бути унікальні. Одиниці: kg, l або pcs.")
-            values[key] = (name, amount(price) / amount(package, minimum=Decimal(".01")), amount(ordered))
+            if not name or unit.casefold() not in units:
+                raise ToolError("Вкажіть назву й одиницю: kg, g, l, ml або pcs.")
+            base, scale = units[unit.casefold()]
+            key = (name.casefold(), base)
+            if key in values:
+                raise ToolError("Позиції мають бути унікальні після перерахунку одиниць.")
+            values[key] = (name, amount(price) * scale / amount(package, minimum=Decimal(".01")), amount(ordered) / scale)
         return values
     old, new = rates(previous), rates(current)
     rows = []
@@ -164,6 +173,9 @@ def invoices(previous, current):
         total += delta
         percent = f"{(current_rate / previous_rate - 1) * 100:+.1f}%" if previous_rate else "—"
         rows.append([name, unit, printable(previous_rate), printable(current_rate), percent, printable(delta)])
+    for key in old.keys() - new.keys():
+        name, previous_rate, _ = old[key]
+        rows.append([name, key[1], printable(previous_rate), "—", "Відсутня в поточній накладній", "—"])
     return report(["Позиція", "Од.", "Було / од.", "Стало / од.", "Зміна", "За закуплену кількість"], rows,
                   f"Зміна витрат за порівнюваними позиціями: {total:+.2f} грн.")
 
@@ -180,7 +192,7 @@ def website_url(text):
     return text
 
 
-def feeds(raw, comparison=""):
+def feeds(raw, comparison="", repair=False):
     try:
         root = SafeXML.fromstring(raw)
     except (ElementTree.ParseError, DefusedXmlException, ValueError) as exc:
@@ -191,11 +203,26 @@ def feeds(raw, comparison=""):
         raise ToolError("Фід має містити від 1 до 5000 товарів у форматі RSS або Atom.")
     rows = []
     ids = set()
-    reference = {key: (price, availability) for key, price, availability in
-                 table(comparison, ("id", "price", "availability"))} if comparison.strip() else {}
+    availability_values = {"in_stock", "out_of_stock", "preorder", "backorder"}
+    price_pattern = re.compile(r"([0-9]+(?:[.,][0-9]{1,2})?)\s+([A-Z]{3})")
+
+    def normalized_price(price):
+        found = price_pattern.fullmatch(price)
+        return f"{amount(found[1]):.2f} {found[2]}" if found else ""
+
+    reference = {}
+    if comparison.strip():
+        for key, price, availability in table(comparison, ("id", "price", "availability")):
+            price = normalized_price(price)
+            if not key or key in reference or not price or availability not in availability_values:
+                raise ToolError("Перевірте унікальні ID, ціни з валютою та наявність у контрольній таблиці.")
+            reference[key] = (price, availability)
     required = {"id", "title", "description", "link", "image_link", "availability", "price"}
+    changed = 0
+    namespace = "{http://base.google.com/ns/1.0}"
     for index, item in enumerate(items, 1):
-        fields = {local(el.tag): (el.text or el.get("href") or "").strip() for el in item}
+        elements = {local(el.tag): el for el in item}
+        fields = {key: (el.text or el.get("href") or "").strip() for key, el in elements.items()}
         missing = sorted(key for key in required if not fields.get(key))
         errors = ["Відсутнє поле: " + key for key in missing]
         product_id = fields.get("id", "")
@@ -205,13 +232,13 @@ def feeds(raw, comparison=""):
             ids.add(product_id)
         if fields.get("price") and not re.fullmatch(r"[0-9]+(?:\.[0-9]{1,2})? [A-Z]{3}", fields["price"]):
             errors.append("Ціна має бути у форматі 199.00 UAH")
-        if fields.get("availability") and fields["availability"] not in {"in_stock", "out_of_stock", "preorder", "backorder"}:
+        if fields.get("availability") and fields["availability"] not in availability_values:
             errors.append("Некоректна доступність")
         if fields.get("condition") and fields["condition"] not in {"new", "refurbished", "used"}:
             errors.append("Некоректний стан товару")
         if product_id in reference:
             price, availability = reference[product_id]
-            if fields.get("price") != price or fields.get("availability") != availability:
+            if normalized_price(fields.get("price", "")) != price or fields.get("availability") != availability:
                 errors.append("Ціна або наявність не збігається з контрольною таблицею")
         for field in ("link", "image_link"):
             if fields.get(field):
@@ -221,9 +248,22 @@ def feeds(raw, comparison=""):
                     errors.append(f"Некоректне посилання: {field}")
         if errors:
             rows.append([product_id[:100] or f"#{index}", fields.get("title", "")[:180], " · ".join(errors)])
+        if repair:
+            price, availability = reference.get(product_id, (normalized_price(fields.get("price", "")), ""))
+            for field, value in (("price", price), ("availability", availability)):
+                if not value or fields.get(field) == value:
+                    continue
+                element = elements.get(field)
+                if element is None:
+                    element = ElementTree.SubElement(item, namespace + field)
+                element.text = value
+                changed += 1
     rows.extend([key, "", "Товар із контрольної таблиці відсутній у фіді"] for key in reference.keys() - ids)
-    return report(["ID", "Товар", "Виправити"], rows,
-                  f"Товарів перевірено: {len(items)}. Зауваження: {len(rows)}. Перевірка структури фіда.")
+    summary = f"Товарів перевірено: {len(items)}. Зауваження: {len(rows)}."
+    if repair:
+        summary += f" Виправлено полів у копії XML: {changed}. Зауваження описують вхідний фід."
+    return report(["ID", "Товар", "Виправити"], rows, summary,
+                  **({"repaired_xml": ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)} if repair else {}))
 
 
 def pdf_pages(data):
@@ -297,11 +337,16 @@ def image_resolutions(page):
     return results
 
 
-def preflight(raw, width, height, bleed, dpi="300"):
+def print_settings(width, height, bleed, dpi="300"):
     width, height, bleed = map(amount, (width, height, bleed))
     dpi = int(amount(dpi or "300", minimum=36, maximum=1200))
-    if width <= 0 or height <= 0:
-        raise ToolError("Вкажіть формат друку в міліметрах.")
+    if not (0 < width <= 10000 and 0 < height <= 10000 and 0 <= bleed <= 100):
+        raise ToolError("Вкажіть коректні розміри друку та вильоти в міліметрах.")
+    return width, height, bleed, dpi
+
+
+def preflight(raw, width, height, bleed, dpi="300"):
+    width, height, bleed, dpi = print_settings(width, height, bleed, dpi)
     millimeters = Decimal("25.4") / 72
     rows = []
     for index, page in enumerate(pdf_pages(raw), 1):
@@ -330,7 +375,7 @@ def preflight(raw, width, height, bleed, dpi="300"):
                   "Перевірено формат, вильоти та роздільність безпосередньо розміщених растрових зображень.")
 
 
-def cutting(raw, width, height, kerf):
+def cutting(raw, width, height, kerf, offcuts=""):
     width, height, kerf = map(amount, (width, height, kerf))
     if not (0 < width <= 10000 and 0 < height <= 10000 and 0 <= kerf <= 30):
         raise ToolError("Перевірте розмір плити й ширину пропилу.")
@@ -341,7 +386,15 @@ def cutting(raw, width, height, kerf):
             raise ToolError("Вкажіть від 1 до 500 деталей, цілу кількість та rotate 0 або 1.")
         parts.extend([(name, w, h, rotate == "1")] * int(count))
     parts.sort(key=lambda part: part[1] * part[2], reverse=True)
-    boards, rows = [], []
+    boards, dimensions, rows = [], [], []
+    if offcuts.strip():
+        for offcut_width, offcut_height, count in table(offcuts, ("width", "height", "qty")):
+            ow, oh, count = amount(offcut_width), amount(offcut_height), amount(count)
+            if not (0 < ow <= 10000 and 0 < oh <= 10000 and count == int(count) and 0 < count <= 100 - len(boards)):
+                raise ToolError("Укажіть до 100 залишків із коректними розмірами й цілою кількістю.")
+            for _ in range(int(count)):
+                boards.append([(Decimal(0), Decimal(0), ow, oh)])
+                dimensions.append((ow, oh, True))
     for name, w, h, rotate in parts:
         options = [(w, h, False), (h, w, True)] if rotate and w != h else [(w, h, False)]
         positions = []
@@ -359,14 +412,20 @@ def cutting(raw, width, height, kerf):
             pw, ph, rotated = choice
             board_index, rect_index = len(boards), 0
             boards.append([(Decimal(0), Decimal(0), width, height)])
+            dimensions.append((width, height, False))
         x, y, rw, rh = boards[board_index].pop(rect_index)
         remaining = [(x + pw + kerf, y, rw - pw - kerf, ph), (x, y + ph + kerf, rw, rh - ph - kerf)]
         boards[board_index].extend(rect for rect in remaining if rect[2] > 0 and rect[3] > 0)
         rows.append([board_index + 1, name, printable(x), printable(y), printable(pw), printable(ph), "Так" if rotated else "Ні"])
-    used_percent = 100 * sum(part[1] * part[2] for part in parts) / (len(boards) * width * height)
+    used_boards = {int(row[0]) for row in rows}
+    area = sum(w * h for i, (w, h, _) in enumerate(dimensions, 1) if i in used_boards)
+    used_percent = 100 * sum(part[1] * part[2] for part in parts) / area
+    used_offcuts = sum(1 for i, (_, _, offcut) in enumerate(dimensions, 1) if offcut and i in used_boards)
     return report(["Плита", "Деталь", "X, мм", "Y, мм", "Ширина", "Висота", "Повернуто"], rows,
-                  f"Плит: {len(boards)}. Деталей: {len(parts)}. Використано площі: {used_percent:.1f}%.",
-                  board_width=float(width), board_height=float(height))
+                  f"Плит: {len(used_boards)}. Залишків використано: {used_offcuts}. Деталей: {len(parts)}. Використано площі: {used_percent:.1f}%.",
+                  board_width=float(width), board_height=float(height),
+                  boards={str(i): {"width": float(w), "height": float(h), "offcut": offcut}
+                          for i, (w, h, offcut) in enumerate(dimensions, 1) if i in used_boards})
 
 
 def csv_report(headers, rows):

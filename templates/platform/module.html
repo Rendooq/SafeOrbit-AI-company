@@ -3,6 +3,7 @@
 {% block meta %}<meta name="robots" content="noindex">{% endblock %}
 {% macro table_view(data) %}
   {% if data.summary %}<p class="summary">{{ data.summary }}</p>{% endif %}
+  {% if data.metrics %}<dl class="workflow-totals">{% for label, value in data.metrics %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
   {% if data.rows %}
   <div class="table-scroll"><table><thead><tr>{% for header in data.headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
     <tbody>{% for line in data.rows %}<tr>{% for cell in line %}<td>{% if key == 'cars' and loop.first %}<a href="{{ cell }}" target="_blank" rel="noopener noreferrer">{{ cell }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody>
@@ -15,10 +16,25 @@
   <div><a class="back-link" href="/workspace">← Простір</a><h1>{{ module.label }}</h1><p>{{ module.description }}</p></div>
   {% if key == 'book' and rows %}<a class="platform-button secondary" href="/workspace/book/print">Відкрити книгу ↗</a>{% endif %}
 </header>
+{% if key == 'preflight' %}
+<details class="platform-panel record-form">
+  <summary>Створити посилання для клієнта</summary>
+  <form method="post" action="/workspace/preflight/profiles">
+    <label>Назва замовлення або формату<input name="title" maxlength="120" required></label>
+    <div class="field-grid">
+      <label>Ширина, мм<input type="number" name="width" min="1" max="10000" step="0.01" required></label>
+      <label>Висота, мм<input type="number" name="height" min="1" max="10000" step="0.01" required></label>
+      <label>Виліт, мм<input type="number" name="bleed" min="0" max="100" step="0.01" value="3" required></label>
+      <label>Мінімум ppi<input type="number" name="dpi" min="36" max="1200" value="300" required></label>
+    </div>
+    <button class="platform-button" type="submit">Створити посилання</button>
+  </form>
+</details>
+{% endif %}
 {% if key == 'checkout' %}
 <section class="platform-panel">
   <h2>Перевірки магазинів</h2>
-  <p>Запустіть браузерний сценарій на своєму комп’ютері або сервері. Тут з’являтимуться результати перевірки та проблемний крок.</p>
+  <p>Запустіть браузерний сценарій на своєму комп’ютері або сервері. Тут з’являтимуться результати, проблемний крок і доступний знімок екрана. Якщо в налаштуваннях увімкнено Telegram, зміна стану надходить у підключений чат.</p>
   <form action="/workspace/probes" method="post" class="inline-form">
     <label>Домен магазину<input name="domain" placeholder="shop.example.com" maxlength="253" required></label>
     <button class="platform-button">Створити ключ</button>
@@ -36,18 +52,19 @@
     <label>Назва<input name="title" maxlength="160" required value="{{ editing[0].title if editing else '' }}"></label>
     {% if format or key in ('extras', 'feeds') %}
       {% if format %}<p class="fine">Заголовок таблиці: <code data-no-translate>{{ format[0] }}</code></p>{% endif %}
-      {% if key == 'invoices' %}<p class="fine"><code>package</code> — розмір пакування, <code>price</code> — його ціна, <code>ordered</code> — закуплено одиниць kg, l або pcs.</p>{% endif %}
+      {% if key == 'invoices' %}<p class="fine"><code>package</code> — розмір пакування, <code>price</code> — його ціна, <code>ordered</code> — закуплена кількість в одиницях kg, g, l, ml або pcs.</p>{% endif %}
       {% if key == 'cutting' %}<p class="fine">Розміри в міліметрах. <code>rotate</code> — 1, якщо деталь можна повернути, або 0.</p>{% endif %}
       {% if key == 'extras' %}<p class="fine">Стовпці для допробіт: <code data-no-translate>item;cost</code>.</p>{% endif %}
       <label>{{ format[1] if format else ('XML фіда' if key == 'feeds' else 'Роботи та суми') }}<textarea name="first" rows="5" maxlength="450000"></textarea></label>
-      <label>Або виберіть файл<input type="file" name="first_file" accept=".csv,.tsv,.txt,.xml{{ ',.xlsx' if key == 'reconcile' else '' }}"></label>
+      <label>Або виберіть файл<input type="file" name="first_file" accept=".csv,.tsv,.txt,.xml{{ ',.xlsx' if key in ('reconcile', 'invoices', 'cutting', 'cars') else '' }}"></label>
       {% if key == 'feeds' %}
-        <label>Контрольна таблиця магазину (необов’язково)<input type="file" name="second_file" accept=".csv,.tsv,.txt"></label>
+        <label>Контрольна таблиця магазину (необов’язково)<input type="file" name="second_file" accept=".csv,.tsv,.txt,.xlsx"></label>
         <p class="fine"><code>id;price;availability</code> — фактичні ціни й наявність, щоб порівняти їх із фідом.</p>
+        <label class="check"><input type="checkbox" name="repair" value="yes"> Створити копію XML із виправленими цінами й наявністю</label>
       {% endif %}
       {% if format and format[2] %}
-      <label>{{ format[2] }}<textarea name="second" rows="5" maxlength="450000"></textarea></label>
-      <label>Або виберіть файл<input type="file" name="second_file" accept=".csv,.tsv,.txt{{ ',.xlsx' if key == 'reconcile' else '' }}"></label>
+      <label>{{ format[2] }}{% if key == 'cutting' %}<small><code>width;height;qty</code> в міліметрах</small>{% endif %}<textarea name="second" rows="5" maxlength="450000"></textarea></label>
+      <label>Або виберіть файл<input type="file" name="second_file" accept=".csv,.tsv,.txt{{ ',.xlsx' if key in ('reconcile', 'invoices', 'cutting') else '' }}"></label>
       {% endif %}
     {% endif %}
     {% if key in ('cutting', 'preflight') %}
@@ -65,14 +82,30 @@
       </label><p class="fine">До 4 МБ на файл.</p>
     {% endif %}
     {% if key == 'tender' %}
+      <label>Внутрішній ID Prozorro або посилання на запис публічного API (необов’язково)<input name="prozorro" maxlength="200" autocomplete="off"></label>
       <label>Поточні вимоги, по одній фразі в рядку<textarea name="body" maxlength="16000" required></textarea></label>
       <label>Попередній список вимог<textarea name="previous" maxlength="16000"></textarea></label>
     {% elif key in ('notes','tasks','budget','time','decisions','extras','book','files') %}
       <label>{{ 'Текст розділу' if key == 'book' else 'Деталі' }}<textarea name="body" maxlength="{{ 3000 if key == 'extras' else 12000 }}" {% if key in ('notes','decisions') %}required{% endif %}>{{ saved.get('body','') }}</textarea></label>
     {% endif %}
+    {% if key == 'cars' %}
+      <details><summary>Заповнити до трьох оголошень вручну</summary>
+        {% for index in range(1, 4) %}
+        <fieldset class="field-grid"><legend>Оголошення {{ index }}</legend>
+          <label>Посилання<input type="url" name="car_url_{{ index }}" maxlength="500"></label>
+          <label>Модель<input name="car_model_{{ index }}" maxlength="120"></label>
+          <label>Рік<input type="number" name="car_year_{{ index }}" min="1900" max="2099"></label>
+          <label>Пробіг, км<input type="number" name="car_km_{{ index }}" min="0"></label>
+          <label>Ціна, PLN<input type="number" name="car_price_{{ index }}" min="0" step="0.01"></label>
+          <label>Зауваження<input name="car_notes_{{ index }}" maxlength="500"></label>
+        </fieldset>
+        {% endfor %}
+      </details>
+      <label>Сортувати за<select name="car_priority"><option value="price">Ціною</option><option value="mileage">Пробігом</option><option value="year">Роком випуску</option></select></label>
+    {% endif %}
     {% if key == 'links' %}<label>Посилання<input type="url" name="url" maxlength="2000" value="{{ saved.get('url','') }}" required></label>{% endif %}
     {% if key == 'contacts' %}<label>Телефон або email<input name="contact" maxlength="300" value="{{ saved.get('contact','') }}" required></label>{% endif %}
-    {% if key == 'extras' %}<label>Додаткові дні<input type="number" name="days" min="0" max="365" value="0" required></label>{% endif %}
+    {% if key == 'extras' %}<label>Об’єкт<input name="project" maxlength="120" autocomplete="off"></label><label>Додаткові дні<input type="number" name="days" min="0" max="365" value="0" required></label>{% endif %}
     {% if key == 'tasks' %}<label>Термін<input type="date" name="due" value="{{ saved.get('due','') }}"></label><label class="check"><input type="checkbox" name="done" value="yes" {% if saved.get('done') %}checked{% endif %}> Виконано</label>{% endif %}
     {% if key == 'budget' %}<div class="field-grid"><label>Сума, грн<input type="number" name="value" step="0.01" min="0" required></label><label>Тип<select name="direction"><option value="expense">Витрата</option><option value="income">Дохід</option></select></label></div>{% endif %}
     {% if key == 'time' %}<div class="field-grid"><label>Години<input type="number" name="hours" step="0.01" min="0.01" required></label><label>Ставка за годину, грн<input type="number" name="rate" step="0.01" min="0" required></label></div>{% endif %}
@@ -81,11 +114,31 @@
 </details>
 {% endif %}
 {% if total is not none %}<p class="feedback">Підсумок за останніми записами <strong>{{ total }} грн</strong></p>{% endif %}
+{% if approved_projects %}
+<section class="platform-panel custom-panel">
+  <h2>Погоджені допроботи за об’єктами</h2>
+  <p class="fine">Підсумок за останніми 100 записами.</p>
+  <dl class="workflow-totals">{% for name, project in approved_projects.items() %}<div><dt>{{ name }}</dt><dd>{{ '%.2f'|format(project.amount) }} грн</dd><small>{{ project.count }} погоджено · {{ project.days }} дн.</small></div>{% endfor %}</dl>
+</section>
+{% endif %}
 <section class="records" aria-label="Збережені записи">
   {% for record,data,attachments in rows %}
     <article class="platform-panel record" id="record-{{ record.id }}">
       <div class="split-head"><h2>{{ record.title }}</h2><time>{{ record.created_at.strftime('%d.%m.%Y') }}</time></div>
       {{ table_view(data) }}
+      {% if data.print_profile %}
+      <p>Формат {{ data.print_settings[0] }} × {{ data.print_settings[1] }} мм · виліт {{ data.print_settings[2] }} мм · від {{ data.print_settings[3] }} ppi</p>
+      <a href="/maket/{{ record.id }}/{{ data.token }}" rel="noreferrer">Посилання для клієнта ↗</a>
+      {% endif %}
+      {% if data.tender_snapshot %}
+      <p><a href="{{ data.tender_snapshot.source }}" target="_blank" rel="noopener noreferrer">{{ data.tender_snapshot.code }} ↗</a> · {{ data.tender_snapshot.title }}</p>
+      <p class="fine">Змінено в Prozorro · {{ data.tender_snapshot.date }}</p>
+      {% if data.tender_changes is defined %}
+        {% if data.tender_changes %}<h4>Зміни у файлах закупівлі</h4><ul>{% for name, change in data.tender_changes %}<li>{{ change }} · {{ name }}</li>{% endfor %}</ul>
+        {% else %}<p class="fine">Змін у файлах порівняно з попередньою перевіркою немає.</p>{% endif %}
+      {% endif %}
+      {% endif %}
+      {% if key == 'cars' %}<a href="https://www.gov.pl/web/gov/sprawdz-historie-pojazdu" target="_blank" rel="noopener noreferrer">Перевірити історію авто в Польщі ↗</a>{% endif %}
       {% if data.body %}<p class="preserve">{{ data.body }}</p>{% endif %}
       {% if data.url %}<a href="{{ data.url }}" target="_blank" rel="noopener noreferrer">{{ data.url }} ↗</a>{% endif %}
       {% if data.contact %}<p>{{ data.contact }}</p>{% endif %}
@@ -95,6 +148,7 @@
       {% if key == 'checkout' %}<p class="feedback {{ 'error' if data.status == 'failed' else '' }}">{{ 'Помилка' if data.status == 'failed' else 'Успішно' }} · {{ data.ms }} мс</p>{% endif %}
       {% if key == 'cutting' %}<details><summary>Схема розкрою</summary><div data-cutting='{{ data|tojson }}' class="cutting-map"></div></details>{% endif %}
       {% if key == 'extras' %}
+        {% if data.project %}<p class="fine">Об’єкт · {{ data.project }}</p>{% endif %}
         <p>{{ {'approved':'Погоджено','declined':'Відхилено','pending':'Очікує відповіді'}[data.state] }} {{ data.responded_by|default('') }} {{ data.responded_at|default('') }}</p>
         <a href="/proposals/{{ record.id }}/{{ data.token }}">Відкрити посилання для замовника ↗</a>
       {% endif %}

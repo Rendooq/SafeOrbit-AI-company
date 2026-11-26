@@ -1,9 +1,11 @@
 """Business presets, tenant-scoped tools and constructor."""
 import base64
 import binascii
+import csv
 import hashlib
 import io
 import json
+import logging
 import os
 import re
 import secrets
@@ -12,7 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote, urlsplit
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
@@ -24,12 +26,14 @@ from database import get_db
 from dependencies import can_access_workspace, get_current_user
 from models import Business, User
 from models_platform import BookShare, CheckoutProbe, WorkspaceAttachment, WorkspaceLayout, WorkspaceRecord
-from services import workspace_tools as tools
+from services import prozorro, workspace_tools as tools
 from services.workspace_catalog import INDUSTRIES, MODULES, PLAN_NAMES, allowed_modules
+from utils.auth import AttemptLimiter
 from utils.templates import render_template
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 ACCENTS = {"violet": "Фіолетовий", "ocean": "Синій", "fern": "Зелений", "copper": "Мідний"}
 WIDTHS = {"normal": "Звичайна", "wide": "Широка"}
 SPACING = {"relaxed": "Вільні", "compact": "Компактні"}
@@ -42,10 +46,11 @@ MEDIA = {
 FORMATS = {
     "reconcile": ("ttn;amount", "Очікувані виплати", "Реєстр виплат"),
     "invoices": ("item;unit;package;price;ordered", "Попередня накладна", "Поточна накладна"),
-    "cutting": ("part;width;height;qty;rotate", "Деталі", ""),
+    "cutting": ("part;width;height;qty;rotate", "Деталі", "Залишки плит (необов’язково)"),
     "cars": ("url;model;year;km;price;notes", "Оголошення", ""),
 }
-EXPORTS = {"reconcile", "invoices", "feeds", "tender", "cutting", "preflight", "cars", "budget", "time"}
+EXPORTS = {"reconcile", "invoices", "extras", "feeds", "tender", "cutting", "preflight", "cars", "budget", "time"}
+PREFLIGHT_LIMIT = AttemptLimiter(limit=15, window=300)
 
 
 def shell(template, *, status=200, workspace_nav=False, **data):
@@ -183,28 +188,51 @@ async def input_text(form, field, *, excel=False):
 
 async def tool_result(module, form):
     if module in {"reconcile", "invoices"}:
-        return await run_in_threadpool(getattr(tools, module), await input_text(form, "first", excel=module == "reconcile"),
-                                       await input_text(form, "second", excel=module == "reconcile")), None
+        return await run_in_threadpool(getattr(tools, module), await input_text(form, "first", excel=True),
+                                       await input_text(form, "second", excel=True)), None
     if module == "feeds":
-        return await run_in_threadpool(tools.feeds, await input_text(form, "first"), await input_text(form, "second")), None
+        result = await run_in_threadpool(tools.feeds, await input_text(form, "first"), await input_text(form, "second", excel=True),
+                                         form.get("repair") == "yes")
+        xml = result.pop("repaired_xml", None)
+        return result, ("google-shopping-corrected.xml", "application/xml", xml) if xml else None
     if module in {"tender", "preflight"}:
         _, _, pdf = await uploaded(form, kinds={"pdf"})
         if module == "tender":
-            return await run_in_threadpool(tools.tender, form_text(form, "body", 16000),
-                                           form_text(form, "previous", 16000, True), pdf), None
+            result = await run_in_threadpool(tools.tender, form_text(form, "body", 16000),
+                                             form_text(form, "previous", 16000, True), pdf)
+            reference = form_text(form, "prozorro", 200, True)
+            if reference:
+                result["tender_snapshot"] = await prozorro.tender_snapshot(reference)
+            return result, None
         return await run_in_threadpool(tools.preflight, pdf, *(form.get(key) for key in ("width", "height", "bleed", "dpi"))), None
     if module == "cutting":
-        return await run_in_threadpool(tools.cutting, await input_text(form, "first"),
-                                       *(form.get(key) for key in ("width", "height", "kerf"))), None
+        return await run_in_threadpool(tools.cutting, await input_text(form, "first", excel=True),
+                                       form.get("width"), form.get("height"), form.get("kerf"),
+                                       await input_text(form, "second", excel=True)), None
     if module == "cars":
+        source = await input_text(form, "first", excel=True)
+        if not source.strip():
+            buffer = io.StringIO()
+            writer = csv.writer(buffer, delimiter=";")
+            columns = ("url", "model", "year", "km", "price", "notes")
+            writer.writerow(columns)
+            for index in range(1, 4):
+                row = [form_text(form, f"car_{column}_{index}", 500, True) for column in columns]
+                if any(row):
+                    writer.writerow(row)
+            source = buffer.getvalue()
         rows = []
-        for url, model, year, km, price, notes in tools.table(await input_text(form, "first"), ("url", "model", "year", "km", "price", "notes")):
-            if len(rows) >= 25 or not re.fullmatch(r"(19|20)[0-9]{2}", year):
-                raise tools.ToolError("Вкажіть коректний рік і до 25 оголошень.")
+        for url, model, year, km, price, notes in tools.table(source, ("url", "model", "year", "km", "price", "notes")):
+            if len(rows) >= 25 or not model or not re.fullmatch(r"(19|20)[0-9]{2}", year):
+                raise tools.ToolError("Вкажіть модель та коректний рік випуску. Максимум 25 оголошень.")
             rows.append([tools.website_url(url), model, year, str(int(tools.amount(km))), tools.printable(tools.amount(price)), notes])
-        rows.sort(key=lambda row: float(row[4]))
+        priority = form_text(form, "car_priority", 12, True)
+        sort_key, sort_label = {"price": (lambda row: float(row[4]), "ціною"),
+                                "mileage": (lambda row: int(row[3]), "пробігом"),
+                                "year": (lambda row: -int(row[2]), "роком випуску")}.get(priority, (lambda row: float(row[4]), "ціною"))
+        rows.sort(key=sort_key)
         return tools.report(["Оголошення", "Модель", "Рік", "Км", "Ціна, PLN", "Зауваження"], rows,
-                            "Порівняння за ціною. Звірте VIN, запис про пробіг і стан на огляді.",
+                            f"Порівняння за {sort_label}. Звірте VIN, запис про пробіг і стан на огляді.",
                             questions=["Czy może Pan/Pani podać VIN, numer rejestracyjny i datę pierwszej rejestracji?",
                                        "Czy są faktury za serwis i naprawy?",
                                        "Czy mogę sprawdzić samochód w niezależnym warsztacie?"]), None
@@ -215,6 +243,7 @@ async def tool_result(module, form):
             raise tools.ToolError("В одному погодженні може бути до 60 робіт.")
         return tools.report(["Робота", "Сума, грн"], rows, f"Разом: {sum(tools.amount(row[1]) for row in rows):.2f} грн",
                             token=secrets.token_urlsafe(24), state="pending", extra_days=int(tools.amount(form.get("days"), maximum=365)),
+                            project=form_text(form, "project", 120, True),
                             description=form_text(form, "body", 3000, True)), await uploaded(form, kinds={"jpg", "png"}, optional=True)
     body = form_text(form, "body", 12000, optional=module in {"links", "tasks", "contacts", "files", "budget", "time", "book"})
     data = {"body": body}
@@ -264,12 +293,21 @@ async def module_page(module, user, db, error="", status=200, editing=None):
         total = f"{sum((1 if data['direction'] == 'income' else -1) * tools.amount(data['value']) for _, data, _ in rows):.2f}"
     if module == "time":
         total = f"{sum(float(data['value']) for _, data, _ in rows):.2f}"
+    approved_projects = defaultdict(lambda: {"amount": 0, "count": 0, "days": 0})
+    if module == "extras":
+        for _, data, _ in rows:
+            if data.get("project") and data.get("state") == "approved":
+                project = approved_projects[data["project"]]
+                project["amount"] += sum(tools.amount(row[1]) for row in data["rows"])
+                project["count"] += 1
+                project["days"] += data["extra_days"]
     probes = []
     if module == "checkout":
         probes = (await db.scalars(select(CheckoutProbe).where(CheckoutProbe.business_id == user.business_id))).all()
     return shell("module", status=status, workspace_nav=True, key=module, module=MODULES[module], rows=rows, error=error,
                  format=FORMATS.get(module), export=module in EXPORTS, total=total, probes=probes, editing=editing,
-                 transcribe=bool(os.getenv("WORKSPACE_TRANSCRIPTION_KEY")) and module == "book")
+                 approved_projects=approved_projects,
+                 transcribe=bool(transcription_key()) and module == "book")
 
 
 @router.get("/workspace/module/{module}")
@@ -294,6 +332,15 @@ async def save_record(module: str, request: Request, user=Depends(workspace_user
             if record.module != module:
                 raise HTTPException(404)
         result, attachment = await tool_result(module, form)
+        if current := result.get("tender_snapshot"):
+            previous_records = (await db.scalars(select(WorkspaceRecord.data).where(
+                WorkspaceRecord.business_id == user.business_id, WorkspaceRecord.module == "tender"
+            ).order_by(WorkspaceRecord.id.desc()).limit(100))).all()
+            for stored in previous_records:
+                previous = json.loads(stored).get("tender_snapshot")
+                if previous and previous["id"] == current["id"]:
+                    result["tender_changes"] = prozorro.document_changes(previous, current)
+                    break
         if not record:
             record = WorkspaceRecord(business_id=user.business_id, module=module, title=title, data="{}")
             db.add(record)
@@ -355,6 +402,58 @@ async def export_record(record_id: int, user=Depends(workspace_user), db: AsyncS
         raise HTTPException(404)
     return Response(tools.csv_report(data["headers"], data["rows"]), media_type="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="{record.module}-{record.id}.csv"'})
+
+
+@router.post("/workspace/preflight/profiles")
+async def create_preflight_profile(request: Request, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
+    check_module("preflight", user)
+    form = await request.form()
+    try:
+        title = form_text(form, "title", 120)
+        width, height, bleed, dpi = tools.print_settings(*(form.get(key) for key in ("width", "height", "bleed", "dpi")))
+    except tools.ToolError as error:
+        return await module_page("preflight", user, db, str(error), 422)
+    data = {"print_profile": True, "token": secrets.token_urlsafe(24),
+            "print_settings": [str(width), str(height), str(bleed), dpi]}
+    profile = WorkspaceRecord(business_id=user.business_id, module="preflight", title=title, data=json.dumps(data))
+    db.add(profile)
+    await db.commit()
+    return redirect(f"/workspace/module/preflight#record-{profile.id}")
+
+
+async def shared_preflight(record_id, token, db):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32}", token):
+        raise HTTPException(404)
+    record = await db.get(WorkspaceRecord, record_id)
+    if not record or record.module != "preflight":
+        raise HTTPException(404)
+    profile = json.loads(record.data)
+    if not profile.get("print_profile") or not secrets.compare_digest(profile["token"], token):
+        raise HTTPException(404)
+    business = await db.get(Business, record.business_id)
+    if not business or not business.is_active or "preflight" not in allowed_modules(business):
+        raise HTTPException(404)
+    return record.title, profile["print_settings"]
+
+
+@router.get("/maket/{record_id}/{token}")
+async def open_preflight(record_id: int, token: str, db: AsyncSession = Depends(get_db)):
+    title, settings = await shared_preflight(record_id, token, db)
+    return shell("preflight-public", title=title, settings=settings)
+
+
+@router.post("/maket/{record_id}/{token}")
+async def check_preflight(record_id: int, token: str, request: Request, db: AsyncSession = Depends(get_db)):
+    title, settings = await shared_preflight(record_id, token, db)
+    if not PREFLIGHT_LIMIT.allow(request.client.host if request.client else "unknown"):
+        return shell("preflight-public", status=429, title=title, settings=settings,
+                     error="Забагато перевірок. Спробуйте пізніше.")
+    try:
+        _, _, pdf = await uploaded(await request.form(), kinds={"pdf"})
+        result = await run_in_threadpool(tools.preflight, pdf, *settings)
+    except tools.ToolError as error:
+        return shell("preflight-public", status=422, title=title, settings=settings, error=str(error))
+    return shell("preflight-public", title=title, settings=settings, result=result)
 
 
 async def book_page(db, business, owner=False, share=None):
@@ -450,7 +549,7 @@ async def book_qr(token: str, attachment_id: int, db: AsyncSession = Depends(get
 @router.post("/workspace/records/{record_id}/transcribe")
 async def transcribe_book(record_id: int, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
     record = await tenant_record(record_id, user, db)
-    key = os.getenv("WORKSPACE_TRANSCRIPTION_KEY", "")
+    key = transcription_key()
     if record.module != "book" or not key:
         raise HTTPException(404)
     data = json.loads(record.data)
@@ -477,6 +576,10 @@ async def transcribe_book(record_id: int, user=Depends(workspace_user), db: Asyn
                       .values(data=json.dumps(data, ensure_ascii=False)))
     await db.commit()
     return redirect(f"/workspace/module/book#record-{record.id}")
+
+
+def transcription_key():
+    return (os.getenv("WORKSPACE_TRANSCRIPTION_KEY") or os.getenv("GROQ_API_KEY") or "").strip()
 
 
 async def proposal(db, record_id, secret):
@@ -548,8 +651,21 @@ async def delete_probe(probe_id: int, user=Depends(workspace_user), db: AsyncSes
     return redirect("/workspace/module/checkout")
 
 
+async def send_checkout_alert(bot, recipients, domain, status):
+    label = "Помилка оформлення" if status == "failed" else "Оформлення знову працює"
+    async with httpx.AsyncClient(timeout=6) as client:
+        for recipient in recipients:
+            try:
+                response = await client.post(f"https://api.telegram.org/bot{bot}/sendMessage", json={
+                    "chat_id": recipient, "text": f"{label} · {domain}\nhttps://safeorbit.com.pl/workspace/module/checkout",
+                })
+                response.raise_for_status()
+            except httpx.HTTPError:
+                logger.warning("Could not deliver a checkout status notification for %s", domain)
+
+
 @router.post("/signals/checkout/{probe_id}")
-async def probe_result(probe_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def probe_result(probe_id: int, request: Request, tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     if not re.fullmatch(r"[\w-]{43}", token, flags=re.ASCII):
         raise HTTPException(401)
@@ -577,11 +693,12 @@ async def probe_result(probe_id: int, request: Request, db: AsyncSession = Depen
     except (ValueError, TypeError, KeyError, binascii.Error):
         raise HTTPException(422, "Invalid probe result.")
     await db.execute(update(Business).where(Business.id == business.id).values(id=Business.id))
-    latest = await db.scalar(select(WorkspaceRecord.created_at).where(
+    latest = (await db.execute(select(WorkspaceRecord.created_at, WorkspaceRecord.data).where(
         WorkspaceRecord.business_id == business.id, WorkspaceRecord.module == "checkout", WorkspaceRecord.title == probe.domain
-    ).order_by(WorkspaceRecord.id.desc()).limit(1))
-    if latest and latest.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc) - timedelta(seconds=25):
+    ).order_by(WorkspaceRecord.id.desc()).limit(1))).first()
+    if latest and latest.created_at.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc) - timedelta(seconds=25):
         raise HTTPException(429, "Wait at least 25 seconds between results.")
+    previous = json.loads(latest.data).get("status") if latest else "ok"
     data = json.dumps({"body": step, "status": status, "ms": result_ms})
     record = WorkspaceRecord(business_id=business.id, module="checkout", title=probe.domain, data=data)
     db.add(record)
@@ -593,4 +710,12 @@ async def probe_result(probe_id: int, request: Request, db: AsyncSession = Depen
     await db.execute(delete(WorkspaceAttachment).where(WorkspaceAttachment.record_id.in_(older)))
     await db.execute(delete(WorkspaceRecord).where(WorkspaceRecord.id.in_(older)))
     await db.commit()
+    if (previous != status and business.telegram_notifications_enabled
+            and business.telegram_notification_chat_id and business.telegram_token):
+        recipients = tuple(dict.fromkeys(
+            chat for item in business.telegram_notification_chat_id.split(",")
+            if re.fullmatch(r"-?\d{1,20}", chat := item.strip())
+        ))
+        if recipients:
+            tasks.add_task(send_checkout_alert, business.telegram_token, recipients, probe.domain, status)
     return Response(status_code=204)

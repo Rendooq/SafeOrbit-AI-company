@@ -124,7 +124,8 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    if request.url.path in {"/", "/login", "/register", "/maistry", "/workspace"} or request.url.path.startswith(("/pending-activation/", "/maistry/", "/workspace/", "/proposals/", "/books/", "/login/", "/register/")):
+    private_preview = request.url.path.startswith("/maket/")
+    if private_preview or request.url.path in {"/", "/login", "/register", "/maistry", "/workspace"} or request.url.path.startswith(("/pending-activation/", "/maistry/", "/workspace/", "/proposals/", "/books/", "/login/", "/register/")):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; "
@@ -132,7 +133,7 @@ async def add_security_headers(request: Request, call_next):
         )
     elif IS_PRODUCTION:
         response.headers["Content-Security-Policy"] = "upgrade-insecure-requests"
-    response.headers["Referrer-Policy"] = "no-referrer" if request.url.path.startswith(("/proposals/", "/books/")) else "strict-origin-when-cross-origin"
+    response.headers["Referrer-Policy"] = "no-referrer" if private_preview or request.url.path.startswith(("/proposals/", "/books/")) else "strict-origin-when-cross-origin"
     if not request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "private, no-store"
     return response

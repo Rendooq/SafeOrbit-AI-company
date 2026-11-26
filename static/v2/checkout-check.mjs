@@ -1,50 +1,86 @@
 import { readFile } from "node:fs/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, devices } from "playwright";
 
-const path = process.argv[2];
-if (!path || !process.env.SAFEORBIT_CHECK_KEY) {
-  throw new Error("Usage: SAFEORBIT_CHECK_KEY=... node checkout-check.mjs checkout.json");
+const [, , filename, option] = process.argv;
+const key = process.env.SAFEORBIT_CHECK_KEY;
+if (!filename || !key || (option && option !== "--watch")) {
+  throw new Error("Usage: SAFEORBIT_CHECK_KEY=... node checkout-check.mjs checkout.json [--watch]");
 }
-const config = JSON.parse(await readFile(path, "utf8"));
+
+const config = JSON.parse(await readFile(filename, "utf8"));
 const shop = new URL(config.url);
 const report = new URL(config.reportTo);
-if (shop.protocol !== "https:" || report.origin !== "https://safeorbit.com.pl" ||
-    !/^\/signals\/checkout\/\d+$/.test(report.pathname) || !Array.isArray(config.steps) ||
-    config.steps.length < 1 || config.steps.length > 8) {
+const interval = config.intervalMinutes ?? 15;
+if (shop.protocol !== "https:" || shop.username || shop.password ||
+    report.origin !== "https://safeorbit.com.pl" || !/^\/signals\/checkout\/\d+$/.test(report.pathname) ||
+    report.username || report.password || report.search || report.hash ||
+    !Number.isInteger(interval) || interval < 5 || interval > 1440 ||
+    !Array.isArray(config.steps) || config.steps.length < 1 || config.steps.length > 8 ||
+    !config.steps.every(step => step && ["name", "click", "expect"].every(field =>
+      typeof step[field] === "string" && step[field].trim().length && step[field].length <= 250))) {
   throw new Error("Invalid checkout configuration.");
 }
-const browser = await chromium.launch();
-const context = await browser.newContext(devices["iPhone 13"]);
-const page = await context.newPage();
-const start = Date.now();
-let status = "ok";
-let step = "Відкрити товар";
-let screenshot;
-try {
-  const result = await page.goto(shop.href, { waitUntil: "domcontentloaded", timeout: 15000 });
-  if (!result?.ok() || new URL(page.url()).origin !== shop.origin) throw new Error("Product page unavailable.");
-  for (const action of config.steps) {
-    step = String(action.name).slice(0, 160);
-    if (!action.click || !action.expect) throw new Error("A step needs a click and a success selector.");
-    await page.locator(action.click).click({ timeout: 8000 });
-    if (new URL(page.url()).origin !== shop.origin) throw new Error("Navigation left the storefront.");
-    await page.locator(action.expect).first().waitFor({ state: "visible", timeout: 8000 });
+
+async function check() {
+  const browser = await chromium.launch();
+  const started = Date.now();
+  let status = "ok";
+  let step = "Відкрити товар";
+  let screenshot;
+
+  try {
+    const context = await browser.newContext(devices["iPhone 13"]);
+    await context.route("**/*", async route => {
+      const request = route.request();
+      if (request.isNavigationRequest() && new URL(request.url()).origin !== shop.origin) {
+        await route.abort();
+      } else {
+        await route.continue();
+      }
+    });
+    const page = await context.newPage();
+    try {
+      const response = await page.goto(shop.href, {waitUntil: "domcontentloaded", timeout: 15000});
+      if (!response?.ok() || new URL(page.url()).origin !== shop.origin) throw new Error("Product page unavailable");
+      for (const action of config.steps) {
+        step = action.name.trim().slice(0, 160);
+        await page.locator(action.click).click({timeout: 8000});
+        if (new URL(page.url()).origin !== shop.origin) throw new Error("Navigation left the storefront");
+        await page.locator(action.expect).first().waitFor({state: "visible", timeout: 8000});
+      }
+    } catch {
+      status = "failed";
+      if (new URL(page.url()).origin === shop.origin) {
+        const image = await page.screenshot({timeout: 4000}).catch(() => null);
+        if (image && image.length <= 450000) screenshot = image.toString("base64");
+      }
+    }
+  } finally {
+    await browser.close();
   }
-} catch (error) {
-  status = "failed";
-  console.error(step, error.message);
-  const image = await page.screenshot({ path: "checkout-failure.png", timeout: 4000 }).catch(() => null);
-  if (image?.length <= 450000) screenshot = image.toString("base64");
+
+  const result = await fetch(report, {
+    method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(8000),
+    headers: {"authorization": "Bearer " + key, "content-type": "application/json"},
+    body: JSON.stringify({url: shop.origin, status, step, ms: Date.now() - started, screenshot}),
+  });
+  if (!result.ok) throw new Error("SafeOrbit rejected the result. HTTP " + result.status);
+  console.log(new Date().toISOString(), status, step);
+  return status === "ok";
 }
-await browser.close();
-const result = await fetch(report, {
-  method: "POST",
-  signal: AbortSignal.timeout(8000),
-  headers: {
-    authorization: "Bearer " + process.env.SAFEORBIT_CHECK_KEY,
-    "content-type": "application/json",
-  },
-  body: JSON.stringify({ url: shop.origin, status, step, ms: Date.now() - start, screenshot }),
-});
-if (!result.ok) throw new Error("SafeOrbit rejected the result. HTTP " + result.status);
-process.exitCode = status === "ok" ? 0 : 1;
+
+if (option === "--watch") {
+  while (true) {
+    try {
+      await check();
+    } catch (error) {
+      console.error("Could not finish checkout monitoring:", error.message);
+    }
+    await sleep(interval * 60 * 1000);
+  }
+} else {
+  process.exitCode = await check() ? 0 : 1;
+}

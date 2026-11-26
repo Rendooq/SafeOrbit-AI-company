@@ -1,0 +1,21 @@
+{% extends "platform/base.html" %}
+{% block title %}Перевірка макета — {{ title }}{% endblock %}
+{% block meta %}<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">{% endblock %}
+{% block layout %}book-frame{% endblock %}
+{% block content %}
+<header class="page-intro"><p class="platform-kicker">Перевірка PDF</p><h1>{{ title }}</h1></header>
+<section class="platform-panel">
+  <p>Формат {{ settings[0] }} × {{ settings[1] }} мм, виліт {{ settings[2] }} мм, від {{ settings[3] }} ppi.</p>
+  <form method="post" enctype="multipart/form-data">
+    <label>Макет у форматі PDF до 4 МБ<input name="file" type="file" accept=".pdf,application/pdf" required></label>
+    <button type="submit" class="platform-button">Перевірити макет</button>
+  </form>
+  {% if result %}
+  <section class="access-features">
+    <h2>Результат перевірки</h2><p>{{ result.summary }}</p>
+    <div class="table-scroll"><table><thead><tr>{% for label in result.headers %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in result.rows %}<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}

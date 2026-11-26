@@ -116,7 +116,8 @@ def test_tender_revisions_project_totals_and_car_comparison():
                         files={"file": ("bid.pdf", content.getvalue(), "application/pdf")}, headers=csrf(owner))
                     assert response.status_code == 303, response.text
             tender = await owner.get(path)
-            assert "Оновлено · Revised.pdf" in tender.text and snapshot["code"] in tender.text
+            tender_text = re.sub(r"<[^>]+>", "", tender.text)
+            assert "Оновлено · Revised.pdf" in tender_text and snapshot["code"] in tender_text
 
             car_path = "/workspace/module/cars"
             cars = await post(owner, car_path, {"title": "Car shortlist", "car_priority": "mileage",

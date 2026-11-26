@@ -1,7 +1,9 @@
 {% from "platform/account-icon.html" import icon %}
 {% set can_manage = appointment.appointment_time > now and appointment.status == 'confirmed' %}
 {% set can_review = appointment.appointment_time <= now and appointment.status == 'completed' %}
-<article class="platform-panel customer-visit">
+{% set featured = highlight_visit and can_manage %}
+<article class="platform-panel customer-visit{{ ' customer-visit-featured' if featured else '' }}">
+  {% if featured %}<p class="customer-visit-label">{{ icon('visits') }} <span>Найближчий візит</span></p>{% endif %}
   <div class="customer-visit-head">
     <time class="customer-visit-date" datetime="{{ appointment.appointment_time.isoformat() }}">
       <strong>{{ appointment.appointment_time.strftime('%d.%m') }}</strong>

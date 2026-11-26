@@ -184,6 +184,7 @@
     ["Оцінка", "Rating", "Оценка", "Ocena", "评分"],
     ["Оберіть оцінку", "Choose a rating", "Выберите оценку", "Wybierz ocenę", "请选择评分"],
     ["Скасувати цей візит?", "Cancel this visit?", "Отменить этот визит?", "Anulować tę wizytę?", "取消这次预约？"],
+    ["Найближчий візит", "Next visit", "Ближайший визит", "Najbliższa wizyta", "下一次预约"],
   ];
   const catalog = window.SafeOrbitLocaleCatalog || (window.SafeOrbitLocaleCatalog = {});
   for (const [source, en, ru, pl, zh] of copy) catalog[source] = { en, ru, pl, zh };

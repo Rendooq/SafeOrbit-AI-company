@@ -2,14 +2,14 @@
 {% from "platform/account-icon.html" import icon %}
 {% block title %}{{ sections[section] }} — SafeOrbit{% endblock %}
 {% block meta %}<meta name="robots" content="noindex">{% endblock %}
-{% block styles %}<link rel="stylesheet" href="/static/v2/customer-account.css?v=2">{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/static/v2/customer-account.css?v=3">{% endblock %}
 {% block surface %}customer-account{% endblock %}
 {% block layout %}customer-frame{% endblock %}
 {% block links %}<a href="/maistry"><span>Каталог</span> {{ icon('arrow') }}</a>{% endblock %}
 {% block content %}
 {% set is_overview = section == 'overview' %}
 <div class="customer-layout">
-  <aside class="platform-panel customer-sidebar">
+  <aside class="customer-sidebar">
     <a class="customer-person" href="/maistry/account/settings">
       {% if avatar %}<img class="customer-avatar" width="54" height="54" alt="" src="/maistry/account/avatar">
       {% else %}<span class="customer-avatar" data-i18n-ignore aria-hidden="true">{{ client.name[:1]|upper }}</span>{% endif %}
@@ -32,8 +32,7 @@
     {% if done in messages %}<p class="feedback" role="status">{{ messages[done] }}</p>{% endif %}
 
     {% if is_overview %}
-    <header class="customer-welcome">
-      <p>Кабінет клієнта</p>
+    <header class="customer-heading customer-welcome">
       <h1><span>Вітаємо</span>, <span data-i18n-ignore>{{ client.name.split()[0] if client.name.split() else client.name }}</span>!</h1>
       <a href="/maistry" class="platform-button customer-welcome-button"><span>Знайти майстра</span> {{ icon('arrow') }}</a>
     </header>
@@ -50,24 +49,37 @@
       {% if is_overview %}
       <div class="customer-region-head">
         <h2>Ваші візити</h2>
-        <a class="customer-link" href="/maistry/account/visits"><span>Усі візити</span> {{ icon('arrow') }}</a>
+        {% if rows %}<a class="customer-link" href="/maistry/account/visits"><span>Усі візити</span> {{ icon('arrow') }}</a>{% endif %}
       </div>
       {% endif %}
       <div class="customer-stack">
         {% for appointment, business, specialist, review in rows %}
+          {% set highlight_visit = is_overview and loop.first %}
           {% include "platform/account-visit.html" %}
         {% else %}
-          <div class="platform-panel customer-empty">
+          <div class="platform-panel customer-empty customer-empty-visits">
             <span class="customer-spot">{{ icon('visits') }}</span>
-            <h2>Візитів поки немає</h2>
-            <a class="customer-link" href="/maistry"><span>Перейти до каталогу</span> {{ icon('arrow') }}</a>
+            <div>
+              <h3>Візитів поки немає</h3>
+              <a class="customer-link" href="/maistry"><span>Перейти до каталогу</span> {{ icon('arrow') }}</a>
+            </div>
           </div>
         {% endfor %}
       </div>
     </section>
     {% endif %}
 
-    {% if is_overview %}<div class="customer-rail">{% endif %}
+    {% if is_overview %}
+    <div class="customer-rail">
+      <section class="customer-region" aria-labelledby="overview-vouchers">
+        <div class="customer-region-head"><h2 id="overview-vouchers">Ваучери</h2></div>
+        <a class="customer-voucher-link" href="/maistry/account/vouchers#add-voucher">
+          <span class="customer-spot">{{ icon('vouchers') }}</span>
+          <strong>Додати ваучер</strong>
+          {{ icon('arrow') }}
+        </a>
+      </section>
+    {% endif %}
     {% if is_overview or section == 'favorites' %}
     <section class="customer-region" aria-label="Обране">
       {% if is_overview %}
@@ -103,14 +115,7 @@
       </div>
     </section>
     {% endif %}
-    {% if is_overview %}
-      <a class="customer-voucher-link" href="/maistry/account/vouchers#add-voucher">
-        <span class="customer-spot">{{ icon('vouchers') }}</span>
-        <span><strong>Ваучери</strong><small>Додати ваучер</small></span>
-        {{ icon('arrow') }}
-      </a>
-    </div></div>
-    {% endif %}
+    {% if is_overview %}</div></div>{% endif %}
 
     {% if section == 'reviews' %}
     <section class="customer-stack" aria-label="Відгуки">

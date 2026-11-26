@@ -2,7 +2,8 @@
   "use strict";
   for (const form of document.querySelectorAll("[data-confirm]")) {
     form.addEventListener("submit", (event) => {
-      if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+      const message = window.SafeOrbitI18N?.translate(form.dataset.confirm) ?? form.dataset.confirm;
+      if (!window.confirm(message)) event.preventDefault();
     });
   }
   for (const button of document.querySelectorAll("[data-print]")) {

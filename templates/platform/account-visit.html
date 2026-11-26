@@ -1,22 +1,41 @@
-<article class="platform-panel record customer-visit">
-  <div class="split-head"><h3 data-i18n-ignore>{{ appointment.service_type }}</h3><span class="badge">{{ statuses.get(appointment.status, appointment.status) }}</span></div>
-  <p><a href="/maistry/zaklad/{{ appointment.business_id }}" data-i18n-ignore>{{ business }}</a>{% if specialist %} · <span data-i18n-ignore>{{ specialist }}</span>{% endif %}</p>
-  <p><strong>{{ appointment.appointment_time.strftime('%d.%m.%Y · %H:%M') }}</strong> · {{ '%g'|format(appointment.cost) }} грн</p>
-  {% if appointment.appointment_time > now and appointment.status == 'confirmed' %}
-    <div class="record-actions">
-      <a href="/maistry/visits/{{ appointment.id }}/move">Перенести</a>
-      <form action="/maistry/visits/{{ appointment.id }}/cancel" method="post" data-confirm="Скасувати цей візит?"><button class="text-button danger">Скасувати</button></form>
+{% from "platform/account-icon.html" import icon %}
+{% set can_manage = appointment.appointment_time > now and appointment.status == 'confirmed' %}
+{% set can_review = appointment.appointment_time <= now and appointment.status == 'completed' %}
+<article class="platform-panel customer-visit">
+  <div class="customer-visit-head">
+    <time class="customer-visit-date" datetime="{{ appointment.appointment_time.isoformat() }}">
+      <strong>{{ appointment.appointment_time.strftime('%d.%m') }}</strong>
+      <span>{{ appointment.appointment_time.strftime('%H:%M') }}</span>
+      <span class="sr-only">{{ appointment.appointment_time.year }}</span>
+    </time>
+    <div class="customer-visit-title">
+      <h3 data-i18n-ignore>{{ appointment.service_type }}</h3>
+      <p class="fine"><a href="/maistry/zaklad/{{ appointment.business_id }}" data-i18n-ignore>{{ business }}</a>{% if specialist %} · <span data-i18n-ignore>{{ specialist }}</span>{% endif %}</p>
     </div>
-  {% elif appointment.appointment_time <= now and appointment.status == 'completed' %}
-    {% if review %}<p>Ваша оцінка {{ review.rating }} / 5 ★</p>
+    <div class="customer-visit-meta">
+      <span class="badge" data-visit-status="{{ appointment.status }}">{{ statuses.get(appointment.status, appointment.status) }}</span>
+      <strong>{{ '%g'|format(appointment.cost) }} грн</strong>
+    </div>
+  </div>
+  {% if can_manage %}
+  <div class="customer-visit-actions">
+    <a class="customer-link" href="/maistry/visits/{{ appointment.id }}/move"><span>Перенести</span> {{ icon('arrow') }}</a>
+    <form action="/maistry/visits/{{ appointment.id }}/cancel" method="post" data-confirm="Скасувати цей візит?"><button type="submit" class="text-button danger">Скасувати</button></form>
+  </div>
+  {% elif can_review %}
+  <div class="customer-visit-actions">
+    {% if review %}
+    <span class="customer-rating"><span>Ваша оцінка</span> {{ review.rating }} / 5 <span aria-hidden="true">★</span></span>
     {% else %}
-      <details><summary>Залишити відгук</summary>
-        <form action="/maistry/visits/{{ appointment.id }}/review" method="post">
-          <label>Оцінка<select name="rating" required><option value="">Оберіть оцінку</option>{% for n in range(5,0,-1) %}<option>{{ n }}</option>{% endfor %}</select></label>
-          <label>Коментар<textarea name="comment" maxlength="1200" rows="3"></textarea></label>
-          <button class="platform-button">Опублікувати відгук</button>
-        </form>
-      </details>
+    <details>
+      <summary>Залишити відгук</summary>
+      <form action="/maistry/visits/{{ appointment.id }}/review" method="post">
+        <label>Оцінка<select name="rating" required><option value="">Оберіть оцінку</option>{% for n in range(5,0,-1) %}<option>{{ n }}</option>{% endfor %}</select></label>
+        <label>Коментар<textarea name="comment" maxlength="1200" rows="3"></textarea></label>
+        <button type="submit" class="platform-button">Опублікувати відгук</button>
+      </form>
+    </details>
     {% endif %}
+  </div>
   {% endif %}
 </article>

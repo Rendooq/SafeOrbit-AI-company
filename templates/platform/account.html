@@ -1,135 +1,213 @@
 {% extends "platform/base.html" %}
+{% from "platform/account-icon.html" import icon %}
 {% block title %}{{ sections[section] }} — SafeOrbit{% endblock %}
 {% block meta %}<meta name="robots" content="noindex">{% endblock %}
-{% block styles %}<link rel="stylesheet" href="/static/v2/customer-account.css?v=1">{% endblock %}
-{% block links %}<a href="/maistry">Знайти майстра</a>{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/static/v2/customer-account.css?v=2">{% endblock %}
+{% block surface %}customer-account{% endblock %}
+{% block layout %}customer-frame{% endblock %}
+{% block links %}<a href="/maistry"><span>Каталог</span> {{ icon('arrow') }}</a>{% endblock %}
 {% block content %}
+{% set is_overview = section == 'overview' %}
 <div class="customer-layout">
   <aside class="platform-panel customer-sidebar">
     <a class="customer-person" href="/maistry/account/settings">
       {% if avatar %}<img class="customer-avatar" width="54" height="54" alt="" src="/maistry/account/avatar">
-      {% else %}<span class="customer-avatar" aria-hidden="true">{{ client.name[:1]|upper }}</span>{% endif %}
+      {% else %}<span class="customer-avatar" data-i18n-ignore aria-hidden="true">{{ client.name[:1]|upper }}</span>{% endif %}
       <span class="customer-person-details"><strong data-i18n-ignore>{{ client.name }}</strong><small>{{ client.phone }}</small></span>
     </a>
     <nav class="customer-nav" aria-label="Кабінет клієнта">
       {% for key,label in sections.items() %}
-      <a href="{{ '/maistry/account' if key == 'overview' else '/maistry/account/' ~ key }}" {% if key == section %}aria-current="page"{% endif %}>{{ label }}</a>
+      <a href="{{ '/maistry/account' if key == 'overview' else '/maistry/account/' ~ key }}"{% if key == section %} aria-current="page"{% endif %}>
+        {{ icon(key) }} <span>{{ label }}</span>
+      </a>
       {% endfor %}
     </nav>
-    <form action="/maistry/logout" method="post"><button type="submit" class="text-button">Вийти</button></form>
+    <form class="customer-logout" action="/maistry/logout" method="post">
+      <button type="submit" class="text-button">{{ icon('logout') }} <span>Вийти</span></button>
+    </form>
   </aside>
+
   <div class="customer-main">
     {% set messages = {'booked':'Візит підтверджено.','moved':'Візит перенесено.','cancelled':'Візит скасовано.','review':'Дякуємо за відгук.','profile':'Ім’я збережено.','avatar':'Фото оновлено.','password':'Пароль змінено.','voucher':'Ваучер додано.'} %}
     {% if done in messages %}<p class="feedback" role="status">{{ messages[done] }}</p>{% endif %}
-    <header class="customer-heading {{ 'customer-welcome' if section == 'overview' else '' }}">
-      {% if section == 'overview' %}
-      <h1><span>Вітаємо</span>, <span data-i18n-ignore>{{ client.name.split()[0] if client.name.split() else client.name }}</span>!</h1>
-      <a href="/maistry" class="platform-button secondary">Знайти майстра ↗</a>
-      {% else %}<h1>{{ sections[section] }}</h1>{% endif %}
-    </header>
 
-    {% if section in ('overview','visits') %}
-      <section class="customer-region" aria-label="Візити">
-        {% if section == 'overview' %}<div class="customer-region-head"><h2>Ваші візити</h2><a href="/maistry/account/visits">Усі візити ↗</a></div>{% endif %}
-        <div class="records">
+    {% if is_overview %}
+    <header class="customer-welcome">
+      <p>Кабінет клієнта</p>
+      <h1><span>Вітаємо</span>, <span data-i18n-ignore>{{ client.name.split()[0] if client.name.split() else client.name }}</span>!</h1>
+      <a href="/maistry" class="platform-button customer-welcome-button"><span>Знайти майстра</span> {{ icon('arrow') }}</a>
+    </header>
+    {% else %}
+    <header class="customer-heading">
+      <div class="customer-heading-icon">{{ icon(section) }}</div>
+      <h1>{{ sections[section] }}</h1>
+    </header>
+    {% endif %}
+
+    {% if is_overview %}<div class="customer-dashboard">{% endif %}
+    {% if is_overview or section == 'visits' %}
+    <section class="customer-region" aria-label="Візити">
+      {% if is_overview %}
+      <div class="customer-region-head">
+        <h2>Ваші візити</h2>
+        <a class="customer-link" href="/maistry/account/visits"><span>Усі візити</span> {{ icon('arrow') }}</a>
+      </div>
+      {% endif %}
+      <div class="customer-stack">
         {% for appointment, business, specialist, review in rows %}
           {% include "platform/account-visit.html" %}
         {% else %}
-          <div class="platform-panel"><h2>Візитів поки немає</h2><a href="/maistry">Перейти до каталогу ↗</a></div>
+          <div class="platform-panel customer-empty">
+            <span class="customer-spot">{{ icon('visits') }}</span>
+            <h2>Візитів поки немає</h2>
+            <a class="customer-link" href="/maistry"><span>Перейти до каталогу</span> {{ icon('arrow') }}</a>
+          </div>
         {% endfor %}
-        </div>
-      </section>
+      </div>
+    </section>
     {% endif %}
 
-    {% if section in ('overview','favorites') %}
-      <section class="customer-region" aria-label="Обране">
-        {% if section == 'overview' %}<div class="customer-region-head"><h2>Обрані заклади</h2><a href="/maistry/account/favorites">Дивитися обране ↗</a></div>{% endif %}
-        <div class="customer-favorites">
+    {% if is_overview %}<div class="customer-rail">{% endif %}
+    {% if is_overview or section == 'favorites' %}
+    <section class="customer-region" aria-label="Обране">
+      {% if is_overview %}
+      <div class="customer-region-head">
+        <h2>Обрані заклади</h2>
+        {% if saved %}<a class="customer-link" href="/maistry/account/favorites"><span>Усі заклади</span> {{ icon('arrow') }}</a>{% endif %}
+      </div>
+      {% endif %}
+      <div class="customer-favorites {{ 'customer-favorites-compact' if is_overview else '' }}">
         {% for item in saved %}
-          <article class="platform-panel favorite-entry">
-            <a class="favorite-photo" href="/maistry/zaklad/{{ item.id }}" aria-label="{{ item.name }}">
-              {% if item.photo %}<img loading="lazy" width="310" height="155" src="/maistry/photo/{{ item.photo }}" alt="">
-              {% else %}<span aria-hidden="true">{{ item.name[:1]|upper }}</span>{% endif %}
-            </a>
-            <div><h3><a href="/maistry/zaklad/{{ item.id }}" data-i18n-ignore>{{ item.name }}</a></h3><p class="fine" data-i18n-ignore>{{ item.city }}, {{ item.address }}</p>
+        <article class="platform-panel favorite-entry">
+          <a class="favorite-photo" href="/maistry/zaklad/{{ item.id }}" aria-label="{{ item.name }}">
+            {% if item.photo %}<img loading="lazy" width="310" height="155" src="/maistry/photo/{{ item.photo }}" alt="">
+            {% else %}<span data-i18n-ignore aria-hidden="true">{{ item.name[:1]|upper }}</span>{% endif %}
+          </a>
+          <div class="favorite-details">
+            <h3><a href="/maistry/zaklad/{{ item.id }}" data-i18n-ignore>{{ item.name }}</a></h3>
+            <p class="fine" data-i18n-ignore>{{ item.city }}, {{ item.address }}</p>
             {% if section == 'favorites' %}
-              <form action="/maistry/account/favorites/{{ item.id }}/remove" method="post"><button type="submit" class="text-button">Видалити зі збережених</button></form>
-            {% endif %}</div>
-          </article>
-        {% else %}<div class="platform-panel customer-empty"><p>Збережених закладів поки немає</p><a href="/maistry">Перейти до каталогу ↗</a></div>{% endfor %}
+            <form action="/maistry/account/favorites/{{ item.id }}/remove" method="post">
+              <button type="submit" class="text-button">{{ icon('favorites') }} <span>Видалити зі збережених</span></button>
+            </form>
+            {% endif %}
+          </div>
+        </article>
+        {% else %}
+        <div class="platform-panel customer-empty {{ 'customer-empty-compact' if is_overview else '' }}">
+          <span class="customer-spot customer-spot-warm">{{ icon('favorites') }}</span>
+          <p>Збережених закладів поки немає</p>
+          {% if not is_overview %}<a class="customer-link" href="/maistry"><span>Перейти до каталогу</span> {{ icon('arrow') }}</a>{% endif %}
         </div>
-      </section>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+    {% if is_overview %}
+      <a class="customer-voucher-link" href="/maistry/account/vouchers#add-voucher">
+        <span class="customer-spot">{{ icon('vouchers') }}</span>
+        <span><strong>Ваучери</strong><small>Додати ваучер</small></span>
+        {{ icon('arrow') }}
+      </a>
+    </div></div>
     {% endif %}
 
     {% if section == 'reviews' %}
-      <section class="records" aria-label="Відгуки">
+    <section class="customer-stack" aria-label="Відгуки">
       {% for appointment,business,specialist,review in rows %}
-        <article class="platform-panel record">
-          <div class="split-head"><h2 data-i18n-ignore>{{ business }}</h2><time>{{ review.created_at.strftime('%d.%m.%Y') }}</time></div>
-          <p><span class="customer-rating" aria-hidden="true">{{ '★' * review.rating }}</span> {{ review.rating }} / 5</p>
-          <p class="fine" data-i18n-ignore>{{ appointment.service_type }}{% if specialist %} · {{ specialist }}{% endif %}</p>
-          {% if review.comment %}<p class="preserve" data-i18n-ignore>{{ review.comment }}</p>{% endif %}
-          <a href="/maistry/zaklad/{{ appointment.business_id }}">До закладу ↗</a>
-        </article>
-      {% else %}<div class="platform-panel"><p>Ваших відгуків поки немає.</p><a href="/maistry/account/visits">Мої візити ↗</a></div>{% endfor %}
-      </section>
+      <article class="platform-panel customer-review">
+        <div class="customer-card-heading">
+          <span class="customer-spot customer-spot-warm">{{ icon('reviews') }}</span>
+          <div><h2 data-i18n-ignore>{{ business }}</h2><p class="fine" data-i18n-ignore>{{ appointment.service_type }}{% if specialist %} · {{ specialist }}{% endif %}</p></div>
+          <time datetime="{{ review.created_at.date().isoformat() }}">{{ review.created_at.strftime('%d.%m.%Y') }}</time>
+        </div>
+        <p class="customer-rating"><span aria-hidden="true">{{ '★' * review.rating }}</span> <strong>{{ review.rating }} / 5</strong></p>
+        {% if review.comment %}<p class="preserve" data-i18n-ignore>{{ review.comment }}</p>{% endif %}
+        <a class="customer-link" href="/maistry/zaklad/{{ appointment.business_id }}"><span>До закладу</span> {{ icon('arrow') }}</a>
+      </article>
+      {% else %}
+      <div class="platform-panel customer-empty">
+        <span class="customer-spot customer-spot-warm">{{ icon('reviews') }}</span>
+        <h2>Ваших відгуків поки немає.</h2>
+        <a class="customer-link" href="/maistry/account/visits"><span>Мої візити</span> {{ icon('arrow') }}</a>
+      </div>
+      {% endfor %}
+    </section>
     {% endif %}
 
     {% if section == 'vouchers' %}
-      <section class="platform-panel">
+    <section class="platform-panel customer-claim" id="add-voucher">
+      <div class="customer-card-heading">
+        <span class="customer-spot">{{ icon('vouchers') }}</span>
         <h2>Додати ваучер</h2>
-        <p>Введіть код, який отримали від закладу. Під час запису в цьому закладі оберіть ваучер, щоб застосувати знижку.</p>
-        <form class="inline-form" action="/maistry/account/vouchers/claim" method="post">
-          <label>Код ваучера<input name="code" maxlength="42" autocomplete="off" autocapitalize="characters" spellcheck="false" required></label>
-          <button type="submit" class="platform-button">Додати ваучер</button>
-        </form>
-      </section>
-      <section class="records" aria-label="Мої ваучери">
-      {% for voucher,business,state,is_listed in wallet %}
+      </div>
+      <p>Введіть код, який отримали від закладу. Під час запису в цьому закладі оберіть ваучер, щоб застосувати знижку.</p>
+      <form class="customer-claim-form" action="/maistry/account/vouchers/claim" method="post">
+        <label>Код ваучера<input name="code" maxlength="42" autocomplete="off" autocapitalize="characters" spellcheck="false" required></label>
+        <button type="submit" class="platform-button">Додати ваучер</button>
+      </form>
+    </section>
+    <section class="customer-region customer-wallet">
+      <h2>Мої ваучери</h2>
+      <div class="customer-wallet-grid">
+        {% for voucher,business,state,is_listed in wallet %}
         <article class="platform-panel customer-voucher">
-          <div class="split-head"><h2 data-i18n-ignore>{{ voucher.title }}</h2><span class="badge">{{ state }}</span></div>
-          <p class="customer-voucher-value">{{ '%g'|format(voucher.cents / 100) }} грн</p>
-          <p data-i18n-ignore>{{ business }}</p>
-          <p><span>Діє до</span> {{ voucher.expires_on.strftime('%d.%m.%Y') }} · ••••{{ voucher.suffix }}</p>
-          {% if is_listed and state == 'Доступний' %}<a href="/maistry/zaklad/{{ voucher.business_id }}">Записатися до закладу ↗</a>{% endif %}
+          <div class="customer-ticket-top">
+            <div><h3 data-i18n-ignore>{{ voucher.title }}</h3><p data-i18n-ignore>{{ business }}</p></div>
+            <span class="badge">{{ state }}</span>
+          </div>
+          <strong class="customer-voucher-value">{{ '%g'|format(voucher.cents / 100) }} <span>грн</span></strong>
+          <div class="customer-ticket-foot">
+            <p><span>Діє до</span> {{ voucher.expires_on.strftime('%d.%m.%Y') }} <span data-i18n-ignore>· ••••{{ voucher.suffix }}</span></p>
+            {% if is_listed and state == 'Доступний' %}<a class="customer-link" href="/maistry/zaklad/{{ voucher.business_id }}"><span>Записатися до закладу</span> {{ icon('arrow') }}</a>{% endif %}
+          </div>
         </article>
-      {% else %}<p class="fine">Додані ваучери з’являться тут.</p>{% endfor %}
-      </section>
+        {% else %}
+        <div class="platform-panel customer-empty customer-empty-compact">
+          <span class="customer-spot">{{ icon('vouchers') }}</span><p>Додані ваучери з’являться тут.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
     {% endif %}
 
     {% if section == 'settings' %}
-      <div class="records">
-        <section class="platform-panel">
-          <h2>Особисті дані</h2>
-          <form action="/maistry/account/settings/profile" method="post">
-            <label>Ім’я та прізвище<input name="name" maxlength="120" autocomplete="name" value="{{ client.name }}" required></label>
-            <label>Номер телефону<input value="{{ client.phone }}" type="tel" readonly></label>
-            <button class="platform-button" type="submit">Зберегти профіль</button>
-          </form>
-        </section>
-        <section class="platform-panel">
-          <h2>Фото профілю</h2>
-          <form action="/maistry/account/settings/avatar" method="post" enctype="multipart/form-data">
-            <label>JPG або PNG до 4 МБ<input type="file" name="file" accept="image/jpeg,image/png" required></label>
-            <button class="platform-button secondary" type="submit">Завантажити фото</button>
-          </form>
-          {% if avatar %}<form action="/maistry/account/settings/avatar" method="post"><button class="text-button danger" name="remove" value="yes">Видалити фото</button></form>{% endif %}
-        </section>
-        <section class="platform-panel">
-          <h2>Змінити пароль</h2>
-          <form action="/maistry/account/settings/password" method="post">
-            <label>Поточний пароль<input name="current_password" type="password" maxlength="1024" autocomplete="current-password" required></label>
-            <label>Новий пароль<input name="new_password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
-            <label>Повторіть новий пароль<input name="repeat_password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
-            <button class="platform-button secondary" type="submit">Змінити пароль</button>
-          </form>
-        </section>
-        <section class="platform-panel">
-          <h2>Мова та вигляд</h2>
-          <p class="fine">Ці налаштування зберігаються у вашому браузері.</p>
-          <div class="record-actions">{% include "partials/language-select.html" %}{% include "partials/theme-toggle.html" %}</div>
-        </section>
-      </div>
+    <div class="customer-settings">
+      <section class="platform-panel customer-setting">
+        <div class="customer-card-heading"><span class="customer-spot">{{ icon('user') }}</span><h2>Особисті дані</h2></div>
+        <form action="/maistry/account/settings/profile" method="post">
+          <label>Ім’я та прізвище<input name="name" maxlength="120" autocomplete="name" value="{{ client.name }}" required></label>
+          <label>Номер телефону<input value="{{ client.phone }}" type="tel" readonly></label>
+          <button class="platform-button" type="submit">Зберегти профіль</button>
+        </form>
+      </section>
+      <section class="platform-panel customer-setting">
+        <div class="customer-card-heading"><span class="customer-spot customer-spot-warm">{{ icon('camera') }}</span><h2>Фото профілю</h2></div>
+        <form action="/maistry/account/settings/avatar" method="post" enctype="multipart/form-data">
+          <label>JPG або PNG до 4 МБ<input type="file" name="file" accept="image/jpeg,image/png" required></label>
+          <button class="platform-button secondary" type="submit">Завантажити фото</button>
+        </form>
+        {% if avatar %}
+        <form class="customer-photo-remove" action="/maistry/account/settings/avatar" method="post">
+          <button class="text-button danger" name="remove" value="yes">Видалити фото</button>
+        </form>
+        {% endif %}
+      </section>
+      <section class="platform-panel customer-setting">
+        <div class="customer-card-heading"><span class="customer-spot">{{ icon('lock') }}</span><h2>Змінити пароль</h2></div>
+        <form action="/maistry/account/settings/password" method="post">
+          <label>Поточний пароль<input name="current_password" type="password" maxlength="1024" autocomplete="current-password" required></label>
+          <label>Новий пароль<input name="new_password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
+          <label>Повторіть новий пароль<input name="repeat_password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
+          <button class="platform-button secondary" type="submit">Змінити пароль</button>
+        </form>
+      </section>
+      <section class="platform-panel customer-setting">
+        <div class="customer-card-heading"><span class="customer-spot customer-spot-warm">{{ icon('settings') }}</span><h2>Мова та вигляд</h2></div>
+        <p class="fine">Ці налаштування зберігаються у вашому браузері.</p>
+        <div class="customer-preferences">{% include "partials/language-select.html" %}{% include "partials/theme-toggle.html" %}</div>
+      </section>
+    </div>
     {% endif %}
   </div>
 </div>

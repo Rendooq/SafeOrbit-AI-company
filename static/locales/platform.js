@@ -167,6 +167,23 @@
     ["Термін минув", "Expired", "Срок истёк", "Wygasł", "已过期"],
     ["Застосовано до візиту", "Applied to a visit", "Применён к визиту", "Użyty przy rezerwacji", "已用于预约"],
     ["Ваучер", "Voucher", "Ваучер", "Voucher", "优惠券"],
+    ["Усі візити", "All visits", "Все визиты", "Wszystkie wizyty", "所有预约"],
+    ["Усі заклади", "All places", "Все заведения", "Wszystkie salony", "所有门店"],
+    ["До закладу", "View business", "Открыть заведение", "Zobacz salon", "查看门店"],
+    ["Мої ваучери", "My vouchers", "Мои ваучеры", "Moje vouchery", "我的优惠券"],
+    ["Записатися до закладу", "Book with this business", "Записаться в заведение", "Zarezerwuj wizytę w salonie", "前往门店预约"],
+    ["Ваша оцінка", "Your rating", "Ваша оценка", "Twoja ocena", "您的评分"],
+    ["Каталог", "Directory", "Каталог", "Katalog", "目录"],
+    ["Відгуки", "Reviews", "Отзывы", "Opinie", "评价"],
+    ["Візити", "Visits", "Визиты", "Wizyty", "预约"],
+    ["Навігація", "Navigation", "Навигация", "Nawigacja", "导航"],
+    ["Доступний", "Available", "Доступен", "Dostępny", "可用"],
+    ["Відбувся", "Completed", "Состоялся", "Zakończona", "已完成"],
+    ["Не відбувся", "Missed", "Не состоялся", "Nie odbyła się", "未完成"],
+    ["Зберегти профіль", "Save profile", "Сохранить профиль", "Zapisz profil", "保存个人资料"],
+    ["Оцінка", "Rating", "Оценка", "Ocena", "评分"],
+    ["Оберіть оцінку", "Choose a rating", "Выберите оценку", "Wybierz ocenę", "请选择评分"],
+    ["Скасувати цей візит?", "Cancel this visit?", "Отменить этот визит?", "Anulować tę wizytę?", "取消这次预约？"],
   ];
   const catalog = window.SafeOrbitLocaleCatalog || (window.SafeOrbitLocaleCatalog = {});
   for (const [source, en, ru, pl, zh] of copy) catalog[source] = { en, ru, pl, zh };

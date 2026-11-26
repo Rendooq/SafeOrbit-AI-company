@@ -11,6 +11,14 @@
         pl: { label: "Polski", htmlLang: "pl" },
         zh: { label: "中文", htmlLang: "zh-CN" },
     };
+    const LANGUAGE_LABELS = { uk: "Мова", en: "Language", ru: "Язык", pl: "Język", zh: "语言" };
+    const COUNT_FORMS = {
+        en: { customer: ["customer", "customers"], appointment: ["appointment", "appointments"], visit: ["visit", "visits"] },
+        ru: { customer: ["клиент", "клиента", "клиентов"], appointment: ["запись", "записи", "записей"], visit: ["визит", "визита", "визитов"] },
+        pl: { customer: ["klient", "klientów", "klientów"], appointment: ["rezerwacja", "rezerwacje", "rezerwacji"], visit: ["wizyta", "wizyty", "wizyt"] },
+        zh: { customer: ["位客户"], appointment: ["次预约"], visit: ["次到访"] },
+    };
+    const MONTH_SUFFIX = { en: "/ mo", ru: "/ мес.", pl: "/ mies.", zh: "/ 月" };
     const CURRENCIES = {
         UAH: { label: "UAH", symbol: "₴", rate: 1, locale: "uk-UA" },
         USD: { label: "USD", symbol: "$", rate: 41.5, locale: "en-US" },
@@ -410,6 +418,15 @@
     const caseInsensitiveMaps = Object.fromEntries(Object.entries(normalizedMaps).map(([lang, entries]) => [
         lang, Object.fromEntries(Object.entries(entries).map(([key, value]) => [key.toLowerCase(), value])),
     ]));
+    const generatedTextPatterns = Object.keys(translations.en)
+        .filter(key => /\{v\d+\}/.test(key))
+        .sort((left, right) => right.length - left.length)
+        .map(key => {
+            const pattern = normalize(key).split(/(\{v\d+\})/u)
+                .map((part, index) => index % 2 ? "(.+?)" : part.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&"))
+                .join("");
+            return [key, new RegExp("^" + pattern + "$", "u")];
+        });
     const textOriginals = new WeakMap();
     const machineCache = loadMachineCache();
     const pendingByLang = Object.create(null);
@@ -421,6 +438,9 @@
         "pre",
         "textarea",
         "[data-i18n-ignore]",
+        "[data-no-translate]",
+        "[translate='no']",
+        "[contenteditable]:not([contenteditable='false'])",
         ".so-i18n-switcher",
         ".msg-bubble",
         ".conv-name",
@@ -455,15 +475,30 @@
         if (normalizedMaps[lang]?.[normalized]) return normalizedMaps[lang][normalized];
         const insensitive = caseInsensitiveMaps[lang]?.[normalized.toLowerCase()];
         if (insensitive) return insensitive;
-        const decoration = source.match(/^([←→↗✓✦✳▦♙⌁⚙+]*\s*)(.*?)(\s*[←→↗✓✦✳▦♙⌁⚙⌄:]*)(\s*)$/u);
+        const decoration = source.match(/^([←→↗↓✓✦✳▦♙⌁⚙+·•]*\s*)(.*?)(\s*[←→↗↓✓✦✳▦♙⌁⚙⌄:·•]*)(\s*)$/u);
         if (decoration && decoration[2] !== source) {
             const translated = normalizedMaps[lang]?.[decoration[2].normalize('NFKC').replace(/[’ʼ]/g, "'")];
             if (translated) return decoration[1] + translated + decoration[3] + decoration[4];
         }
         const quantity = source.match(/^(\d+(?:[.,]\d+)?)\s+шт\.$/u);
         if (quantity) return quantity[1] + " " + {en:"pcs", ru:"шт.", pl:"szt.", zh:"件"}[lang];
-        const count = source.match(/^(\d+)\s+(записів|запису|клієнтів|візитів)$/u);
-        if (count) return count[1] + ' ' + ({en:count[2] === 'клієнтів' ? 'customers' : 'appointments',ru:count[2] === 'клієнтів' ? 'клиентов' : 'записей',pl:count[2] === 'клієнтів' ? 'klientów' : 'wizyt',zh:count[2] === 'клієнтів' ? '客户' : '预约'}[lang]);
+        const duration = source.match(/^(\d+)\s+(хв|дн)\.?$/u);
+        if (duration) {
+            const unit = duration[2] === "хв" ? "minute" : "day";
+            return new Intl.NumberFormat(lang, { style: "unit", unit, unitDisplay: "short" }).format(Number(duration[1]));
+        }
+        const staffNote = " (бачить тільки свої записи)";
+        if (source.endsWith(staffNote)) {
+            return translateText(source.slice(0, -staffNote.length), lang) + " " + translateText(staffNote, lang);
+        }
+        const count = source.match(/^(\d+)\s+(запис(?:ів|у|и)?|клієнт(?:ів|и)?|візит(?:ів|и)?)$/u);
+        if (count) {
+            const unit = count[2].startsWith("клієнт") ? "customer" : count[2].startsWith("візит") ? "visit" : "appointment";
+            const form = new Intl.PluralRules(lang).select(Number(count[1]));
+            const variants = COUNT_FORMS[lang][unit];
+            const label = form === "one" ? variants[0] : form === "few" ? variants[1] : variants.at(-1);
+            return count[1] + (lang === "zh" ? "" : " ") + label;
+        }
 
 
         const machine = MACHINE_TRANSLATION_ENABLED && machineCache[lang] && machineCache[lang][source];
@@ -517,6 +552,25 @@
             if (!Number.isFinite(amount)) return match;
             return formatCurrencyFromUah(amount, currencyCode, suffix || "");
         });
+    }
+
+    function translateGeneratedText(source, lang) {
+        const text = normalize(source);
+        if (lang === "uk" || text.length > 700) return source;
+        for (const [key, pattern] of generatedTextPatterns) {
+            const values = text.match(pattern);
+            if (values) return translations[lang][key].replace(/\{v(\d+)\}/g, (_, index) => values[Number(index) + 1]);
+        }
+        return source;
+    }
+
+    function renderText(source, lang, generated = false) {
+        const translated = translateText(source, lang);
+        const text = convertCurrencyText(generated && translated === source ? translateGeneratedText(source, lang) : translated, getStoredCurrency());
+        if (lang === "uk") return text;
+        return text.replace(/(\d)\s+грн\.?(?=$|[^\p{L}\p{N}])/gu, "$1 ₴")
+            .replace(/\/\s*міс\.?(?=$|[^\p{L}\p{N}])/gu, MONTH_SUFFIX[lang])
+            .replace(/(\d\s+₴) після знижки$/u, (_, price) => price + " " + translateText("після знижки", lang));
     }
 
     function loadMachineCache() {
@@ -620,7 +674,9 @@
             original = node.nodeValue;
             textOriginals.set(node, original);
         }
-        const translated = convertCurrencyText(translateText(original, lang), getStoredCurrency());
+        const demoService = parent.dataset.demoService;
+        const displayText = demoService ? original.replace(demoService, translateText(demoService, lang)) : original;
+        const translated = renderText(displayText, lang, parent.hasAttribute("data-i18n-derived"));
         queueMachineTranslation(original, lang);
         const whitespace = splitOuterWhitespace(original);
         const nextValue = translated === original ? original : whitespace.leading + translated.trim() + whitespace.trailing;
@@ -632,6 +688,8 @@
 
     function translateAttribute(element, attribute, lang) {
         if (shouldIgnoreElement(element) || !element.hasAttribute(attribute)) return;
+        if (attribute === "value" && !element.matches("input[type='button'], input[type='submit'], input[type='reset']")) return;
+        if (attribute === "label" && !element.matches("option, optgroup")) return;
 
         const dataName = "i18nOriginal" + attribute.replace(/(^|-)([a-z])/g, (_, __, char) => char.toUpperCase());
         if (!element.dataset[dataName]) {
@@ -643,7 +701,7 @@
             element.dataset[dataName] = element.getAttribute(attribute) || "";
         }
         const original = element.dataset[dataName];
-        const translated = convertCurrencyText(translateText(original, lang), getStoredCurrency());
+        const translated = renderText(original, lang);
         queueMachineTranslation(original, lang);
         element[renderedName] = translated;
         if (translated !== element.getAttribute(attribute)) {
@@ -651,15 +709,15 @@
         }
     }
 
+    const textAttributes = ["placeholder", "title", "alt", "aria-label", "aria-description", "aria-placeholder", "label", "value"];
+    const textAttributeSelector = textAttributes
+        .map(attribute => attribute === "value" ? "input[type='button'], input[type='submit'], input[type='reset']" : `[${attribute}]`)
+        .join(", ");
+
     function translateElementAttributes(root, lang) {
-        const elements = root.nodeType === 1 ? [root, ...root.querySelectorAll("[placeholder], [title], [aria-label], input[type='button'], input[type='submit'], input[type='reset']")] : [];
-        for (const element of elements) {
-            translateAttribute(element, "placeholder", lang);
-            translateAttribute(element, "title", lang);
-            translateAttribute(element, "aria-label", lang);
-            if (element.matches("input[type='button'], input[type='submit'], input[type='reset']")) {
-                translateAttribute(element, "value", lang);
-            }
+        if (root.nodeType !== 1) return;
+        for (const element of [root, ...root.querySelectorAll(textAttributeSelector)]) {
+            for (const attribute of textAttributes) translateAttribute(element, attribute, lang);
         }
     }
 
@@ -684,8 +742,19 @@
     let originalTitle = "";
 
     function translateTitle(lang) {
+        const title = document.querySelector("head > title");
+        if (title?.getAttribute("translate") === "no") return;
         if (!originalTitle) originalTitle = document.title || "";
         if (!originalTitle) return;
+        const titlePart = title?.dataset.translatePart;
+        if (titlePart) {
+            const position = originalTitle.lastIndexOf(titlePart);
+            if (position !== -1) {
+                document.title = originalTitle.slice(0, position) + translateText(titlePart, lang)
+                    + originalTitle.slice(position + titlePart.length);
+                return;
+            }
+        }
 
         const direct = convertCurrencyText(translateText(originalTitle, lang), getStoredCurrency());
         queueMachineTranslation(originalTitle, lang);
@@ -694,14 +763,9 @@
             return;
         }
 
-        const separator = " | ";
-        if (originalTitle.includes(separator)) {
-            const parts = originalTitle.split(separator);
-            const originalFirstPart = parts[0];
-            parts[0] = convertCurrencyText(translateText(originalFirstPart, lang), getStoredCurrency());
-            queueMachineTranslation(originalFirstPart, lang);
-            document.title = parts.join(separator);
-        }
+        document.title = originalTitle.split(/( [|—] )/u)
+            .map((part, index) => index % 2 ? part : translateText(part, lang))
+            .join("");
     }
 
     let activeLanguage;
@@ -710,7 +774,7 @@
         let stored;
         try { stored = localStorage.getItem(STORAGE_KEY); } catch (_) {}
         stored ||= document.cookie.match(/(?:^|; )safeorbit_lang=([a-z]+)/)?.[1];
-        return SUPPORTED[stored] ? stored : "uk";
+        return Object.hasOwn(SUPPORTED, stored) ? stored : "uk";
     }
 
     function writeLanguageCookie(lang) {
@@ -718,7 +782,7 @@
     }
 
     function applyLanguage(lang) {
-        const safeLang = SUPPORTED[lang] ? lang : "uk";
+        const safeLang = Object.hasOwn(SUPPORTED, lang) ? lang : "uk";
         activeLanguage = safeLang;
         try { localStorage.setItem(STORAGE_KEY, safeLang); } catch (_) {}
         writeLanguageCookie(safeLang);
@@ -726,6 +790,7 @@
 
         document.querySelectorAll("[data-language-select]").forEach(select => {
             if (select.value !== safeLang) select.value = safeLang;
+            select.setAttribute("aria-label", LANGUAGE_LABELS[safeLang]);
         });
         const currencySelect = document.getElementById("safeorbit-currency-select");
         if (currencySelect && currencySelect.value !== getStoredCurrency()) {
@@ -930,7 +995,7 @@
             subtree: true,
             characterData: true,
             attributes: true,
-            attributeFilter: ["placeholder", "title", "aria-label", "value"],
+            attributeFilter: textAttributes,
         });
     }
 
@@ -945,7 +1010,7 @@
     }
 
     window.addEventListener("storage", event => {
-        if (event.key === STORAGE_KEY && SUPPORTED[event.newValue]) applyLanguage(event.newValue);
+        if (event.key === STORAGE_KEY && Object.hasOwn(SUPPORTED, event.newValue)) applyLanguage(event.newValue);
     });
 
     window.SafeOrbitI18N = {

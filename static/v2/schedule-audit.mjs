@@ -3,6 +3,29 @@ const PROGRAM = '/static/templates/rozklad-salonu.csv';
 const MAX_BYTES = 512 * 1024;
 const MAX_ROWS = 1500;
 
+function interpolate(text, values) {
+  return text.replace(/\{(\w+)\}/g, (placeholder, key) => values[key] ?? placeholder);
+}
+
+function localized(text, values = {}) {
+  return interpolate(window.SafeOrbitI18N?.translate(text) ?? text, values);
+}
+
+class ScheduleError extends Error {
+  constructor(text, values = {}, row = null) {
+    const message = interpolate(text, values);
+    super(row === null ? message : `Запис ${row} у файлі: ${message}`);
+    this.text = text;
+    this.values = values;
+    this.row = row;
+  }
+
+  localizedMessage() {
+    const message = localized(this.text, this.values);
+    return this.row === null ? message : localized('Запис {row} у файлі: {message}', {row: this.row, message});
+  }
+}
+
 function csvRows(text) {
   const source = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const header = source.trimStart().split('\n', 1)[0];
@@ -34,18 +57,18 @@ function csvRows(text) {
       endField();
       if (char === '\n') {
         if (row.some(Boolean)) rows.push(row);
-        if (rows.length > MAX_ROWS + 1) throw new Error(`Файл має містити до ${MAX_ROWS} рядків даних.`);
+        if (rows.length > MAX_ROWS + 1) throw new ScheduleError('Файл має містити до {count} рядків даних.', {count: MAX_ROWS});
         row = [];
       }
     } else if (char === '"' && !field && !closedQuote) {
       quoted = true;
     } else if (char === '"' || (closedQuote && char.trim())) {
-      throw new Error('У CSV є поле з некоректними лапками. Перевірте формат і збережіть файл ще раз.');
+      throw new ScheduleError('У CSV є поле з некоректними лапками. Перевірте формат і збережіть файл ще раз.');
     } else if (!closedQuote) {
       field += char;
     }
   }
-  if (quoted) throw new Error('У CSV є незакриті лапки. Перевірте формат і збережіть файл ще раз.');
+  if (quoted) throw new ScheduleError('У CSV є незакриті лапки. Перевірте формат і збережіть файл ще раз.');
   return rows;
 }
 
@@ -65,13 +88,13 @@ export function parseSchedule(text) {
   const [header, ...rows] = csvRows(text);
   const fields = COLUMNS.map(column => header?.indexOf(column) ?? -1);
   if (fields.some(index => index < 0) || new Set(header).size !== header.length) {
-    throw new Error('Не вдалося розпізнати колонки. Скопіюйте заголовки з прикладу CSV.');
+    throw new ScheduleError('Не вдалося розпізнати колонки. Скопіюйте заголовки з прикладу CSV.');
   }
-  if (!rows.length) throw new Error('Додайте хоча б один запис або зміну.');
+  if (!rows.length) throw new ScheduleError('Додайте хоча б один запис або зміну.');
 
   const shifts = new Map();
   for (const [index, row] of rows.entries()) {
-    const invalid = problem => new Error(`Запис ${index + 1} у файлі: ${problem}`);
+    const invalid = problem => new ScheduleError(problem, {}, index + 1);
     const [rawDate, specialist, shiftStart, shiftEnd, from, to, status, alias] = fields.map(field => row[field] ?? '');
     const date = parseDate(rawDate);
     const start = minutes(shiftStart);
@@ -140,26 +163,27 @@ export function findOpenings(shifts, duration, buffer) {
 }
 
 const showTime = value => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
-const showDate = new Intl.DateTimeFormat('uk-UA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-
-function renderWindow(window) {
+function renderWindow(opening, dates, durations) {
   const row = document.createElement('li');
   const title = document.createElement('strong');
   const details = document.createElement('span');
-  title.textContent = `${showTime(window.start)}–${showTime(window.end)} · ${window.length} хв`;
-  details.textContent = `${showDate.format(new Date(`${window.date}T00:00:00Z`))} · ${window.specialist}`;
+  title.dataset.i18nIgnore = details.dataset.i18nIgnore = '';
+  title.textContent = `${showTime(opening.start)}–${showTime(opening.end)} · ${durations.format(opening.length)}`;
+  details.textContent = `${dates.format(new Date(`${opening.date}T00:00:00Z`))} · ${opening.specialist}`;
   row.append(title, details);
-  if (window.cancelled) {
+  if (opening.cancelled) {
     const tag = document.createElement('span');
     tag.className = 'audit-tag';
-    tag.textContent = 'Після скасування';
+    tag.dataset.i18nIgnore = '';
+    tag.textContent = localized('Після скасування');
     row.append(tag);
   }
-  if (window.matches.length) {
+  if (opening.matches.length) {
     const list = document.createElement('ul');
-    for (const [alias, time] of window.matches) {
+    for (const [alias, time] of opening.matches) {
       const item = document.createElement('li');
-      item.textContent = `${alias} · можна запропонувати ${showTime(time)}`;
+      item.dataset.i18nIgnore = '';
+      item.textContent = localized('{alias} · можна запропонувати {time}', {alias, time: showTime(time)});
       list.append(item);
     }
     row.append(list);
@@ -174,12 +198,20 @@ function initAudit() {
   const example = get('example');
   const message = get('message');
   const filter = get('cancelled');
+  const resultsNote = get('results-note');
+  message.dataset.i18nIgnore = resultsNote.dataset.i18nIgnore = '';
   let shifts;
   let version = 0;
+  let problem;
+  let loading = false;
 
-  const render = () => {
+  const renderMessage = () => {
+    message.textContent = loading ? localized('Читаємо розклад…') : problem?.localizedMessage() ?? '';
+  };
+
+  const render = (reportValidity = true) => {
     if (!shifts) return;
-    if (!form.reportValidity()) {
+    if (!(reportValidity ? form.reportValidity() : form.checkValidity())) {
       get('filter').hidden = true;
       get('data').hidden = true;
       get('empty').hidden = false;
@@ -195,15 +227,20 @@ function initAudit() {
     get('count').textContent = windows.length;
     get('released').textContent = released.length;
     get('matches').textContent = released.reduce((count, window) => count + window.matches.length, 0);
-    get('results-note').textContent = visible.length
-      ? `Вікон у вибірці — ${visible.length}. Збіги зі списком очікування — варіанти для пропозиції.`
-      : 'У цій вибірці немає вікон потрібної тривалості.';
-    get('windows').replaceChildren(...visible.map(renderWindow));
+    resultsNote.textContent = visible.length
+      ? localized('Вікон у вибірці — {count}. Збіги зі списком очікування — варіанти для пропозиції.', {count: visible.length})
+      : localized('У цій вибірці немає вікон потрібної тривалості.');
+    const locale = document.documentElement.lang;
+    const dates = new Intl.DateTimeFormat(locale, {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'});
+    const durations = new Intl.NumberFormat(locale, {style: 'unit', unit: 'minute', unitDisplay: 'short'});
+    get('windows').replaceChildren(...visible.map(opening => renderWindow(opening, dates, durations)));
   };
 
   async function load(read, label) {
     const current = ++version;
-    message.textContent = 'Читаємо розклад…';
+    problem = null;
+    loading = true;
+    renderMessage();
     message.classList.remove('audit-error');
     try {
       const next = parseSchedule(await read());
@@ -211,12 +248,15 @@ function initAudit() {
       shifts = next;
       filter.checked = false;
       get('source').textContent = label;
-      message.textContent = '';
+      loading = false;
+      renderMessage();
       render();
     } catch (error) {
       if (current !== version) return;
+      loading = false;
+      problem = error instanceof ScheduleError ? error : new ScheduleError('Не вдалося прочитати CSV. Спробуйте ще раз.');
       message.classList.add('audit-error');
-      message.textContent = error.message;
+      renderMessage();
     }
   }
 
@@ -225,20 +265,24 @@ function initAudit() {
     if (!selected) return;
     file.value = '';
     load(async () => {
-      if (selected.size > MAX_BYTES) throw new Error('Виберіть файл CSV розміром до 512 КБ.');
+      if (selected.size > MAX_BYTES) throw new ScheduleError('Виберіть файл CSV розміром до 512 КБ.');
       return selected.text();
     }, 'Ваш розклад із CSV');
   });
   example.addEventListener('click', () => load(async () => {
     const response = await fetch(PROGRAM);
-    if (!response.ok) throw new Error('Приклад не відкрився. Спробуйте ще раз.');
+    if (!response.ok) throw new ScheduleError('Приклад не відкрився. Спробуйте ще раз.');
     return response.text();
   }, 'Демонстраційний розклад'));
   form.addEventListener('submit', event => {
     event.preventDefault();
     render();
   });
-  filter.addEventListener('change', render);
+  filter.addEventListener('change', () => render());
+  window.addEventListener('safeorbit:language-changed', () => {
+    renderMessage();
+    render(false);
+  });
   get('tool').hidden = false;
   example.click();
 }

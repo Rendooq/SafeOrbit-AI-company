@@ -28,7 +28,7 @@
 <div class="report-insights">
   <section class="glass-card report-panel">
     <h2>Динаміка доходу</h2>
-    <p>{% if trend_weekly %}За тижнями{% else %}За днями{% endif %} · Лише завершені записи</p>
+    <p><span>{% if trend_weekly %}За тижнями{% else %}За днями{% endif %}</span> · <span>Лише завершені записи</span></p>
     <div class="report-trend" tabindex="0">
       {% for label, amount, percent in trend %}
         <div class="report-bar"><span>{{ label }}</span><meter min="0" max="100" value="{{ percent }}" aria-hidden="true"></meter><strong>{{ '%.2f' | format(amount) }} ₴</strong></div>

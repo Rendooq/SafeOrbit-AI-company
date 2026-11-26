@@ -220,6 +220,22 @@ def test_translation_catalog_complete_entries_and_no_remote_user_translation():
     assert "safeorbitRenderedText" in source
 
 
+def test_browser_errors_use_the_localized_shell_and_api_errors_keep_json():
+    async def scenario():
+        import main
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://test") as client:
+            browser = await client.get("/unknown-page", headers={"Accept": "text/html"})
+            assert browser.status_code == 404
+            assert "Сторінку не знайдено." in browser.text
+            assert "data-language-select" in browser.text
+            assert '/static/i18n.js' in browser.text
+            machine = await client.get("/unknown-page", headers={"Accept": "application/json"})
+            assert machine.status_code == 404 and isinstance(machine.json()["detail"], str)
+            api = await client.get("/api/unknown-page", headers={"Accept": "text/html"})
+            assert api.status_code == 404 and isinstance(api.json()["detail"], str)
+    asyncio.run(scenario())
+
+
 def test_main_rejects_untrusted_host():
     async def scenario():
         import main

@@ -17,11 +17,14 @@
   <link rel="stylesheet" href="/static/v2/studio-home.css?v=product-guide2">
   <link rel="stylesheet" href="/static/v2/booking-template.css?v=1">
   <script src="/static/v2/booking-template.js?v=1" defer></script>
+  <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+  <script defer src="/static/i18n.js?v=complete-locales1"></script>
 </head>
 <body class="studio-home booking-resource">
   <header class="resource-head frame">
     <a href="/" class="brand-v2"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
     <a href="/crm-dlia-saloniv" class="text-action">CRM для салонів</a>
+    {% include "partials/language-select.html" %}
     {% include "partials/theme-toggle.html" %}
   </header>
   <main class="frame resource-main">

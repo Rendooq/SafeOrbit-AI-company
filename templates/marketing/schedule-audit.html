@@ -9,13 +9,16 @@
   <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/v2/core.css?v=radical-final">
   <link rel="stylesheet" href="/static/v2/studio-home.css?v=product-guide2">
-  <link rel="stylesheet" href="/static/v2/schedule-audit.css?v=2">
-  <script type="module" src="/static/v2/schedule-audit.mjs?v=2"></script>
+  <link rel="stylesheet" href="/static/v2/schedule-audit.css?v=3">
+  <script type="module" src="/static/v2/schedule-audit.mjs?v=3"></script>
+  <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+  <script defer src="/static/i18n.js?v=complete-locales1"></script>
 </head>
 <body class="studio-home audit-page">
   <header class="audit-head frame">
     <a href="/" class="brand-v2"><img src="/static/v2/brand.svg" alt="">SafeOrbit</a>
     <a href="/crm-dlia-saloniv" class="text-action">CRM для салонів</a>
+    {% include "partials/language-select.html" %}
     {% include "partials/theme-toggle.html" %}
   </header>
   <main class="frame audit-main">

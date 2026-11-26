@@ -6,7 +6,7 @@
 {% block content %}
 <div class="page-intro split-head">
   <div><p class="platform-kicker">{{ industry.label if industry else plan_name }}</p>
-    <h1>{{ settings.get('title') or business.name }}</h1>
+    <h1 translate="no">{{ settings.get('title') or business.name }}</h1>
   </div>
   <a href="#customize" class="platform-button secondary">Налаштувати вигляд ↓</a>
 </div>
@@ -23,7 +23,7 @@
   <h2>{{ 'Конструктор' if custom else 'Оформлення простору' }}</h2>
   <form action="/workspace/layout" method="post" data-layout-form>
     <div class="field-grid">
-      <label>Назва простору<input name="title" maxlength="100" value="{{ settings.get('title', '') }}" placeholder="{{ business.name }}"></label>
+      <label>Назва простору<input name="title" maxlength="100" value="{{ settings.get('title', '') }}" placeholder="{{ business.name }}" translate="no"></label>
       <label>Колір<select name="accent">{% for key,label in accents.items() %}<option value="{{ key }}" {% if settings.get('accent','violet') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
       <label>Ширина<select name="width">{% for key,label in widths.items() %}<option value="{{ key }}" {% if settings.get('width','normal') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
       <label>Відступи<select name="spacing">{% for key,label in spacing.items() %}<option value="{{ key }}" {% if settings.get('spacing','relaxed') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -36,11 +36,18 @@
       <label class="check"><input type="checkbox" data-module-enabled> Лише додані</label>
       <output data-module-count aria-live="polite">{{ module_count }} / {{ module_count }}</output>
     </div>
+    <span id="module-width-label" class="sr-only">Ширина модуля</span>
+    <span id="module-up-label" class="sr-only">Підняти модуль</span>
+    <span id="module-down-label" class="sr-only">Опустити модуль</span>
     <div class="arrange" data-arrange>
       {% for key in layout + available %}
       <div class="arrange-row" draggable="true" data-arrange-row data-group="{{ catalog[key].group }}" data-hint="{{ catalog[key].description }}">
-        <label><input name="layout" type="checkbox" value="{{ key }}" {% if key in layout %}checked{% endif %}><span>{{ catalog[key].label }}</span></label>
-        <div class="row-tools"><select name="tile_{{ key }}" aria-label="Ширина модуля {{ catalog[key].label }}"><option value="normal">1</option><option value="wide" {% if key in settings.get('wide_modules', []) %}selected{% endif %}>2</option></select><button type="button" data-move="-1" aria-label="Підняти модуль {{ catalog[key].label }}">↑</button><button type="button" data-move="1" aria-label="Опустити модуль {{ catalog[key].label }}">↓</button></div>
+        <label><input name="layout" type="checkbox" value="{{ key }}" {% if key in layout %}checked{% endif %}><span id="module-label-{{ key }}">{{ catalog[key].label }}</span></label>
+        <div class="row-tools">
+          <select name="tile_{{ key }}" aria-labelledby="module-width-label module-label-{{ key }}"><option value="normal">1</option><option value="wide" {% if key in settings.get('wide_modules', []) %}selected{% endif %}>2</option></select>
+          <button type="button" data-move="-1" aria-labelledby="module-up-label module-label-{{ key }}">↑</button>
+          <button type="button" data-move="1" aria-labelledby="module-down-label module-label-{{ key }}">↓</button>
+        </div>
       </div>
       {% endfor %}
     </div>

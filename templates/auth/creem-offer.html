@@ -1,11 +1,11 @@
 {% extends "auth/base.html" %}
-{% block title %}Умови підписки {{ plan_name }} — SafeOrbit{% endblock %}
+{% block title %}Умови підписки — {{ plan_name }} — SafeOrbit{% endblock %}
 {% block top_link %}<a href="/taryfy">Тарифи SafeOrbit ↗</a>{% endblock %}
 {% block content %}
 <article class="auth-card access-card">
   {% if draft %}<p class="info-note">Проєкт для погодження. Редакція ще не діє.</p>{% endif %}
   <h2>Умови підписки SafeOrbit</h2>
-  <p class="form-description">Тариф {{ plan_name }} · редакція {{ version }}</p>
+  <p class="form-description"><span>Тариф</span> <span>{{ plan_name }}</span> <span>· редакція</span> <time datetime="{{ version }}">{{ version }}</time></p>
 
   <section class="access-features">
     <h3>Доступ до сервісу</h3>

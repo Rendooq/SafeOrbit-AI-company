@@ -1,37 +1,38 @@
 {% extends "platform/base.html" %}
+{% block title_attributes %} data-translate-part="Онлайн-запис"{% endblock %}
 {% block title %}{{ business.name }} · Онлайн-запис — SafeOrbit{% endblock %}
 {% block links %}<a href="/maistry">Знайти майстра</a><a href="/maistry/account">{{ 'Мої візити' if client else 'Увійти клієнтом' }}</a>{% endblock %}
 {% block content %}
 <section class="page-intro shop-head">
   <a class="back-link" href="/maistry">← Усі заклади</a>
-  <p class="platform-kicker">{{ listing.city }}</p><h1>{{ business.name }}</h1><p>{{ listing.address }}</p>
-  {% if listing.description %}<p class="preserve">{{ listing.description }}</p>{% endif %}
+  <p class="platform-kicker" translate="no">{{ listing.city }}</p><h1 translate="no">{{ business.name }}</h1><p translate="no">{{ listing.address }}</p>
+  {% if listing.description %}<p class="preserve" translate="no">{{ listing.description }}</p>{% endif %}
 </section>
 <div class="detail-grid">
   <div class="records">
     <section class="platform-panel">
-      <h2>Послуги</h2><ul class="lined-list">{% for item in services %}<li><span>{{ item.name }} <small>{{ item.duration }} хв</small></span><strong>{{ '%g'|format(item.price) }} грн</strong></li>{% else %}<li>Послуги уточнюються</li>{% endfor %}</ul>
+      <h2>Послуги</h2><ul class="lined-list">{% for item in services %}<li><span><span translate="no">{{ item.name }}</span> <small>{{ item.duration }} хв</small></span><strong>{{ '%g'|format(item.price) }} грн</strong></li>{% else %}<li>Послуги уточнюються</li>{% endfor %}</ul>
     </section>
     <section class="platform-panel">
-      <h2>Майстри</h2><ul class="lined-list">{% for person in team %}<li><strong>{{ person.name }}</strong><span>{{ person.role }}</span></li>{% else %}<li>Немає майстрів для обраної послуги</li>{% endfor %}</ul>
+      <h2>Майстри</h2><ul class="lined-list">{% for person in team %}<li><strong translate="no">{{ person.name }}</strong><span translate="no">{{ person.role }}</span></li>{% else %}<li>Немає майстрів для обраної послуги</li>{% endfor %}</ul>
     </section>
     {% if photos %}<section class="platform-panel"><h2>Роботи майстрів</h2><div class="shop-photos">
-      {% for photo in photos %}<figure><a href="/maistry/photo/{{ photo.id }}"><img src="/maistry/photo/{{ photo.id }}" alt="{{ photo.caption or 'Робота майстра' }}" loading="lazy"></a>{% if photo.caption %}<figcaption>{{ photo.caption }}</figcaption>{% endif %}</figure>{% endfor %}
+      {% for photo in photos %}<figure><a href="/maistry/photo/{{ photo.id }}"><img src="/maistry/photo/{{ photo.id }}" alt="{{ photo.caption or 'Робота майстра' }}"{% if photo.caption %} translate="no"{% endif %} loading="lazy"></a>{% if photo.caption %}<figcaption translate="no">{{ photo.caption }}</figcaption>{% endif %}</figure>{% endfor %}
     </div></section>{% endif %}
     <section class="platform-panel reviews">
       <h2>Відгуки після візиту</h2>
       {% for review, name, specialist in reviews %}
-      <article><strong>{{ name.split()[0] }}</strong><span class="rating">{{ review.rating }} / 5 ★</span>
-      {% if specialist %}<p class="fine">{{ specialist }}</p>{% endif %}
-      {% if review.comment %}<p class="preserve">{{ review.comment }}</p>{% endif %}</article>
+      <article><strong translate="no">{{ name.split()[0] }}</strong><span class="rating">{{ review.rating }} / 5 ★</span>
+      {% if specialist %}<p class="fine" translate="no">{{ specialist }}</p>{% endif %}
+      {% if review.comment %}<p class="preserve" translate="no">{{ review.comment }}</p>{% endif %}</article>
       {% else %}<p>Відгуків поки немає.</p>{% endfor %}
     </section>
   </div>
   <section class="platform-panel booking-panel">
     <h2>{{ 'Перенести запис' if visit_id else 'Записатися' }}</h2>
     <form method="get" action="{{ '/maistry/visits/' ~ visit_id ~ '/move' if visit_id else '/maistry/zaklad/' ~ business.id }}">
-      <label>Послуга<select name="service_id" required><option value="">Оберіть послугу</option>{% for item in services %}<option value="{{ item.id }}" {% if service_id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
-      <label>Майстер<select name="master_id"><option value="0">Оберіть майстра</option>{% for person in team %}<option value="{{ person.id }}" {% if master_id == person.id %}selected{% endif %}>{{ person.name }}</option>{% endfor %}</select></label>
+      <label>Послуга<select name="service_id" required><option value="">Оберіть послугу</option>{% for item in services %}<option value="{{ item.id }}" translate="no" {% if service_id == item.id %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+      <label>Майстер<select name="master_id"><option value="0">Оберіть майстра</option>{% for person in team %}<option value="{{ person.id }}" translate="no" {% if master_id == person.id %}selected{% endif %}>{{ person.name }}</option>{% endfor %}</select></label>
       <label>Дата<input type="date" name="day" value="{{ day }}" min="{{ today }}" max="{{ max_day }}" required></label>
       <button class="platform-button secondary">Показати час</button>
     </form>

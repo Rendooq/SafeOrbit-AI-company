@@ -91,11 +91,11 @@ def get_api_docs_html() -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SafeOrbit API Reference</title>
+    <title>Довідка API SafeOrbit</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script defer src="/static/locales/catalog.js?v=sale-locales2"></script>
-    <script defer src="/static/i18n.js?v=sale-locales2"></script>
+    <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+    <script defer src="/static/i18n.js?v=complete-locales1"></script>
     <!-- PrismJS for Syntax Highlighting -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
     <style>
@@ -770,8 +770,8 @@ def get_chat_widget_html() -> str:
     <title>SafeOrbit Chat Widget</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script defer src="/static/locales/catalog.js?v=sale-locales2"></script>
-    <script defer src="/static/i18n.js?v=sale-locales2"></script>
+    <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+    <script defer src="/static/i18n.js?v=complete-locales1"></script>
     <style>
         :root {
             --primary: #9D4EDD;
@@ -1023,7 +1023,7 @@ def get_chat_widget_html() -> str:
                 await loadMessages(true);
                 await loadConversations();
             } catch (e) {
-                alert("Помилка відправки повідомлення");
+                alert(window.SafeOrbitI18N?.translate("Помилка відправки повідомлення") ?? "Помилка відправки повідомлення");
             } finally {
                 input.disabled = false;
                 btn.disabled = false;

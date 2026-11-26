@@ -3,20 +3,20 @@
 {% block meta %}<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">{% endblock %}
 {% block layout %}narrow-frame{% endblock %}
 {% block content %}
-<div class="page-intro"><p class="platform-kicker">{{ business }}</p><h1>{{ record.title }}</h1></div>
+<div class="page-intro"><p class="platform-kicker" translate="no">{{ business }}</p><h1 translate="no">{{ record.title }}</h1></div>
 <section class="platform-panel">
   <h2>Додаткові роботи</h2>
-  {% if data.project %}<p class="fine">Об’єкт · {{ data.project }}</p>{% endif %}
-  {% if data.description %}<p class="preserve">{{ data.description }}</p>{% endif %}
+  {% if data.project %}<p class="fine"><span>Об’єкт</span> · <span translate="no">{{ data.project }}</span></p>{% endif %}
+  {% if data.description %}<p class="preserve" translate="no">{{ data.description }}</p>{% endif %}
   {% if photo %}<img class="record-photo" src="/proposals/{{ record.id }}/{{ secret }}/photo" alt="Фото додаткових робіт">{% endif %}
   <div class="table-scroll"><table><thead><tr>{% for header in data.headers %}<th>{{ header }}</th>{% endfor %}</tr></thead>
-  <tbody>{% for row in data.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
-  <p class="summary">{{ data.summary }} · Додаткові дні: {{ data.extra_days }}</p>
+  <tbody>{% for row in data.rows %}<tr>{% for cell in row %}<td{% if loop.first %} translate="no"{% endif %}>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+  <p class="summary"><span data-i18n-derived>{{ data.summary }}</span> · <span>Додаткові дні:</span> {{ data.extra_days }}</p>
   {% if data.state == 'pending' %}
   <form method="post" action="/proposals/{{ record.id }}/{{ secret }}">
   <label>Ваше ім’я<input name="name" maxlength="120" required></label>
   <div class="record-actions"><button class="platform-button" name="action" value="approved">Погодити</button><button class="platform-button secondary" name="action" value="declined">Відхилити</button></div>
   </form>
-  {% else %}<p class="feedback">{{ 'Погоджено' if data.state == 'approved' else 'Відхилено' }} · {{ data.responded_by }} · {{ data.responded_at }}</p>{% endif %}
+  {% else %}<p class="feedback"><span>{{ 'Погоджено' if data.state == 'approved' else 'Відхилено' }}</span> · <span translate="no">{{ data.responded_by }}</span> · {{ data.responded_at }}</p>{% endif %}
 </section>
 {% endblock %}

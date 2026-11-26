@@ -174,7 +174,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
         date_str = u.created_at.strftime('%d.%m.%Y %H:%M')
         title_json = html.escape(json.dumps(u.title))
         content_json = html.escape(json.dumps(u.content))
-        updates_rows += f"<tr class='align-middle'><td><span class='text-muted'>#{u.id}</span></td><td><div class='fw-bold text-white'>{html.escape(u.title)}</div><small class='text-muted'>{date_str}</small></td><td class='text-end'><button class='btn btn-sm btn-outline-info me-1' onclick='editUpdate({u.id}, {title_json}, {content_json})'><i class='fas fa-edit'></i></button><form action='/superadmin/delete-update' method='post' class='d-inline' onsubmit=\"return confirm('Видалити?');\"><input type='hidden' name='id' value='{u.id}'><button class='btn btn-sm btn-outline-danger'><i class='fas fa-trash'></i></button></form></td></tr>"
+        updates_rows += f"<tr class='align-middle'><td><span class='text-muted'>#{u.id}</span></td><td><div class='fw-bold text-white'>{html.escape(u.title)}</div><small class='text-muted'>{date_str}</small></td><td class='text-end'><button class='btn btn-sm btn-outline-info me-1' onclick='editUpdate({u.id}, {title_json}, {content_json})'><i class='fas fa-edit'></i></button><form action='/superadmin/delete-update' method='post' class='d-inline' onsubmit=\"return confirm(window.SafeOrbitI18N?.translate('Видалити?') ?? 'Видалити?');\"><input type='hidden' name='id' value='{u.id}'><button class='btn btn-sm btn-outline-danger'><i class='fas fa-trash'></i></button></form></td></tr>"
 
     pending_badge = f'<span class="badge bg-danger ms-2">{len(pending_bizs)}</span>' if pending_bizs else ''
     
@@ -204,7 +204,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
             <div class="stat-info">
                 <p class="stat-label">Активні Бізнеси</p>
                 <h3 class="stat-value">{active_clients}</h3>
-                <div class="stat-change" style="color: var(--accent-primary);">{plan1_count} базових / {plan2_count} pro</div>
+                <div class="stat-change" style="color: var(--accent-primary);">Business: {plan1_count} / Business Pro: {plan2_count}</div>
             </div>
         </div>
         <div class="glass-card stat-card">

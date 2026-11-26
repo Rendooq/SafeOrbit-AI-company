@@ -2,7 +2,7 @@
 {% block title %}{{ module.label }} — SafeOrbit{% endblock %}
 {% block meta %}<meta name="robots" content="noindex">{% endblock %}
 {% macro table_view(data) %}
-  {% if data.summary %}<p class="summary">{{ data.summary }}</p>{% endif %}
+  {% if data.summary %}<p class="summary" data-i18n-derived>{{ data.summary }}</p>{% endif %}
   {% if data.metrics %}<dl class="workflow-totals">{% for label, value in data.metrics %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl>{% endif %}
   {% if data.rows %}
   <div class="table-scroll"><table><thead><tr>{% for header in data.headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
@@ -91,7 +91,7 @@
     {% if key == 'cars' %}
       <details><summary>Заповнити до трьох оголошень вручну</summary>
         {% for index in range(1, 4) %}
-        <fieldset class="field-grid"><legend>Оголошення {{ index }}</legend>
+        <fieldset class="field-grid"><legend><span>Оголошення</span> {{ index }}</legend>
           <label>Посилання<input type="url" name="car_url_{{ index }}" maxlength="500"></label>
           <label>Модель<input name="car_model_{{ index }}" maxlength="120"></label>
           <label>Рік<input type="number" name="car_year_{{ index }}" min="1900" max="2099"></label>
@@ -118,38 +118,38 @@
 <section class="platform-panel custom-panel">
   <h2>Погоджені допроботи за об’єктами</h2>
   <p class="fine">Підсумок за останніми 100 записами.</p>
-  <dl class="workflow-totals">{% for name, project in approved_projects.items() %}<div><dt>{{ name }}</dt><dd>{{ '%.2f'|format(project.amount) }} грн</dd><small>{{ project.count }} погоджено · {{ project.days }} дн.</small></div>{% endfor %}</dl>
+  <dl class="workflow-totals">{% for name, project in approved_projects.items() %}<div><dt translate="no">{{ name }}</dt><dd>{{ '%.2f'|format(project.amount) }} грн</dd><small><span>Погоджено</span> {{ project.count }} · <span>{{ project.days }} дн.</span></small></div>{% endfor %}</dl>
 </section>
 {% endif %}
 <section class="records" aria-label="Збережені записи">
   {% for record,data,attachments in rows %}
     <article class="platform-panel record" id="record-{{ record.id }}">
-      <div class="split-head"><h2>{{ record.title }}</h2><time>{{ record.created_at.strftime('%d.%m.%Y') }}</time></div>
+      <div class="split-head"><h2 translate="no">{{ record.title }}</h2><time>{{ record.created_at.strftime('%d.%m.%Y') }}</time></div>
       {{ table_view(data) }}
       {% if data.print_profile %}
-      <p>Формат {{ data.print_settings[0] }} × {{ data.print_settings[1] }} мм · виліт {{ data.print_settings[2] }} мм · від {{ data.print_settings[3] }} ppi</p>
+      <p data-i18n-derived>Формат {{ data.print_settings[0] }} × {{ data.print_settings[1] }} мм, виліт {{ data.print_settings[2] }} мм, від {{ data.print_settings[3] }} ppi.</p>
       <a href="/maket/{{ record.id }}/{{ data.token }}" rel="noreferrer">Посилання для клієнта ↗</a>
       {% endif %}
       {% if data.tender_snapshot %}
-      <p><a href="{{ data.tender_snapshot.source }}" target="_blank" rel="noopener noreferrer">{{ data.tender_snapshot.code }} ↗</a> · {{ data.tender_snapshot.title }}</p>
-      <p class="fine">Змінено в Prozorro · {{ data.tender_snapshot.date }}</p>
+      <p><a href="{{ data.tender_snapshot.source }}" target="_blank" rel="noopener noreferrer">{{ data.tender_snapshot.code }} ↗</a> · <span translate="no">{{ data.tender_snapshot.title }}</span></p>
+      <p class="fine"><span>Змінено в Prozorro</span> · {{ data.tender_snapshot.date }}</p>
       {% if data.tender_changes is defined %}
-        {% if data.tender_changes %}<h4>Зміни у файлах закупівлі</h4><ul>{% for name, change in data.tender_changes %}<li>{{ change }} · {{ name }}</li>{% endfor %}</ul>
+        {% if data.tender_changes %}<h4>Зміни у файлах закупівлі</h4><ul>{% for name, change in data.tender_changes %}<li><span>{{ change }}</span> · <span translate="no">{{ name }}</span></li>{% endfor %}</ul>
         {% else %}<p class="fine">Змін у файлах порівняно з попередньою перевіркою немає.</p>{% endif %}
       {% endif %}
       {% endif %}
       {% if key == 'cars' %}<a href="https://www.gov.pl/web/gov/sprawdz-historie-pojazdu" target="_blank" rel="noopener noreferrer">Перевірити історію авто в Польщі ↗</a>{% endif %}
-      {% if data.body %}<p class="preserve">{{ data.body }}</p>{% endif %}
+      {% if data.body %}<p class="preserve" translate="no">{{ data.body }}</p>{% endif %}
       {% if data.url %}<a href="{{ data.url }}" target="_blank" rel="noopener noreferrer">{{ data.url }} ↗</a>{% endif %}
-      {% if data.contact %}<p>{{ data.contact }}</p>{% endif %}
-      {% if key == 'tasks' %}<p>{{ 'Виконано' if data.done else 'В роботі' }}{% if data.due %} · {{ data.due }}{% endif %}</p>{% endif %}
-      {% if key == 'budget' %}<p>{{ 'Дохід' if data.direction == 'income' else 'Витрата' }} · {{ data.value }} грн</p>{% endif %}
+      {% if data.contact %}<p translate="no">{{ data.contact }}</p>{% endif %}
+      {% if key == 'tasks' %}<p><span>{{ 'Виконано' if data.done else 'В роботі' }}</span>{% if data.due %} · {{ data.due }}{% endif %}</p>{% endif %}
+      {% if key == 'budget' %}<p><span>{{ 'Дохід' if data.direction == 'income' else 'Витрата' }}</span> · {{ data.value }} грн</p>{% endif %}
       {% if key == 'time' %}<p>{{ data.hours }} год × {{ data.rate }} грн = {{ data.value }} грн</p>{% endif %}
       {% if key == 'checkout' %}<p class="feedback {{ 'error' if data.status == 'failed' else '' }}">{{ 'Помилка' if data.status == 'failed' else 'Успішно' }} · {{ data.ms }} мс</p>{% endif %}
       {% if key == 'cutting' %}<details><summary>Схема розкрою</summary><div data-cutting='{{ data|tojson }}' class="cutting-map"></div></details>{% endif %}
       {% if key == 'extras' %}
-        {% if data.project %}<p class="fine">Об’єкт · {{ data.project }}</p>{% endif %}
-        <p>{{ {'approved':'Погоджено','declined':'Відхилено','pending':'Очікує відповіді'}[data.state] }} {{ data.responded_by|default('') }} {{ data.responded_at|default('') }}</p>
+        {% if data.project %}<p class="fine"><span>Об’єкт</span> · <span translate="no">{{ data.project }}</span></p>{% endif %}
+        <p><span>{{ {'approved':'Погоджено','declined':'Відхилено','pending':'Очікує відповіді'}[data.state] }}</span> <span translate="no">{{ data.responded_by|default('') }} {{ data.responded_at|default('') }}</span></p>
         <a href="/proposals/{{ record.id }}/{{ data.token }}">Відкрити посилання для замовника ↗</a>
       {% endif %}
       {% for asset in attachments %}

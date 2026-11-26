@@ -168,7 +168,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
                 </div>
                 <div>
                     {switch_btn}
-                    <form action='/admin/delete-branch' method='post' style='display:inline' onsubmit="return confirm('Видалити філію та всі її дані?');">
+                    <form action='/admin/delete-branch' method='post' style='display:inline' onsubmit="return confirm(window.SafeOrbitI18N?.translate('Видалити філію та всі її дані?') ?? 'Видалити філію та всі її дані?');">
                         <input type='hidden' name='id' value='{br.id}'>
                         <button class='btn btn-glass btn-sm'><i class="fas fa-trash text-danger"></i></button>
                     </form>
@@ -240,7 +240,7 @@ async def ai_settings_page(request: Request, user: User = Depends(get_current_us
                         <input type='hidden' name='id' value='{key.id}'>
                         <button class='btn btn-glass btn-sm w-100' title='{toggle_title}'><i class="fas {toggle_icon} fa-lg"></i></button>
                     </form>
-                    <form action='/admin/delete-api-key' method='post' style='margin:0;' onsubmit="return confirm('Ви впевнені, що хочете ВИДАЛИТИ цей API ключ назавжди?');">
+                    <form action='/admin/delete-api-key' method='post' style='margin:0;' onsubmit="return confirm(window.SafeOrbitI18N?.translate('Ви впевнені, що хочете ВИДАЛИТИ цей API ключ назавжди?') ?? 'Ви впевнені, що хочете ВИДАЛИТИ цей API ключ назавжди?');">
                         <input type='hidden' name='id' value='{key.id}'>
                         <button class='btn btn-glass btn-sm w-100' title='Видалити ключ'><i class="fas fa-trash text-danger"></i></button>
                     </form>
@@ -1265,7 +1265,7 @@ async def clients_page(q: str = Query("", max_length=100), user: User = Depends(
             <td><span class="small text-muted">{html.escape(c.notes or '-')}</span></td>
             <td class="text-end">
                 {btn_edit}
-                <form action='/admin/toggle-client-block' method='post' style='display:inline' onsubmit="return confirm('Ви впевнені?');">
+                <form action='/admin/toggle-client-block' method='post' style='display:inline' onsubmit="return confirm(window.SafeOrbitI18N?.translate('Ви впевнені?') ?? 'Ви впевнені?');">
                     <input type='hidden' name='id' value='{c.id}'>
                     <button type='submit' class='btn btn-glass btn-sm' title='{btn_title}'><i class="fas {btn_icon}"></i></button>
                 </form>
@@ -1405,7 +1405,7 @@ async def finance_page(error: str = "", user: User = Depends(get_current_user), 
             <td>{p.stock} шт.</td>
             <td class="text-success fw-bold">{p.unit_cost} грн</td>
             <td class="text-end">
-                 <form action='/admin/delete-product' method='post' style='display:inline' onsubmit="return confirm('Видалити товар?');">
+                 <form action='/admin/delete-product' method='post' style='display:inline' onsubmit="return confirm(window.SafeOrbitI18N?.translate('Видалити товар?') ?? 'Видалити товар?');">
                     <input type='hidden' name='id' value='{p.id}'>
                     <button class='btn btn-glass btn-sm'><i class="fas fa-trash text-danger"></i></button>
                 </form>
@@ -2015,7 +2015,7 @@ async def bot_integration_page(user: User = Depends(get_current_user), db: Async
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-glass btn-sm px-2 py-1" onclick="openConfig('${int.id}')"><i class="fas fa-edit text-info"></i></button>
-                            <form action="/admin/delete-integration" method="post" style="display:inline" onsubmit="return confirm('Видалити інтеграцію?');">
+                            <form action="/admin/delete-integration" method="post" style="display:inline" onsubmit="return confirm(window.SafeOrbitI18N?.translate('Видалити інтеграцію?') ?? 'Видалити інтеграцію?');">
                                 <input type="hidden" name="id" value="${int.id}">
                                 <button class="btn btn-glass btn-sm px-2 py-1"><i class="fas fa-trash text-danger"></i></button>
                             </form>

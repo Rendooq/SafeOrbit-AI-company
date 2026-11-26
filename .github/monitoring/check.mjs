@@ -77,6 +77,18 @@ try {
     assert.match(await page.locator(".form-description").textContent(), /редакція \d{4}-\d{2}-\d{2}/);
     console.log(`PASS Subscription offer: ${plan}`);
   }
+
+  stage = "Pricing localization";
+  await open("/taryfy");
+  const picker = page.locator("[data-language-select]");
+  for (const [lang, heading] of [
+    ["en", "SafeOrbit plans"], ["ru", "Тарифы SafeOrbit"], ["pl", "Cennik SafeOrbit"],
+    ["zh", "SafeOrbit 套餐"], ["uk", "Тарифи SafeOrbit"],
+  ]) {
+    await picker.selectOption(lang);
+    await page.getByRole("heading", {name: heading, exact: true}).waitFor({state: "visible"});
+  }
+  console.log("PASS Pricing in all five languages");
 } catch (error) {
   console.error(`FAIL ${stage}`);
   if (page?.url().startsWith(site + "/")) {

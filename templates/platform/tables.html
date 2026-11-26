@@ -1,4 +1,10 @@
 {% extends "platform/base.html" %}
+{% macro column(required=false) %}
+  <div class="field-grid" data-column>
+    <label>Назва поля<input name="name" maxlength="70"{% if required %} required{% endif %}></label>
+    <label>Тип<select name="kind">{% for key,label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+  </div>
+{% endmacro %}
 {% block title %}Власні таблиці — SafeOrbit{% endblock %}
 {% block meta %}<meta name="robots" content="noindex">{% endblock %}
 {% block content %}
@@ -8,15 +14,14 @@
   <form action="/workspace/tables" method="post">
     <label>Назва таблиці<input name="title" maxlength="120" required></label>
     <div class="records" data-columns>
-      <div class="field-grid" data-column><label>Назва поля<input name="name" maxlength="70" required></label>
-        <label>Тип<select name="kind">{% for key,label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label></div>
-      <div class="field-grid" data-column><label>Назва поля<input name="name" maxlength="70"></label>
-        <label>Тип<select name="kind">{% for key,label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label></div>
+      {{ column(true) }}
+      {{ column() }}
     </div>
+    <template data-column-template>{{ column() }}</template>
     <button type="button" class="text-button" data-add-column>Додати поле +</button><button class="platform-button">Створити таблицю</button>
   </form>
 </details>
 <div class="records">
-  {% for table in tables %}<a class="module-tile" href="/workspace/tables/{{ table.id }}"><h2>{{ table.title }}</h2><span class="tile-arrow">↗</span></a>{% endfor %}
+  {% for table in tables %}<a class="module-tile" href="/workspace/tables/{{ table.id }}"><h2 translate="no">{{ table.title }}</h2><span class="tile-arrow">↗</span></a>{% endfor %}
 </div>
 {% endblock %}

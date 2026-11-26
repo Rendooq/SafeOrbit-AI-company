@@ -11,11 +11,10 @@
   }
   const addColumn = document.querySelector("[data-add-column]");
   const columns = document.querySelector("[data-columns]");
-  if (addColumn && columns) {
+  const columnTemplate = document.querySelector("[data-column-template]");
+  if (addColumn && columns && columnTemplate) {
     addColumn.addEventListener("click", () => {
-      const field = columns.lastElementChild.cloneNode(true);
-      field.querySelector("input").value = "";
-      field.querySelector("select").selectedIndex = 0;
+      const field = columnTemplate.content.firstElementChild.cloneNode(true);
       columns.append(field);
       field.querySelector("input").focus();
       addColumn.disabled = columns.children.length >= 12;
@@ -31,11 +30,14 @@
       const enabled = filter.querySelector("[data-module-enabled]");
       const count = filter.querySelector("[data-module-count]");
       const update = () => {
-        const query = queryBox.value.trim().toLocaleLowerCase();
+        const locale = document.documentElement.lang;
+        const query = queryBox.value.trim().toLocaleLowerCase(locale);
         let visible = 0;
         for (const row of rows) {
-          const label = row.querySelector("label").textContent.toLocaleLowerCase();
-          const matchesText = !query || label.includes(query) || row.dataset.hint.toLocaleLowerCase().includes(query);
+          const label = row.querySelector("label").textContent.toLocaleLowerCase(locale);
+          const hint = window.SafeOrbitI18N?.translate(row.dataset.hint) ?? row.dataset.hint;
+          const matchesText = !query || label.includes(query) || hint.toLocaleLowerCase(locale).includes(query)
+            || row.dataset.hint.toLocaleLowerCase(locale).includes(query);
           const matchesGroup = !group.value || group.value === row.dataset.group;
           const matchesStatus = !enabled.checked || row.querySelector("input").checked;
           row.hidden = !(matchesText && matchesGroup && matchesStatus);
@@ -43,6 +45,7 @@
         }
         count.value = visible + " / " + rows.length;
       };
+      window.addEventListener("safeorbit:language-changed", update);
       filter.addEventListener("input", update);
       list.addEventListener("change", update);
     }

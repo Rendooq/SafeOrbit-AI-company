@@ -1,10 +1,11 @@
 {% extends "platform/base.html" %}
+{% block title_attributes %} data-translate-part="Сімейна книга"{% endblock %}
 {% block title %}Сімейна книга — {{ business }}{% endblock %}
 {% block meta %}<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">{% endblock %}
 {% block layout %}book-frame{% endblock %}
 {% block surface %}print-surface{% endblock %}
 {% block content %}
-<div class="page-intro split-head"><div>{% if owner %}<a class="back-link" href="/workspace/module/book">← Розділи</a>{% endif %}<p class="platform-kicker">Сімейна книга</p><h1>{{ business }}</h1></div>
+<div class="page-intro split-head"><div>{% if owner %}<a class="back-link" href="/workspace/module/book">← Розділи</a>{% endif %}<p class="platform-kicker">Сімейна книга</p><h1 translate="no">{{ business }}</h1></div>
 <button class="platform-button" type="button" data-print>Друкувати / PDF</button></div>
 {% if owner %}
 <section class="platform-panel share-controls">
@@ -17,8 +18,8 @@
 {% endif %}
 {% for record, data, assets in chapters %}
 <article class="book-chapter">
-  <h2>{{ record.title }}</h2>
-  {% if data.body %}<p class="preserve">{{ data.body }}</p>{% endif %}
+  <h2 translate="no">{{ record.title }}</h2>
+  {% if data.body %}<p class="preserve" translate="no">{{ data.body }}</p>{% endif %}
   {% for asset in assets %}
     {% set source = '/workspace/attachments/' ~ asset.id if owner else '/books/' ~ share.token ~ '/asset/' ~ asset.id %}
     {% if asset.media_type.startswith('audio/') %}

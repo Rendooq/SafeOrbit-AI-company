@@ -21,7 +21,7 @@
       <button class="platform-button">Зберегти профіль</button>
     </form>
   </section>
-  <aside class="platform-panel"><h2>Команда і послуги</h2><p>Активних майстрів: {{ team|length }}. Послуг: {{ services|length }}.</p>
+  <aside class="platform-panel"><h2>Команда і послуги</h2><p><span>Активних майстрів:</span> {{ team|length }}. <span>Послуг:</span> {{ services|length }}.</p>
   <p>Вільний час визначається за цим графіком, годинами майстра й наявними записами.</p><a href="/admin/settings">Редагувати команду та послуги ↗</a></aside>
 </div>
 {% if listing %}

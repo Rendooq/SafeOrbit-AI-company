@@ -1,4 +1,4 @@
-.audit-head { display: flex; align-items: center; gap: clamp(12px, 3vw, 36px); min-height: 72px; }
+.audit-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px clamp(12px, 3vw, 36px); min-height: 72px; padding-block: 10px; }
 .audit-head .brand-v2 { margin-inline-end: auto; }
 .audit-head [data-theme-label] { display: none; }
 .audit-main { padding-block: clamp(32px, 6vw, 80px); }

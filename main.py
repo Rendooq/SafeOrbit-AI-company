@@ -6,8 +6,11 @@ import httpx
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Depends, Request, Response
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import RedirectResponse, FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +42,7 @@ from middleware import LoggingMiddleware, RateLimitMiddleware
 from utils.static import CachedStaticFiles
 from utils.localization import application_strings
 from utils.request_security import RequestSecurityMiddleware
+from utils.templates import render_template
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from routers import admin, api_v1, auth, creem_events, dashboard, marketplace, superadmin, webhooks, widget, workspace, workspace_tables, api_schools
 from routers import customer_account, workflow_modules
@@ -108,6 +112,50 @@ app.add_middleware(RateLimitMiddleware)
 @app.exception_handler(APIError)
 async def api_error_exception_handler(request: Request, exc: APIError):
     return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+
+_PAGE_ERRORS = {
+    400: "Не вдалося обробити запит.",
+    401: "Увійдіть, щоб продовжити.",
+    403: "У вас немає доступу до цієї сторінки.",
+    404: "Сторінку не знайдено.",
+    405: "Ця дія недоступна.",
+    409: "Стан даних змінився. Оновіть сторінку та спробуйте ще раз.",
+    410: "Ця сторінка більше недоступна.",
+    422: "Перевірте введені дані та спробуйте ще раз.",
+    429: "Забагато спроб. Зачекайте й повторіть дію.",
+}
+
+
+def wants_error_page(request: Request) -> bool:
+    path = request.url.path
+    if "/api/" in path or path.startswith(("/billing/", "/signals/", "/static/")):
+        return False
+    return (request.headers.get("sec-fetch-dest") == "document"
+            or "text/html" in request.headers.get("accept", ""))
+
+
+def browser_error(status: int, detail: str = "", headers=None):
+    return HTMLResponse(
+        render_template("auth/error.html", status=status, heading=_PAGE_ERRORS[status], detail=detail),
+        status_code=status,
+        headers={**(headers or {}), "Cache-Control": "no-store"},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def page_http_error(request: Request, exc: StarletteHTTPException):
+    if exc.status_code in _PAGE_ERRORS and wants_error_page(request):
+        detail = exc.detail if isinstance(exc.detail, str) and exc.detail in application_strings() else ""
+        return browser_error(exc.status_code, detail, exc.headers)
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def page_validation_error(request: Request, exc: RequestValidationError):
+    if wants_error_page(request):
+        return browser_error(422)
+    return await request_validation_exception_handler(request, exc)
 
 app.add_middleware(
     CORSMiddleware,

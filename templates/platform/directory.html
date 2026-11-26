@@ -54,7 +54,7 @@
     {% for row in results %}
       {% set url = '/maistry/zaklad/' ~ row.id %}
       <article class="discovery-card" id="shop-{{ row.id }}">
-        <a class="discovery-cover" href="{{ url }}{% if day %}?day={{ day }}{% endif %}" aria-label="{{ row.name }}">
+        <a class="discovery-cover" href="{{ url }}{% if day %}?day={{ day }}{% endif %}" aria-label="{{ row.name }}" translate="no">
           {% if row.photo_id %}<img src="/maistry/photo/{{ row.photo_id }}" alt="" loading="lazy" width="400" height="280">
           {% else %}<div class="studio-monogram" aria-hidden="true">{{ row.name[:1]|upper }}</div>{% endif %}
         </a>
@@ -68,8 +68,8 @@
         {% endif %}
         <div class="discovery-card-copy">
           {% if row.review_count %}<p class="discovery-rating"><span aria-hidden="true">★</span> {{ '%.1f'|format(row.rating) }} <small>({{ row.review_count }})</small></p>{% endif %}
-          <h3><a href="{{ url }}{% if day %}?day={{ day }}{% endif %}">{{ row.name }}</a></h3>
-          <p class="discovery-address">{{ row.city }}, {{ row.address }}</p>
+          <h3><a href="{{ url }}{% if day %}?day={{ day }}{% endif %}" translate="no">{{ row.name }}</a></h3>
+          <p class="discovery-address" translate="no">{{ row.city }}, {{ row.address }}</p>
           <div class="discovery-card-foot">
             <span>{% if row.price is not none %}від <strong>{{ '%g'|format(row.price) }} грн</strong>{% endif %}</span>
             <a href="{{ url }}{% if day %}?day={{ day }}{% endif %}">Переглянути <span aria-hidden="true">↗</span></a>

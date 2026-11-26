@@ -12,7 +12,7 @@
     const alert = document.createElement("p");
     alert.className = "alert alert-warning";
     alert.setAttribute("role","alert");
-    alert.textContent = window.SafeOrbitI18N?.translate(message) || message;
+    alert.textContent = message;
     board.prepend(alert);
   }
 

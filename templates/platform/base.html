@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{% block title %}SafeOrbit{% endblock %}</title>
+  <title{% block title_attributes %}{% endblock %}>{% block title %}SafeOrbit{% endblock %}</title>
   {% block meta %}{% endblock %}
   <link rel="icon" href="/static/v2/brand.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/v2/core.css">
   <link rel="stylesheet" href="/static/v2/platform.css?v=2">
   {% block styles %}{% endblock %}
-  <script defer src="/static/locales/catalog.js"></script>
-  <script defer src="/static/locales/platform.js?v=5"></script>
-  <script defer src="/static/i18n.js"></script>
-  <script defer src="/static/v2/platform.js?v=4"></script>
+  <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+  <script defer src="/static/locales/platform.js?v=complete-locales1"></script>
+  <script defer src="/static/i18n.js?v=complete-locales1"></script>
+  <script defer src="/static/v2/platform.js?v=5"></script>
 </head>
 <body class="platform {% block surface %}{% endblock %}">
   <header class="platform-header">

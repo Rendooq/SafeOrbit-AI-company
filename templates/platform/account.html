@@ -91,7 +91,7 @@
       <div class="customer-favorites {{ 'customer-favorites-compact' if is_overview else '' }}">
         {% for item in saved %}
         <article class="platform-panel favorite-entry">
-          <a class="favorite-photo" href="/maistry/zaklad/{{ item.id }}" aria-label="{{ item.name }}">
+          <a class="favorite-photo" href="/maistry/zaklad/{{ item.id }}" aria-label="{{ item.name }}" translate="no">
             {% if item.photo %}<img loading="lazy" width="310" height="155" src="/maistry/photo/{{ item.photo }}" alt="">
             {% else %}<span data-i18n-ignore aria-hidden="true">{{ item.name[:1]|upper }}</span>{% endif %}
           </a>

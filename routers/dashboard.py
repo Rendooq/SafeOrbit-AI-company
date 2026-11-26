@@ -176,7 +176,12 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     }
 
     master_options = "".join([f'<option value="{m.id}">{html.escape(m.name)}</option>' for m in masters])
-    service_options = "".join([f'<option value="{html.escape(s.name, quote=True)}" data-id="{s.id}">{html.escape(s.name)} ({s.price} грн)</option>' for s in services])
+    def service_option(service):
+        name = html.escape(service.name, quote=True)
+        demo_label = f' data-demo-service="{name}"' if getattr(user, "is_demo_workspace", False) else ""
+        return f'<option value="{name}" data-id="{service.id}"{demo_label}>{name} ({service.price} грн)</option>'
+
+    service_options = "".join(service_option(service) for service in services)
 
     src_stmt = select(
         func.sum(case((Appointment.source == 'ai', 1), else_=0)),
@@ -799,7 +804,7 @@ async def owner_dash(request: Request, user: User = Depends(get_current_user), d
     original_heading = '<div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-5 gap-3">'
     content = content.replace(original_heading, original_heading.replace('mb-5', 'mb-5 overview-legacy-heading'), 1)
     page = overview + '<div id="legacy-workspace-content" hidden>' + content + '</div>'
-    enhancement = '<script src="/static/saas/overview.js?v=agenda1" defer></script>'
+    enhancement = '<script src="/static/saas/overview.js?v=agenda2" defer></script>'
     rendered = get_layout(page, user, "dash", scripts=scripts + enhancement)
     # Insert feature styling before the final contrast/theme override.
     theme_link = '<link rel="stylesheet" href="/static/v2/theme.css'
@@ -1113,8 +1118,8 @@ async def generate_receipt(id: int, user: User = Depends(get_current_user), db: 
     <head>
         <meta charset="utf-8">
         <title>Чек #{appt.id}</title>
-        <script defer src="/static/locales/catalog.js?v=sale-locales2"></script>
-    <script defer src="/static/i18n.js?v=sale-locales2"></script>
+        <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+    <script defer src="/static/i18n.js?v=complete-locales1"></script>
         <style>
             body {{ font-family: 'Courier New', Courier, monospace; background: #e5e7eb; display: flex; justify-content: center; padding: 2rem; margin: 0; }}
             .receipt {{ background: white; padding: 2rem; width: 320px; border-radius: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); color: #000; }}

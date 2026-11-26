@@ -53,8 +53,8 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script defer src="/static/locales/catalog.js?v=sale-locales2"></script>
-    <script defer src="/static/i18n.js?v=sale-locales2"></script>
+    <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+    <script defer src="/static/i18n.js?v=complete-locales1"></script>
     <style>
         *, *::before, *::after {{ box-sizing: border-box; }}
         html, body {{ overflow-x: hidden; width: 100%; max-width: 100vw; margin: 0; padding: 0; }}

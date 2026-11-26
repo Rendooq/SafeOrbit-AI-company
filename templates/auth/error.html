@@ -1,0 +1,14 @@
+{% extends "auth/base.html" %}
+{% block title %}{{ heading }} — SafeOrbit{% endblock %}
+{% block top_link %}<a href="/">← До головної</a>{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <span class="section-kicker">{{ status }}</span>
+  <h2>{{ heading }}</h2>
+  {% if detail and detail != heading %}<p class="form-description">{{ detail }}</p>{% endif %}
+  <div class="button-row">
+    <a class="button-primary" href="/">До головної</a>
+    {% if status in (401, 403) %}<a class="button-secondary" href="/login">Увійти</a>{% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -45,7 +45,7 @@
 <section class="records" id="tool-history" aria-label="Історія записів">
   {% for record,saved in records %}
   <article class="platform-panel record" id="record-{{ record.id }}">
-    <div class="split-head"><h2>{{ record.title }}</h2><time datetime="{{ record.created_at.isoformat() }}">{{ record.created_at.strftime('%d.%m.%Y') }}</time></div>
+    <div class="split-head"><h2 translate="no">{{ record.title }}</h2><time datetime="{{ record.created_at.isoformat() }}">{{ record.created_at.strftime('%d.%m.%Y') }}</time></div>
     {% if saved.get('status') %}<p class="badge workflow-status">{{ saved['status'] }}</p>{% endif %}
     {% if spec.mode != 'transform' %}
     <dl class="workflow-pairs">
@@ -57,7 +57,7 @@
     </dl>
     {% else %}
       {% set data = saved['result'] %}
-      <p class="summary">{{ data.summary }}</p>
+      <p class="summary" data-i18n-derived>{{ data.summary }}</p>
       {% if data.link %}<a href="{{ data.link }}" target="_blank" rel="noopener noreferrer">{{ data.link }}</a>
       {% elif data.rows %}
       <div class="table-scroll"><table><thead><tr>{% for header in data.headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>

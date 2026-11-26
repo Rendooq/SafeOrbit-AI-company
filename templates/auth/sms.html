@@ -1,0 +1,24 @@
+{% extends "auth/base.html" %}
+{% block title %}Підтвердження номера — SafeOrbit{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h2>Підтвердження номера</h2>
+  {% if error %}<p class="form-alert" role="alert">{{ error }}</p>{% endif %}
+  {% if mode == 'register-phone' %}
+  <form action="/register/phone" method="post">
+    <div class="field"><label for="phone">Номер телефону</label><input id="phone" type="tel" name="phone" autocomplete="tel" maxlength="40" placeholder="+380" required></div>
+    <button type="submit" class="button-primary"><span>Отримати код SMS</span></button>
+  </form>
+  <p><a href="/register">Повернутися до реєстрації</a></p>
+  {% elif mode == 'login' %}
+  <p class="form-description">Введіть код із повідомлення. Він дійсний 8 хвилин.</p>
+  <form action="/login/verify" method="post">
+    <div class="field"><label for="code">Код із SMS</label><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
+    <button type="submit" class="button-primary"><span>Підтвердити й увійти</span></button>
+  </form>
+  <p><a href="/login">Повторити вхід</a></p>
+  {% else %}
+  <a href="/login">Повернутися до входу</a>
+  {% endif %}
+</section>
+{% endblock %}

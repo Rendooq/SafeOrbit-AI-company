@@ -10,6 +10,7 @@
     terms: "Потрібно погодитися з умовами підключення.",
     rate: "Забагато спроб. Зачекайте хвилину й повторіть.",
     plan: "Цей тариф зараз недоступний. Оберіть інший або зверніться до адміністратора.",
+    sms: "Код SMS неправильний, сплив або належить іншому номеру. Спробуйте ще раз.",
   };
   const alert = document.getElementById("auth-error");
   const code = new URLSearchParams(location.search).get("error");
@@ -54,6 +55,34 @@
     };
     updateIndustry();
     type.addEventListener("change", updateIndustry);
+    const sendCode = form.querySelector("[data-send-code]");
+    if (sendCode) {
+      const phone = form.querySelector("#register-phone");
+      const code = form.querySelector("#register-sms-code");
+      const message = form.querySelector("[data-sms-message]");
+      sendCode.addEventListener("click", async () => {
+        if (!phone.reportValidity()) return;
+        sendCode.disabled = true;
+        code.value = "";
+        message.hidden = false;
+        message.textContent = "Надсилаємо код…";
+        const data = new URLSearchParams({
+          phone: phone.value,
+          csrf_token: form.querySelector('input[name="csrf_token"]').value,
+        });
+        try {
+          const result = await fetch("/register/phone", { method: "POST", body: data, headers: { Accept: "application/json" },
+            signal: AbortSignal.timeout(15000) });
+          const status = await result.json();
+          message.textContent = status.message || "Не вдалося надіслати код. Спробуйте пізніше.";
+          if (result.ok) code.focus();
+        } catch {
+          message.textContent = "Не вдалося надіслати код. Спробуйте пізніше.";
+        } finally {
+          sendCode.disabled = false;
+        }
+      });
+    }
     document.getElementById("continue-registration").addEventListener("click", () => {
       for (const field of steps[0].querySelectorAll("input,select")) {
         if (!field.reportValidity()) return;

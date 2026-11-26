@@ -40,6 +40,7 @@ from utils.localization import application_strings
 from utils.request_security import RequestSecurityMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from routers import admin, api_v1, auth, creem_events, dashboard, marketplace, superadmin, webhooks, widget, workspace, workspace_tables, api_schools
+from routers import workflow_modules
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
                                        nps_collection_loop, reminder_loop,
@@ -123,7 +124,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    if request.url.path in {"/", "/login", "/register", "/maistry", "/workspace"} or request.url.path.startswith(("/pending-activation/", "/maistry/", "/workspace/", "/proposals/", "/books/")):
+    if request.url.path in {"/", "/login", "/register", "/maistry", "/workspace"} or request.url.path.startswith(("/pending-activation/", "/maistry/", "/workspace/", "/proposals/", "/books/", "/login/", "/register/")):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; "
@@ -143,6 +144,7 @@ app.include_router(admin.router, include_in_schema=False)
 app.include_router(widget.router, include_in_schema=False)
 app.include_router(workspace.router, include_in_schema=False)
 app.include_router(workspace_tables.router, include_in_schema=False)
+app.include_router(workflow_modules.router, include_in_schema=False)
 app.include_router(marketplace.router, include_in_schema=False)
 app.include_router(creem_events.router, include_in_schema=False)
 app.include_router(webhooks.router, include_in_schema=False)

@@ -372,9 +372,8 @@ def cutting(raw, width, height, kerf):
 def csv_report(headers, rows):
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(headers)
-    writer.writerows(
-        ["'" + str(value) if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r"))
-         else value for value in row] for row in rows
-    )
+    def safe(value):
+        return "'" + value if isinstance(value, str) and value.lstrip(" \n").startswith(("=", "+", "-", "@", "\t", "\r")) else value
+    writer.writerow(map(safe, headers))
+    writer.writerows(map(safe, row) for row in rows)
     return "\ufeff" + out.getvalue()

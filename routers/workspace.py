@@ -85,6 +85,7 @@ async def workspace_page(user, db, error="", status=200):
     return shell(
         "workspace", status=status, business=business, catalog=MODULES, settings=settings, layout=layout,
         accents=ACCENTS, widths=WIDTHS, spacing=SPACING, available=[key for key in allowed if key not in layout],
+        groups=tuple(dict.fromkeys(MODULES[key].group for key in allowed)), module_count=len(allowed),
         industry=INDUSTRIES.get(business.type), plan_name=PLAN_NAMES.get(business.plan_type, "Business"),
         custom=business.plan_type == "custom", error=error,
     )

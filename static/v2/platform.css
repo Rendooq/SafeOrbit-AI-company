@@ -120,6 +120,17 @@ html[data-theme="dark"] .platform.accent-copper { --platform-accent: #ffb28e; --
 .platform .arrange { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%, 285px),1fr)); gap: .5rem; }
 .platform .arrange-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; border: 1px solid var(--platform-border); border-radius: 8px; padding: .5rem .65rem; }
 .platform .row-tools { display: flex; gap: .35rem; }
+.platform .arrange-row[hidden] { display: none; }
+.platform .module-filter { align-items: end; padding: .8rem; border: 1px solid var(--platform-border); border-radius: .7rem; }
+.platform .module-filter output { font-variant-numeric: tabular-nums; text-align: right; color: var(--platform-dim); }
+.platform .workflow-fields { grid-template-columns: repeat(auto-fit,minmax(min(100%,235px),1fr)); }
+.platform .workflow-long { grid-column: 1/-1; display: grid; gap: .4rem; }
+.platform .workflow-pairs, .platform .workflow-totals { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,155px),1fr)); gap: .65rem; margin: .8rem 0 0; }
+.platform .workflow-pairs div, .platform .workflow-totals div { min-width: 0; padding: .55rem; background: var(--platform-bg); border-radius: .45rem; overflow-wrap: anywhere; }
+.platform .workflow-pairs dt, .platform .workflow-totals dt { font-size: .83rem; color: var(--platform-dim); }
+.platform .workflow-pairs dd, .platform .workflow-totals dd { margin: .15rem 0 0; white-space: pre-wrap; font-weight: 800; }
+.platform .workflow-pairs .workflow-answer { background: var(--platform-tint); color: var(--platform-accent); }
+.platform .workflow-status { width: fit-content; margin-top: .5rem; }
 .platform .row-tools select { width: 2.7rem; min-height: 32px; padding: .1rem; border-radius: 6px; }
 .platform .module-tile.span-two { grid-column: span 2; }
 .platform .row-tools button { border: 1px solid var(--platform-border); padding: .2rem .45rem; border-radius: 6px; font: inherit; background: var(--platform-bg); color: var(--platform-text); cursor: pointer; }

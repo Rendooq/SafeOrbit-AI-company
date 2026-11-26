@@ -30,10 +30,16 @@
     </div>
     <h3>Модулі на головному екрані</h3>
     <p class="fine">Змінюйте порядок кнопками або перетягуйте рядки.</p>
+    <div class="field-grid module-filter" data-module-filter>
+      <label>Знайти модуль<input type="search" data-module-query maxlength="120"></label>
+      <label>Категорія<select data-module-group><option value="">Усі категорії</option>{% for group in groups %}<option value="{{ group }}">{{ group }}</option>{% endfor %}</select></label>
+      <label class="check"><input type="checkbox" data-module-enabled> Лише додані</label>
+      <output data-module-count aria-live="polite">{{ module_count }} / {{ module_count }}</output>
+    </div>
     <div class="arrange" data-arrange>
       {% for key in layout + available %}
-      <div class="arrange-row" draggable="true" data-arrange-row>
-        <label><input name="layout" type="checkbox" value="{{ key }}" {% if key in layout %}checked{% endif %}> {{ catalog[key].label }}</label>
+      <div class="arrange-row" draggable="true" data-arrange-row data-group="{{ catalog[key].group }}" data-hint="{{ catalog[key].description }}">
+        <label><input name="layout" type="checkbox" value="{{ key }}" {% if key in layout %}checked{% endif %}><span>{{ catalog[key].label }}</span></label>
         <div class="row-tools"><select name="tile_{{ key }}" aria-label="Ширина модуля {{ catalog[key].label }}"><option value="normal">1</option><option value="wide" {% if key in settings.get('wide_modules', []) %}selected{% endif %}>2</option></select><button type="button" data-move="-1" aria-label="Підняти модуль {{ catalog[key].label }}">↑</button><button type="button" data-move="1" aria-label="Опустити модуль {{ catalog[key].label }}">↓</button></div>
       </div>
       {% endfor %}

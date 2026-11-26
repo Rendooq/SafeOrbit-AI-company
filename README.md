@@ -129,12 +129,17 @@ Do not commit `.env`, database files, uploads, or session secrets.
 
 ### Industry workspaces and marketplace
 
-- Owners enter through `/workspace`. Industry presets determine the new module
-  entitlements. The constructor includes the full catalog and custom tables.
-- Existing businesses can publish a salon profile through `/workspace/listing`.
-  The customer directory is `/maistry`. Customer accounts require SMS
-  verification. Configure `MARKETPLACE_SMS_TOKEN` and
-  `MARKETPLACE_SMS_SENDER` for the platform's TurboSMS account.
+- Owners enter through `/workspace`. Industry presets determine module
+  entitlements. The constructor has 100 built-in modules and supports custom tables.
+  Its 74 additional modules include 30 calculators, 30 registers, and 14 data tools.
+- Existing businesses can publish a categorized profile and portfolio through
+  `/workspace/listing`. The customer directory is `/maistry`. Signed-in
+  customers can save listed businesses.
+- Customer signup and password sign-in both require an SMS code. Production also
+  requires codes for business registration and phone-based sign-in.
+  Configure `AUTH_SMS_TOKEN` and `AUTH_SMS_SENDER` for the platform's
+  TurboSMS account before deployment. The previous `MARKETPLACE_SMS_TOKEN`
+  and `MARKETPLACE_SMS_SENDER` names are supported as fallbacks.
 - The EUR monthly Creem products for the new plans are
   `CREEM_COMMERCE_MONTHLY_PRODUCT_ID` (€14.90),
   `CREEM_WORKSHOP_MONTHLY_PRODUCT_ID` (€12.90), and

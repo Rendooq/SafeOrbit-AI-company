@@ -22,13 +22,38 @@
   }
   const list = document.querySelector("[data-arrange]");
   if (list) {
+    const filter = document.querySelector("[data-module-filter]");
+    if (filter) {
+      const rows = [...list.querySelectorAll("[data-arrange-row]")];
+      const queryBox = filter.querySelector("[data-module-query]");
+      const group = filter.querySelector("[data-module-group]");
+      const enabled = filter.querySelector("[data-module-enabled]");
+      const count = filter.querySelector("[data-module-count]");
+      const update = () => {
+        const query = queryBox.value.trim().toLocaleLowerCase();
+        let visible = 0;
+        for (const row of rows) {
+          const label = row.querySelector("label").textContent.toLocaleLowerCase();
+          const matchesText = !query || label.includes(query) || row.dataset.hint.toLocaleLowerCase().includes(query);
+          const matchesGroup = !group.value || group.value === row.dataset.group;
+          const matchesStatus = !enabled.checked || row.querySelector("input").checked;
+          row.hidden = !(matchesText && matchesGroup && matchesStatus);
+          if (!row.hidden) visible++;
+        }
+        count.value = visible + " / " + rows.length;
+      };
+      filter.addEventListener("input", update);
+      list.addEventListener("change", update);
+    }
     let dragging;
     list.addEventListener("click", (event) => {
       const button = event.target.closest("[data-move]");
       if (!button) return;
       const row = button.closest("[data-arrange-row]");
       const up = button.dataset.move === "-1";
-      const sibling = up ? row.previousElementSibling : row.nextElementSibling;
+      const direction = up ? "previousElementSibling" : "nextElementSibling";
+      let sibling = row[direction];
+      while (sibling?.hidden) sibling = sibling[direction];
       if (sibling) sibling.insertAdjacentElement(up ? "beforebegin" : "afterend", row);
       button.focus();
     });

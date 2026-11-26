@@ -1,0 +1,79 @@
+.marketplace { --market-ink: #211627; --market-lilac: #d6bbff; }
+.marketplace .platform-header { background: var(--market-ink); border-color: #443749; }
+.marketplace .mast a { color: #fff; }
+.marketplace .mast a:hover { color: var(--market-lilac); }
+.marketplace .mast .market-business { padding: .5rem .7rem; border: 1px solid #887697; border-radius: .55rem; }
+.marketplace .market-body { width: 100%; }
+.discovery-hero {
+  color: #fff;
+  background: linear-gradient(90deg, #1b1324e6 0%, #22162ab8 48%, #2719361a 100%),
+              #24192b url("/static/v2/marketplace-salon.webp") center 40% / cover;
+}
+.discovery-inner { padding-top: clamp(2.8rem, 5vw, 4.5rem); }
+.marketplace .discovery-hero h1 { color: #fff; max-width: 580px; margin: 0 0 .75rem; font-size: clamp(2.5rem, 5.3vw, 4.45rem); line-height: 1.06; }
+.discovery-hero p { max-width: 520px; font-size: clamp(.95rem, 2vw, 1.18rem); color: #f1e8f7; }
+.discovery-form { max-width: 735px; padding-top: .8rem; }
+.discovery-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .65rem;
+  padding: .65rem;
+  border-radius: 1rem;
+  background: var(--platform-panel);
+  box-shadow: 0 14px 40px #100b173d;
+}
+.marketplace .discovery-search label { padding: .15rem .5rem; }
+.marketplace .discovery-search input:not([type="checkbox"]):not([type="radio"]) {
+  padding: 0;
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+}
+.discovery-search .platform-button { min-height: 52px; }
+.discovery-more { margin-top: .85rem; }
+.discovery-more summary { display: list-item; width: fit-content; color: #f5edff; padding-block: .35rem; }
+.discovery-more .field-grid { padding: .8rem; margin-top: .35rem; background: var(--platform-panel); border-radius: .75rem; max-width: 420px; }
+.discovery-categories { display: flex; align-items: stretch; gap: .4rem; overflow-x: auto; margin-top: clamp(1.6rem, 2.8vw, 2.6rem); scrollbar-width: thin; }
+.marketplace .discovery-categories a { display: flex; align-items: center; min-height: 56px; padding: .35rem .8rem; color: #f4e8fe; flex: 0 0 auto; text-decoration: none; font-weight: 750; border-bottom: 3px solid transparent; }
+.marketplace .discovery-categories a:hover, .marketplace .discovery-categories a[aria-current] { color: #fff; border-color: var(--market-lilac); }
+.discovery-results { scroll-margin-top: 1rem; padding-top: clamp(1.4rem, 4vw, 3rem); }
+.discovery-results-header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.marketplace .discovery-results-header h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
+.discovery-sort { display: flex; align-items: end; gap: .55rem; }
+.marketplace .discovery-sort .platform-button { min-height: 42px; }
+.discovery-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1rem; }
+.discovery-card { position: relative; min-width: 0; border: 1px solid var(--platform-border); background: var(--platform-panel); border-radius: 1.05rem; overflow: hidden; }
+.discovery-cover { display: block; aspect-ratio: 4/3; overflow: hidden; background: var(--platform-tint); }
+.discovery-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform .22s; }
+.discovery-card:hover .discovery-cover img { transform: scale(1.04); }
+.studio-monogram { display: grid; height: 100%; place-items: center; color: var(--platform-accent); font-size: clamp(2rem, 6vw, 4.8rem); font-weight: 850; background: repeating-linear-gradient(-45deg, transparent 0 12px, var(--platform-bg) 12px 13px); }
+.discovery-card-copy { padding: .95rem; }
+.marketplace .discovery-card h3 { margin: .1rem 0 .35rem; font-size: 1.08rem; }
+.marketplace .discovery-card h3 a { color: var(--platform-text); text-decoration: none; }
+.marketplace .discovery-card h3 a:hover { text-decoration: underline; }
+.discovery-rating, .discovery-address { font-size: .86rem; color: var(--platform-dim); }
+.discovery-rating span { color: #b05c13; }
+html[data-theme="dark"] .discovery-rating span { color: #ffd28f; }
+.discovery-card-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem; padding-top: .55rem; border-top: 1px solid var(--platform-border); font-size: .86rem; }
+.discovery-favorite { position: absolute; top: .55rem; right: .55rem; }
+.discovery-favorite button { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--platform-border); border-radius: 50%; background: var(--platform-panel); color: var(--platform-accent); font-size: 1.45rem; cursor: pointer; line-height: 1; }
+.discovery-empty { max-width: 685px; }
+.marketplace .discovery-empty h3 { margin: 0 0 .5rem; }
+.marketplace .mast .language-select { background-color: var(--platform-panel); color: var(--platform-text); }
+@media (max-width: 900px) {
+  .discovery-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 670px) {
+  .discovery-hero { background-position: 58% center; }
+  .discovery-inner { padding-top: 2.6rem; }
+  .discovery-search { grid-template-columns: minmax(0,1fr) auto; }
+  .discovery-service { grid-column: 1/-1; border-bottom: 1px solid var(--platform-border); }
+  .marketplace .discovery-search .platform-button { min-height: 42px; }
+  .discovery-categories { margin-top: 1.35rem; }
+  .discovery-categories a { min-height: 48px; }
+  .discovery-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .discovery-cover img { transition: none; }
+}

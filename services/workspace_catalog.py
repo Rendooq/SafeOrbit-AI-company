@@ -1,5 +1,6 @@
 """The catalog is also the server-side authorization policy for module routes."""
 from dataclasses import dataclass
+from services.workflows import WORKFLOWS
 
 
 @dataclass(frozen=True)
@@ -7,6 +8,7 @@ class Module:
     label: str
     description: str
     path: str = ""
+    group: str = "Основні модулі"
 
 
 MODULES = {
@@ -37,6 +39,8 @@ MODULES = {
     "decisions": Module("Журнал рішень", "Рішення та їх обґрунтування"),
     "tables": Module("Власні таблиці", "Створіть модуль з полями й експортом", "/workspace/tables"),
 }
+MODULES.update({key: Module(spec.label, spec.description, "/workspace/tools/" + key, spec.group)
+                for key, spec in WORKFLOWS.items()})
 
 COMMON = ("notes", "tasks", "files", "links")
 SERVICE = ("appointments", "guests", "revenue", "stock", "team", "activity")

@@ -1,0 +1,83 @@
+{% extends "platform/base.html" %}
+{% block title %}{{ spec.label }} — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block content %}
+<header class="page-intro split-head">
+  <div><a class="back-link" href="/workspace#customize">← Простір</a><p class="platform-kicker">{{ spec.group }}</p><h1>{{ spec.label }}</h1><p>{{ spec.description }}</p></div>
+  {% if spec.mode != 'transform' and total_count %}<a class="platform-button secondary" href="/workspace/tools/{{ key }}/export">Експортувати журнал CSV ↓</a>{% endif %}
+</header>
+<details class="platform-panel record-form" id="tool-form" {% if not total_count or editing or error %}open{% endif %}>
+  <summary>{{ 'Редагувати запис' if editing else 'Новий запис' if spec.mode == 'register' else 'Новий розрахунок' if spec.mode == 'calc' else 'Обробити дані' }}</summary>
+  <form method="post" enctype="multipart/form-data" action="/workspace/tools/{{ key }}">
+    {% if editing %}<input type="hidden" name="record_id" value="{{ editing[0].id }}">{% endif %}
+    <label>Назва<input name="title" maxlength="160" value="{{ title }}" required></label>
+    <div class="field-grid workflow-fields">
+    {% for field in spec.fields %}
+      {% set value = values.get(field.key, '') %}
+      {% if field.kind == 'toggle' %}
+        <label class="check"><input type="checkbox" name="f_{{ field.key }}" value="yes" {% if value == 'yes' %}checked{% endif %}>{{ field.label }}</label>
+      {% elif field.kind in ('long', 'csv') %}
+        <div class="workflow-long">
+          <label>{{ field.label }}<textarea name="f_{{ field.key }}" rows="5" maxlength="{{ 120000 if field.kind == 'csv' else 16000 }}" {% if field.required and field.kind != 'csv' %}required{% endif %}>{{ value }}</textarea></label>
+          {% if field.kind == 'csv' %}<label>Або виберіть файл CSV<input name="f_{{ field.key }}_file" type="file" accept=".csv,.tsv,.txt,text/csv"></label>{% endif %}
+        </div>
+      {% else %}
+        <label>{{ field.label }}<input name="f_{{ field.key }}" value="{{ value }}" {% if field.required %}required{% endif %}
+          {% if field.kind in ('number','signed') %}type="number" step="any" inputmode="decimal" min="{{ -1000000000 if field.kind == 'signed' else 0 }}" max="1000000000"
+          {% else %}type="{{ field.kind }}" maxlength="{{ 2048 if field.kind == 'url' else 250 }}"{% endif %}></label>
+      {% endif %}
+    {% endfor %}
+    </div>
+    {% if spec.statuses %}<label>Статус<select name="state" required>{% for state in spec.statuses %}<option value="{{ state }}" {% if default_status == state %}selected{% endif %}>{{ state }}</option>{% endfor %}</select></label>{% endif %}
+    <button class="platform-button" type="submit">{{ 'Зберегти' if spec.mode == 'register' else 'Розрахувати' if spec.mode == 'calc' else 'Обробити та зберегти' }}</button>
+  </form>
+</details>
+{% if total_count %}
+<section class="platform-panel custom-panel">
+  <form class="inline-form" method="get" action="/workspace/tools/{{ key }}#tool-history">
+    <label>Пошук у записах<input name="q" maxlength="120" value="{{ q }}"></label>
+    {% if spec.statuses %}<label>Статус<select name="state"><option value="">Усі статуси</option>{% for state in spec.statuses %}<option value="{{ state }}" {% if status_filter == state %}selected{% endif %}>{{ state }} ({{ states[state] }})</option>{% endfor %}</select></label>{% endif %}
+    <button class="platform-button secondary" type="submit">Шукати</button>
+  </form>
+  {% if totals %}<dl class="workflow-totals">{% for label,total in totals.items() %}<div><dt>{{ label }}</dt><dd>{{ total }}</dd></div>{% endfor %}</dl>{% endif %}
+</section>
+{% endif %}
+<section class="records" id="tool-history" aria-label="Історія записів">
+  {% for record,saved in records %}
+  <article class="platform-panel record" id="record-{{ record.id }}">
+    <div class="split-head"><h2>{{ record.title }}</h2><time datetime="{{ record.created_at.isoformat() }}">{{ record.created_at.strftime('%d.%m.%Y') }}</time></div>
+    {% if saved.get('status') %}<p class="badge workflow-status">{{ saved['status'] }}</p>{% endif %}
+    {% if spec.mode != 'transform' %}
+    <dl class="workflow-pairs">
+      {% for field in spec.fields %}
+        {% set value = saved['values'].get(field.key) %}
+        {% if value %}<div><dt>{{ field.label }}</dt><dd data-i18n-ignore>{% if field.kind == 'url' %}<a href="{{ value }}" target="_blank" rel="noopener noreferrer">{{ value }}</a>{% else %}{{ value }}{% endif %}</dd></div>{% endif %}
+      {% endfor %}
+      {% if spec.mode == 'calc' %}<div class="workflow-answer"><dt>{{ spec.output }}</dt><dd>{{ saved['answer'] }}</dd></div>{% endif %}
+    </dl>
+    {% else %}
+      {% set data = saved['result'] %}
+      <p class="summary">{{ data.summary }}</p>
+      {% if data.link %}<a href="{{ data.link }}" target="_blank" rel="noopener noreferrer">{{ data.link }}</a>
+      {% elif data.rows %}
+      <div class="table-scroll"><table><thead><tr>{% for header in data.headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for line in data.rows[:50] %}<tr>{% for cell in line %}<td data-i18n-ignore>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+      {% if data.rows|length > 50 %}<p class="fine">Показано перші 50 рядків. Повні дані доступні в CSV.</p>{% endif %}
+      {% endif %}
+    {% endif %}
+    <div class="record-actions">
+      {% if spec.mode == 'register' %}<a href="/workspace/tools/{{ key }}/records/{{ record.id }}/edit#tool-form">Редагувати</a>{% endif %}
+      {% if spec.mode == 'transform' %}<a href="/workspace/tools/{{ key }}/records/{{ record.id }}/export">Завантажити CSV ↓</a>{% endif %}
+      <form action="/workspace/tools/{{ key }}/records/{{ record.id }}/delete" method="post" data-confirm="Видалити цей запис?"><button type="submit" class="text-button danger">Видалити</button></form>
+    </div>
+  </article>
+  {% else %}<p class="fine">{{ 'За фільтрами нічого не знайдено.' if total_count else 'Збережені записи з’являться тут.' }}</p>{% endfor %}
+  {% if max_page > 1 %}
+    <nav class="paging" aria-label="Сторінки">
+      {% if page_number > 1 %}<a href="?p={{ page_number - 1 }}&amp;q={{ q|urlencode }}&amp;state={{ status_filter|urlencode }}#tool-history">← Попередня</a>{% endif %}
+      <span>{{ page_number }} / {{ max_page }}</span>
+      {% if page_number < max_page %}<a href="?p={{ page_number + 1 }}&amp;q={{ q|urlencode }}&amp;state={{ status_filter|urlencode }}#tool-history">Наступна →</a>{% endif %}
+    </nav>
+  {% endif %}
+</section>
+{% endblock %}

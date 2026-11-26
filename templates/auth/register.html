@@ -21,8 +21,19 @@
       <div class="field"><label for="business-name">Назва бізнесу</label><input id="business-name" name="name" type="text" placeholder="Наприклад, Studio North" autocomplete="organization" maxlength="160" required></div>
       <div class="field-grid">
         <div class="field"><label for="business-type">Напрямок роботи</label><select id="business-type" name="type" required>{% for key,industry,items,prices,plan,agreement in industries %}<option value="{{ key }}" data-plan="{{ industry.plan }}" {% if key == selected_industry %}selected{% endif %}>{{ industry.label }}</option>{% endfor %}</select></div>
-        <div class="field"><label for="register-phone">Ваш телефон</label><input id="register-phone" name="phone" type="tel" placeholder="+380 00 000 00 00" autocomplete="tel" maxlength="32" required></div>
+        <div class="field"><label for="register-phone">Ваш телефон</label><input id="register-phone" name="phone" type="tel" placeholder="+380 00 000 00 00" autocomplete="tel" maxlength="32" value="{{ sms_pending.phone if sms_pending else '' }}" required></div>
       </div>
+      {% if sms_required %}
+      <div class="field" data-register-sms>
+        <label for="register-sms-code">Код із SMS</label>
+        <div class="field-grid">
+          <input name="sms_code" id="register-sms-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+          <button type="button" class="button-secondary" data-send-code>Отримати код SMS</button>
+        </div>
+        <p class="info-note" role="status" data-sms-message hidden></p>
+        <noscript><a href="/register/phone">Отримати код SMS на окремій сторінці</a></noscript>
+      </div>
+      {% endif %}
       <div class="field retail-field" id="retail-category" hidden><label for="retail-subcategory">Категорія магазину</label><select id="retail-subcategory" name="retail_subcategory"><option value="clothing">Одяг / взуття</option><option value="electronics">Електроніка</option><option value="cosmetics">Косметика</option><option value="furniture">Меблі / декор</option><option value="food">Продукти харчування</option><option value="other">Інше</option></select></div>
       <div class="field"><label for="register-password">Створіть пароль <span class="label-hint">щонайменше 8 символів</span></label><div class="input-wrap no-leading"><input id="register-password" name="password" type="password" placeholder="Надійний пароль для вашого акаунту" autocomplete="new-password" minlength="8" maxlength="1024" required><button type="button" class="password-toggle" data-password-target="register-password" aria-label="Показати пароль" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></div></div>
       <button class="button-primary next-step" type="button" id="continue-registration"><span>Продовжити</span><span aria-hidden="true">→</span></button>

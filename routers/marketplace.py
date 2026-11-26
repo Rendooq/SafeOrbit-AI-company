@@ -1,30 +1,24 @@
 """Public directory and authenticated customer booking."""
-import hashlib
-import hmac
 import io
-import os
 import re
-import secrets
-from datetime import datetime, time, timedelta, timezone
-from types import SimpleNamespace
+from datetime import datetime, time, timedelta
 from urllib.parse import urlencode
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from config import SECRET_KEY
 from database import get_db
 from models import ActionLog, Appointment, Business, Customer, Master, Service
-from models_platform import MarketplaceClient, MarketplaceListing, MarketplacePhoneCode, MarketplacePhoto, MarketplaceReview, MarketplaceVisit
+from models_platform import (MarketplaceClient, MarketplaceFavorite, MarketplaceListing, MarketplaceListingCategory,
+                             MarketplacePhoto, MarketplaceReview, MarketplaceVisit)
 from routers.workspace import redirect, shell, uploaded, workspace_user
 from services.workspace_tools import ToolError
 from services import marketplace as calendar
 from services.notifications import send_new_appointment_notifications
-from services.sms import send_sms
+from services import phone_auth
 from services.workspace_catalog import allowed_modules
 from utils.auth import AttemptLimiter, dummy_password_hash
 from utils.security import hash_password, verify_password
@@ -33,24 +27,23 @@ from utils.security import hash_password, verify_password
 router = APIRouter()
 PREFIX = "/maistry"
 CLIENT = "marketplace_client_id"
-PHONE = "marketplace_pending_phone"
 DAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд")
 LOGIN_LIMIT = AttemptLimiter(limit=12, window=300)
-SEND_LIMIT = AttemptLimiter(limit=5, window=600)
 BOOK_LIMIT = AttemptLimiter(limit=12, window=120)
 STATUSES = {"confirmed": "Підтверджено", "completed": "Відбувся", "cancelled": "Скасовано", "no_show": "Не відбувся"}
-
-
-def utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+CATEGORIES = {
+    "barber": "Барбершоп",
+    "hair": "Перукарня",
+    "nails": "Манікюр і педикюр",
+    "beauty": "Косметологія",
+    "brows": "Брови та вії",
+    "massage": "Масаж",
+    "spa": "SPA",
+}
 
 
 def ip(request):
     return request.client.host if request.client else "unknown"
-
-
-def code_hash(phone, code):
-    return hmac.new(SECRET_KEY.encode(), (phone + ":" + code).encode(), hashlib.sha256).hexdigest()
 
 
 async def current_client(request, db):
@@ -69,11 +62,17 @@ async def get_listing(db, business_id):
 
 @router.get(PREFIX)
 async def directory(request: Request, city: str = "", q: str = "", max_price: str = "", day: str = "",
-                    page: int = 1, db: AsyncSession = Depends(get_db)):
+                    category: str = "", sort: str = "", saved: bool = False, page: int = 1, db: AsyncSession = Depends(get_db)):
     city, q, page = city.strip()[:100], q.strip()[:100], max(1, min(page, 1000))
     if max_price and not re.fullmatch(r"[0-9]{1,6}", max_price):
         raise HTTPException(422, "Вкажіть коректну максимальну ціну.")
     max_price = int(max_price or "0")
+    category = category if category in CATEGORIES else ""
+    client = await current_client(request, db)
+    if saved and not client:
+        return redirect(PREFIX + "/login")
+    favorites = set((await db.scalars(select(MarketplaceFavorite.business_id)
+        .where(MarketplaceFavorite.client_id == client.id))).all()) if client else set()
     qfold = q.casefold()
     selected_day = calendar.date_in_range(day) if day else None
     if day and not selected_day:
@@ -84,14 +83,29 @@ async def directory(request: Request, city: str = "", q: str = "", max_price: st
         .where(Appointment.status == "completed").group_by(Appointment.business_id).subquery())
     minimum = (select(func.min(Service.price)).where(Service.business_id == Business.id, Service.price >= 0,
                                                        Service.duration > 0, Service.duration <= 720).scalar_subquery())
+    photo_id = select(func.min(MarketplacePhoto.id)).where(MarketplacePhoto.business_id == Business.id).scalar_subquery()
     statement = (select(Business.id, Business.name, MarketplaceListing.city, MarketplaceListing.address,
-                       MarketplaceListing.description, minimum.label("price"), ratings.c.rating, ratings.c.review_count)
+                       MarketplaceListing.description, minimum.label("price"), ratings.c.rating, ratings.c.review_count,
+                       photo_id.label("photo_id"))
                  .join(MarketplaceListing, MarketplaceListing.business_id == Business.id)
                  .outerjoin(ratings, ratings.c.bid == Business.id)
                  .where(Business.is_active.is_(True), MarketplaceListing.published.is_(True)))
     # SQLite's LOWER handles only ASCII. Normalize the short searchable strings in Python.
     if max_price > 0:
         statement = statement.where(minimum <= max_price)
+    if category:
+        assigned = exists().where(MarketplaceListingCategory.business_id == Business.id)
+        matching = exists().where(MarketplaceListingCategory.business_id == Business.id,
+                                   MarketplaceListingCategory.category == category)
+        inferred = (Business.type == {"barber": "barbershop", "spa": "spa"}.get(category, "")
+                    ) & ~assigned
+        statement = statement.where(matching | inferred)
+    if saved:
+        statement = statement.where(Business.id.in_(favorites))
+    if sort == "rating":
+        statement = statement.order_by(func.coalesce(ratings.c.rating, 0).desc(), func.coalesce(ratings.c.review_count, 0).desc())
+    elif sort == "price":
+        statement = statement.order_by(minimum.asc().nulls_last())
     iter_rows = await db.stream(statement.order_by(Business.name, Business.id))
     results, skipped = [], 0
     async for row in iter_rows:
@@ -121,9 +135,35 @@ async def directory(request: Request, city: str = "", q: str = "", max_price: st
         if len(results) >= 19:
             break
     await iter_rows.close()
-    return shell("directory", results=results[:18], client=await current_client(request, db), city=city, q=q,
-                 day=day, max_price=max_price, page=page, next_page=len(results) > 18,
-                 search=urlencode({"city": city, "q": q, "max_price": max_price, "day": day}))
+    filters = {"city": city, "q": q, "max_price": max_price or "", "day": day, "sort": sort, "saved": "true" if saved else "false"}
+    return shell("directory", results=results[:18], client=client, city=city, q=q, category=category, sort=sort, saved=saved,
+                 favorites=favorites, categories=CATEGORIES, day=day, max_price=max_price, page=page, next_page=len(results) > 18,
+                 search=urlencode({**filters, "category": category}), category_search=urlencode(filters),
+                 filtered=bool(city or q or max_price or day or category or saved))
+
+
+@router.post(PREFIX + "/zaklad/{business_id}/favorite")
+async def change_favorite(business_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    client = await current_client(request, db)
+    if not client:
+        return redirect(PREFIX + "/login")
+    await get_listing(db, business_id)
+    form = await request.form()
+    choice = form.get("favorite")
+    if choice not in {"yes", "no"}:
+        raise HTTPException(422)
+    identifiers = (client.id, business_id)
+    favorite = await db.get(MarketplaceFavorite, identifiers)
+    if choice == "yes" and not favorite:
+        db.add(MarketplaceFavorite(client_id=client.id, business_id=business_id))
+    if choice == "no" and favorite:
+        await db.delete(favorite)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+    filters = {field: str(form.get(field, ""))[:100] for field in ("q", "city", "day", "max_price", "category", "sort", "saved", "page")}
+    return redirect(PREFIX + "?" + urlencode({field: value for field, value in filters.items() if value}) + f"#shop-{business_id}")
 
 
 async def shop_page(business_id, request, db, *, day="", service_id=0, master_id=0, visit_id=0, error="", status=200):
@@ -167,8 +207,8 @@ def local_next(value):
 
 
 @router.get(PREFIX + "/login")
-async def login(request: Request, next: str = ""):
-    return shell("client-auth", mode="login", next=local_next(next), sms=bool(os.getenv("MARKETPLACE_SMS_TOKEN")))
+async def login(next: str = ""):
+    return shell("client-auth", mode="login", next=local_next(next))
 
 
 @router.post(PREFIX + "/login")
@@ -180,105 +220,105 @@ async def login_post(request: Request, db: AsyncSession = Depends(get_db)):
     if not LOGIN_LIMIT.allow("ip:" + ip(request)) or not LOGIN_LIMIT.allow("phone:" + phone):
         return shell("client-auth", status=429, mode="login", next=next_url, error="Забагато спроб. Спробуйте пізніше.")
     client = await db.scalar(select(MarketplaceClient).where(MarketplaceClient.phone == phone))
-    valid = len(password) <= 1024 and await run_in_threadpool(verify_password, password, client.password if client else dummy_password_hash())
+    encoded = client.password if client else await run_in_threadpool(dummy_password_hash)
+    valid = len(password) <= 1024 and await run_in_threadpool(verify_password, password, encoded)
     if not client or not valid:
-        return shell("client-auth", status=401, mode="login", next=next_url, sms=bool(os.getenv("MARKETPLACE_SMS_TOKEN")),
-                     error="Телефон або пароль не збігаються.")
+        return shell("client-auth", status=401, mode="login", next=next_url, error="Телефон або пароль не збігаються.")
+    identity = client.id
+    await db.rollback()
+    try:
+        await phone_auth.issue(request, db, phone_auth.SIGNIN_CUSTOMER, phone, identity=identity, destination=next_url)
+    except phone_auth.ChallengeError as error:
+        return shell("client-auth", status=error.status, mode="login", next=next_url, error=str(error))
+    request.session.pop(CLIENT, None)
+    return redirect(PREFIX + "/login/verify")
+
+
+@router.get(PREFIX + "/login/verify")
+async def verify_login(request: Request):
+    challenge = phone_auth.pending(request, phone_auth.SIGNIN_CUSTOMER)
+    if not challenge:
+        return redirect(PREFIX + "/login")
+    return shell("client-auth", mode="login-verify", next=challenge["destination"])
+
+
+@router.post(PREFIX + "/login/verify")
+async def verify_login_post(request: Request, db: AsyncSession = Depends(get_db)):
+    form = await request.form()
+    try:
+        challenge = await phone_auth.consume(request, db, phone_auth.SIGNIN_CUSTOMER, str(form.get("code", "")).strip())
+    except phone_auth.ChallengeError as error:
+        pending = phone_auth.pending(request, phone_auth.SIGNIN_CUSTOMER)
+        return shell("client-auth", status=error.status, mode="login-verify",
+                     next=pending["destination"] if pending else PREFIX + "/account", error=str(error))
+    client = await db.get(MarketplaceClient, challenge["identity"])
+    if not client or client.phone != challenge["phone"]:
+        return redirect(PREFIX + "/login")
     request.session[CLIENT] = client.id
-    request.session.pop(PHONE, None)
-    return redirect(next_url)
+    return redirect(local_next(challenge["destination"]))
 
 
 @router.get(PREFIX + "/register")
 async def register(next: str = ""):
-    return shell("client-auth", mode="register", next=local_next(next), sms=bool(os.getenv("MARKETPLACE_SMS_TOKEN")))
+    return shell("client-auth", mode="register", next=local_next(next), sms=bool(phone_auth.provider().sms_token))
 
 
 @router.post(PREFIX + "/register")
 async def send_code(request: Request, db: AsyncSession = Depends(get_db)):
     form = await request.form()
-    phone = calendar.normalize_phone(str(form.get("phone", ""))[:40])
+    phone = str(form.get("phone", ""))[:40]
     next_url = local_next(str(form.get("next", "")))
-    token = os.getenv("MARKETPLACE_SMS_TOKEN", "").strip()
-    if not token:
-        return shell("client-auth", status=503, mode="register", next=next_url, sms=False)
-    if not phone:
-        return shell("client-auth", status=422, mode="register", next=next_url, sms=True, error="Введіть номер у міжнародному форматі.")
-    if not SEND_LIMIT.allow("ip:" + ip(request)) or not SEND_LIMIT.allow("phone:" + phone):
-        return shell("client-auth", status=429, mode="register", next=next_url, sms=True, error="Забагато запитів до SMS.")
-    current = utcnow()
-    code = f"{secrets.randbelow(1000000):06d}"
-    digest = code_hash(phone, code)
-    previous = await db.get(MarketplacePhoneCode, phone)
-    if previous:
-        changed = await db.execute(update(MarketplacePhoneCode).where(
-            MarketplacePhoneCode.phone == phone, MarketplacePhoneCode.sent_at < current - timedelta(seconds=90)
-        ).values(code_hash=digest, sent_at=current, expires_at=current + timedelta(minutes=10), attempts=0))
-        if not changed.rowcount:
-            return shell("client-auth", status=429, mode="register", next=next_url, sms=True, error="Зачекайте 90 секунд перед повторним SMS.")
-    else:
-        db.add(MarketplacePhoneCode(phone=phone, code_hash=digest, sent_at=current, expires_at=current + timedelta(minutes=10), attempts=0))
-    await db.execute(delete(MarketplacePhoneCode).where(MarketplacePhoneCode.sent_at < current - timedelta(days=2)))
     try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(429, "Повторіть пізніше.")
-    async with httpx.AsyncClient() as http:
-        sender = SimpleNamespace(id="marketplace", sms_token=token, sms_sender_id=os.getenv("MARKETPLACE_SMS_SENDER"))
-        ok, _ = await send_sms(http, sender, phone, "SafeOrbit: код підтвердження " + code + ". Дійсний 10 хвилин.")
-    if not ok:
-        await db.execute(delete(MarketplacePhoneCode).where(MarketplacePhoneCode.phone == phone, MarketplacePhoneCode.code_hash == digest))
-        await db.commit()
-        return shell("client-auth", status=503, mode="register", next=next_url, sms=True, error="SMS не надіслано. Спробуйте пізніше.")
-    request.session[PHONE] = phone
-    return redirect(PREFIX + "/verify?" + urlencode({"next": next_url}))
+        await phone_auth.issue(request, db, phone_auth.SIGNUP_CUSTOMER, phone, destination=next_url)
+    except phone_auth.ChallengeError as error:
+        return shell("client-auth", status=error.status, mode="register", next=next_url,
+                     sms=bool(phone_auth.provider().sms_token), error=str(error))
+    return redirect(PREFIX + "/verify")
 
 
 @router.get(PREFIX + "/verify")
-async def verify(request: Request, next: str = ""):
-    if not request.session.get(PHONE):
+async def verify(request: Request):
+    challenge = phone_auth.pending(request, phone_auth.SIGNUP_CUSTOMER)
+    if not challenge:
         return redirect(PREFIX + "/register")
-    return shell("client-auth", mode="verify", next=local_next(next))
+    return shell("client-auth", mode="verify", next=challenge["destination"])
 
 
 @router.post(PREFIX + "/verify")
 async def verify_post(request: Request, db: AsyncSession = Depends(get_db)):
     form = await request.form()
-    phone = request.session.get(PHONE)
-    if not phone:
+    challenge = phone_auth.pending(request, phone_auth.SIGNUP_CUSTOMER)
+    if not challenge:
         return redirect(PREFIX + "/register")
-    next_url = local_next(str(form.get("next", "")))
+    next_url = challenge["destination"]
     code, name, password = (str(form.get(field, "")).strip() if field != "password" else str(form.get(field, ""))
                             for field in ("code", "name", "password"))
-    if not 1 <= len(name) <= 120 or not 8 <= len(password) <= 1024 or not re.fullmatch(r"[0-9]{6}", code):
-        return shell("client-auth", status=422, mode="verify", next=next_url, error="Перевірте код, ім’я та пароль.")
-    hashed = await run_in_threadpool(hash_password, password)
-    code_record = (await db.execute(update(MarketplacePhoneCode).where(
-        MarketplacePhoneCode.phone == phone, MarketplacePhoneCode.expires_at > utcnow(), MarketplacePhoneCode.attempts < 5
-    ).values(attempts=MarketplacePhoneCode.attempts + 1)
-         .returning(MarketplacePhoneCode.code_hash))).first()
-    if not code_record or not hmac.compare_digest(code_record[0], code_hash(phone, code)):
-        await db.commit()
-        return shell("client-auth", status=422, mode="verify", next=next_url, error="Код неправильний, сплив або вичерпано спроби.")
-    await db.execute(delete(MarketplacePhoneCode).where(MarketplacePhoneCode.phone == phone))
+    if not 1 <= len(name) <= 120 or not 8 <= len(password) <= 1024:
+        return shell("client-auth", status=422, mode="verify", next=next_url, error="Перевірте ім’я та пароль.")
+    try:
+        await phone_auth.consume(request, db, phone_auth.SIGNUP_CUSTOMER, code)
+    except phone_auth.ChallengeError as error:
+        return shell("client-auth", status=error.status, mode="verify", next=next_url, error=str(error))
+    phone = challenge["phone"]
     client = await db.scalar(select(MarketplaceClient).where(MarketplaceClient.phone == phone))
     if client:
-        await db.commit()
-        request.session.pop(PHONE, None)
-        return shell("client-auth", mode="login", next=next_url, sms=True, error="Цей номер уже має акаунт. Увійдіть із паролем.")
+        return shell("client-auth", mode="login", next=next_url, error="Цей номер уже має акаунт. Увійдіть із паролем.")
+    hashed = await run_in_threadpool(hash_password, password)
     client = MarketplaceClient(phone=phone, name=name, password=hashed)
     db.add(client)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return shell("client-auth", mode="login", next=next_url, error="Цей номер уже має акаунт. Увійдіть із паролем.")
     request.session[CLIENT] = client.id
-    request.session.pop(PHONE, None)
-    return redirect(next_url)
+    return redirect(local_next(next_url))
 
 
 @router.post(PREFIX + "/logout")
 async def logout(request: Request):
     request.session.pop(CLIENT, None)
-    request.session.pop(PHONE, None)
+    phone_auth.clear(request, phone_auth.SIGNIN_CUSTOMER, phone_auth.SIGNUP_CUSTOMER)
     return redirect(PREFIX)
 
 
@@ -428,7 +468,10 @@ async def listing_settings(user=Depends(workspace_user), db: AsyncSession = Depe
     services, team, _ = await calendar.services_and_team(db, user.business_id)
     photos = (await db.execute(select(MarketplacePhoto.id, MarketplacePhoto.caption)
                                .where(MarketplacePhoto.business_id == user.business_id).order_by(MarketplacePhoto.id))).all()
-    return shell("listing", business=user.business, listing=listing, days=DAYS, services=services, team=team, photos=photos)
+    categories = (await db.scalars(select(MarketplaceListingCategory.category).where(
+        MarketplaceListingCategory.business_id == user.business_id))).all()
+    return shell("listing", business=user.business, listing=listing, days=DAYS, services=services, team=team,
+                 photos=photos, categories=CATEGORIES, chosen_categories=categories)
 
 
 @router.post("/workspace/listing")
@@ -440,6 +483,9 @@ async def save_listing(request: Request, user=Depends(workspace_user), db: Async
     city, address, description = (str(form.get(key, "")).strip() for key in ("city", "address", "description"))
     opens, closes = (str(form.get(key, "")) for key in ("opens", "closes"))
     days = sorted(set(form.getlist("days")))
+    categories = set(form.getlist("category"))
+    if len(categories) > 4 or not categories.issubset(CATEGORIES):
+        raise HTTPException(422, "Можна вибрати до чотирьох категорій.")
     try:
         valid_hours = bool(re.fullmatch(r"\d{2}:\d{2}", opens) and re.fullmatch(r"\d{2}:\d{2}", closes)
                            and time.fromisoformat(opens) < time.fromisoformat(closes))
@@ -459,6 +505,14 @@ async def save_listing(request: Request, user=Depends(workspace_user), db: Async
     listing.city, listing.address, listing.description = city, address, description
     listing.open_days, listing.opens, listing.closes = "".join(days), opens, closes
     listing.published = published
+    await db.flush()
+    current_categories = (await db.scalars(select(MarketplaceListingCategory).where(
+        MarketplaceListingCategory.business_id == user.business_id))).all()
+    for item in current_categories:
+        if item.category not in categories:
+            await db.delete(item)
+    db.add_all(MarketplaceListingCategory(business_id=user.business_id, category=key)
+               for key in categories - {item.category for item in current_categories})
     await db.commit()
     return redirect("/workspace/listing")
 

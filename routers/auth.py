@@ -21,7 +21,7 @@ from database import get_db
 from models import ActivationDocument, Business, CreemPayment, GlobalPaymentSettings, User
 from utils.security import hash_password, verify_password
 from services.demo_workspace import DEMO_SESSION_KEY, demo_workspaces
-from services import creem
+from services import creem, phone_auth
 from services.workspace_catalog import INDUSTRIES, MODULES, PLAN_NAMES, allowed_modules, industry_plan
 from utils.templates import login_html, render_template
 from utils.auth import AttemptLimiter, normalize_username, login_limiter, registration_limiter, dummy_password_hash, read_document, save_document, remove_documents, ROOT
@@ -68,22 +68,45 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
         plan1_active=plan1_active, plan2_active=plan2_active, selected_plan=selected_plan,
         industries=industries, selected_industry=request.query_params.get("industry", "barbershop"),
         standard_prices={plan: creem.advertised(plan) for plan in ("plan1", "plan2")},
+        sms_required=phone_auth.business_enforced(),
+        sms_pending=phone_auth.pending(request, phone_auth.SIGNUP_BUSINESS) if "session" in request.scope else None,
         **campaign_attribution(request),
     ))
 
 
+@router.get("/register/phone")
+async def registration_phone():
+    return HTMLResponse(render_template("auth/sms.html", mode="register-phone"))
+
+
+@router.post("/register/phone")
+async def send_registration_code(request: Request, phone: str = Form(""), db: AsyncSession = Depends(get_db)):
+    status, message = 200, "Код надіслано. Він дійсний 8 хвилин."
+    try:
+        await phone_auth.issue(request, db, phone_auth.SIGNUP_BUSINESS, phone[:40])
+    except phone_auth.ChallengeError as error:
+        status, message = error.status, str(error)
+    if request.headers.get("accept") == "application/json":
+        return JSONResponse({"message": message}, status_code=status)
+    if status == 200:
+        return RedirectResponse("/register", status_code=303)
+    return HTMLResponse(render_template("auth/sms.html", mode="register-phone", error=message), status_code=status)
+
+
 @router.post("/register")
-async def register_post(request: Request, background_tasks: BackgroundTasks, name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), payment_country: str = Form("ua"), plan_type: str = Form("plan1"), terms_accepted: str = Form(""), applied_promo: Optional[str] = Form(None), utm_source: Optional[str] = Form(None), utm_medium: Optional[str] = Form(None), utm_campaign: Optional[str] = Form(None), receipt: Optional[UploadFile] = File(None), nda_file: Optional[UploadFile] = File(None), contract_file: Optional[UploadFile] = File(None), db: AsyncSession = Depends(get_db), registration_flow: Annotated[str, Form()] = ""):
+async def register_post(request: Request, background_tasks: BackgroundTasks, name: str = Form(...), phone: str = Form(...), password: str = Form(...), type: str = Form(...), retail_subcategory: str = Form(None), payment_country: str = Form("ua"), plan_type: str = Form("plan1"), terms_accepted: str = Form(""), applied_promo: Optional[str] = Form(None), utm_source: Optional[str] = Form(None), utm_medium: Optional[str] = Form(None), utm_campaign: Optional[str] = Form(None), receipt: Optional[UploadFile] = File(None), nda_file: Optional[UploadFile] = File(None), contract_file: Optional[UploadFile] = File(None), db: AsyncSession = Depends(get_db), registration_flow: Annotated[str, Form()] = "", sms_code: Annotated[str, Form()] = ""):
     remote = request.client.host if request.client else "unknown"
     if not registration_limiter.allow(remote):
         return RedirectResponse("/register?error=rate", status_code=303)
     name, phone = name.strip(), normalize_username(phone)
+    sms_required = phone_auth.business_enforced()
+    phone = phone_auth.normalize_phone(phone) if sms_required else phone
     if not name or len(name) > 160 or not re.fullmatch(r"\+?[0-9]{7,15}", phone) or len(password) < 8 or len(password) > 1024 or type not in INDUSTRIES:
         return RedirectResponse("/register?error=fields", status_code=303)
     if terms_accepted != "yes":
         return RedirectResponse("/register?error=terms", status_code=303)
-    existing = (await db.execute(select(User).where(User.username == phone))).scalar_one_or_none()
-    if existing: return RedirectResponse("/register?error=exists", status_code=303)
+    if not sms_required and await db.scalar(select(User.id).where(User.username == phone)):
+        return RedirectResponse("/register?error=exists", status_code=303)
     settings = await db.scalar(select(GlobalPaymentSettings).where(GlobalPaymentSettings.id == 1))
     if plan_type not in creem.PLAN_PRICES:
         return RedirectResponse("/register?error=plan", status_code=303)
@@ -142,6 +165,16 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
         return RedirectResponse("/register?error=file", status_code=303)
     if not online and (not receipt or not receipt.filename):
         return RedirectResponse("/register?error=file", status_code=303)
+    if sms_required:
+        try:
+            await phone_auth.consume(request, db, phone_auth.SIGNUP_BUSINESS, sms_code.strip(), expected_phone=phone)
+        except phone_auth.ChallengeError:
+            return RedirectResponse("/register?error=sms", status_code=303)
+        aliases = {phone, phone[1:]}
+        if phone.startswith("+380"):
+            aliases.add(phone[3:])
+        if await db.scalar(select(User.id).where(User.username.in_(aliases)).limit(1)):
+            return RedirectResponse("/register?error=exists", status_code=303)
     billing_country = "creem" if online else ("us" if payment_country == "us" else "ua")
     uploads = [] if free_signup else [(nda_file, "documents"), (contract_file, "documents")]
     if not online:
@@ -454,10 +487,46 @@ async def login(request: Request, username: str = Form(...), password: str = For
         return RedirectResponse("/login?error=invalid", status_code=303)
     result = await db.execute(select(User).options(joinedload(User.business)).where(User.username == username))
     user = result.scalar_one_or_none()
+    phone = phone_auth.normalize_phone(username)
+    if not user and phone and username != phone:
+        user = await db.scalar(select(User).options(joinedload(User.business)).where(User.username == phone))
     encoded = user.password if user else await run_in_threadpool(dummy_password_hash)
     valid = await run_in_threadpool(verify_password, password, encoded)
     if not user or not valid:
         return RedirectResponse("/login?error=invalid", status_code=303)
+    if phone and phone_auth.business_enforced():
+        identifier = user.id
+        await db.rollback()
+        try:
+            await phone_auth.issue(request, db, phone_auth.SIGNIN_BUSINESS, phone, identity=identifier)
+        except phone_auth.ChallengeError as error:
+            return HTMLResponse(render_template("auth/sms.html", mode="login-error", error=str(error)), status_code=error.status)
+        request.session.pop("user_id", None)
+        request.session.pop("pending_business_id", None)
+        return RedirectResponse("/login/verify", status_code=303)
+    return finish_sign_in(request, user)
+
+
+@router.get("/login/verify")
+async def verification_page(request: Request):
+    if not phone_auth.pending(request, phone_auth.SIGNIN_BUSINESS):
+        return RedirectResponse("/login", status_code=303)
+    return HTMLResponse(render_template("auth/sms.html", mode="login"))
+
+
+@router.post("/login/verify")
+async def verify_sign_in(request: Request, code: str = Form(""), db: AsyncSession = Depends(get_db)):
+    try:
+        challenge = await phone_auth.consume(request, db, phone_auth.SIGNIN_BUSINESS, code.strip())
+    except phone_auth.ChallengeError as error:
+        return HTMLResponse(render_template("auth/sms.html", mode="login", error=str(error)), status_code=error.status)
+    user = await db.scalar(select(User).options(joinedload(User.business)).where(User.id == challenge["identity"]))
+    if not user or phone_auth.normalize_phone(user.username) != challenge["phone"]:
+        return RedirectResponse("/login?error=invalid", status_code=303)
+    return finish_sign_in(request, user)
+
+
+def finish_sign_in(request, user):
     if user.role == "owner" and user.business and not user.business.is_active:
         request.session.clear()
         request.session["pending_business_id"] = user.business_id

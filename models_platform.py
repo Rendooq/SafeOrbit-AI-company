@@ -62,6 +62,18 @@ class MarketplacePhoto(Base):
     content: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
 
 
+class MarketplaceListingCategory(Base):
+    __tablename__ = "marketplace_listing_categories"
+    business_id: Mapped[int] = mapped_column(ForeignKey("marketplace_listings.business_id", ondelete="CASCADE"), primary_key=True)
+    category: Mapped[str] = mapped_column(String(24), primary_key=True, index=True)
+
+
+class MarketplaceFavorite(Base):
+    __tablename__ = "marketplace_favorites"
+    client_id: Mapped[int] = mapped_column(ForeignKey("marketplace_clients.id", ondelete="CASCADE"), primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("marketplace_listings.business_id", ondelete="CASCADE"), primary_key=True)
+
+
 class MarketplaceVisit(Base):
     __tablename__ = "marketplace_visits"
     appointment_id: Mapped[int] = mapped_column(ForeignKey("appointments.id", ondelete="CASCADE"), primary_key=True)
@@ -77,13 +89,16 @@ class MarketplaceReview(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
-class MarketplacePhoneCode(Base):
-    __tablename__ = "marketplace_phone_codes"
+class PhoneChallenge(Base):
+    __tablename__ = "phone_challenges"
     phone: Mapped[str] = mapped_column(String(16), primary_key=True)
-    code_hash: Mapped[str] = mapped_column(String(64))
+    purpose: Mapped[str] = mapped_column(String(28), primary_key=True)
+    nonce: Mapped[str] = mapped_column(String(43), unique=True)
+    digest: Mapped[str] = mapped_column(String(64))
+    sent_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
-    sent_at: Mapped[datetime] = mapped_column(DateTime)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class CheckoutProbe(Base):

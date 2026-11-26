@@ -7,7 +7,7 @@ import io
 import json
 import re
 import wave
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -21,8 +21,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from database import get_db
 from main import app
 from models import Appointment, Base, Business, CreemPayment, Master, Service, User
-from models_platform import CreemWorkspaceSubscription, MarketplaceVisit, WorkspaceRecord
+from models_platform import CreemWorkspaceSubscription, MarketplaceVisit, PhoneChallenge, WorkspaceRecord
 from services import marketplace as calendar, workspace_tools
+from utils.auth import AttemptLimiter
 from utils.security import hash_password
 
 
@@ -41,11 +42,21 @@ async def test_app():
 
         app.dependency_overrides[get_db] = isolated
         try:
-            async with (
-                httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as owner,
-                httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as guest,
-            ):
-                yield owner, guest, sessions
+            with ExitStack() as stack:
+                limits = {
+                    "routers.auth.login_limiter": AttemptLimiter(),
+                    "routers.auth.registration_limiter": AttemptLimiter(limit=6, window=300),
+                    "routers.marketplace.LOGIN_LIMIT": AttemptLimiter(limit=12, window=300),
+                    "services.phone_auth.PER_ADDRESS": AttemptLimiter(limit=20, window=600),
+                    "services.phone_auth.PER_NUMBER": AttemptLimiter(limit=6, window=600),
+                }
+                for path, limiter in limits.items():
+                    stack.enter_context(patch(path, limiter))
+                async with (
+                    httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as owner,
+                    httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as guest,
+                ):
+                    yield owner, guest, sessions
         finally:
             app.dependency_overrides.pop(get_db, None)
             await engine.dispose()
@@ -130,7 +141,7 @@ def test_public_listing_real_slots_sms_book_move_cancel_and_verified_reviews():
             assert (await guest.get("/maistry?max_price=")).status_code == 200
             assert (await guest.post("/maistry/register", data={"phone": "+380673333333"})).status_code == 403
             sms = AsyncMock(return_value=(True, "ok"))
-            with patch.dict("os.environ", {"MARKETPLACE_SMS_TOKEN": "isolated"}), patch("routers.marketplace.send_sms", sms):
+            with patch.dict("os.environ", {"MARKETPLACE_SMS_TOKEN": "isolated"}), patch("services.phone_auth.send_sms", sms):
                 issued = await post(guest, "/maistry/register", {"phone": "067 333 33 33"})
             assert issued.status_code == 303, issued.text
             code = re.search(r"\b[0-9]{6}\b", sms.call_args.args[-1])[0]
@@ -162,6 +173,22 @@ def test_public_listing_real_slots_sms_book_move_cancel_and_verified_reviews():
             assert "Чудовий візит" in (await guest.get("/maistry/zaklad/1")).text
             assert (await post(owner, f"/maistry/visits/{identifier}/cancel", {})).status_code == 401
             assert "Стрижка" in (await guest.get("/maistry/account")).text
+            saved = await post(guest, "/maistry/zaklad/1/favorite", {"favorite": "yes"})
+            assert saved.status_code == 303
+            assert "North Barber" in (await guest.get("/maistry?saved=1&category=barber")).text
+            assert "North Barber" not in (await guest.get("/maistry?category=nails")).text
+            unsaved = await post(guest, "/maistry/zaklad/1/favorite", {"favorite": "no"})
+            assert unsaved.status_code == 303
+            assert "North Barber" not in (await guest.get("/maistry?saved=1")).text
+            assert (await post(guest, "/maistry/logout", {})).status_code == 303
+            with patch.dict("os.environ", {"AUTH_SMS_TOKEN": "isolated"}), patch("services.phone_auth.send_sms", sms):
+                logged = await post(guest, "/maistry/login", {"phone": "0673333333", "password": "customer password"})
+            assert logged.headers["location"] == "/maistry/login/verify"
+            assert (await guest.get("/maistry/account")).headers["location"] == "/maistry/login"
+            login_code = re.search(r"\b[0-9]{6}\b", sms.call_args.args[-1])[0]
+            assert (await post(guest, "/maistry/login/verify", {"code": "999999" if login_code != "999999" else "999998"})).status_code == 422
+            assert (await post(guest, "/maistry/login/verify", {"code": login_code})).headers["location"] == "/maistry/account"
+            assert (await post(guest, "/maistry/login/verify", {"code": login_code})).status_code == 422
     asyncio.run(scenario())
 
 
@@ -262,4 +289,102 @@ def test_creem_events_require_signature_and_handle_ordered_subscription_updates(
                 assert (await send("subscription.paid", sub, first+8)).status_code == 204
                 async with sessions() as db:
                     assert (await db.get(Business, 2)).is_active
+    asyncio.run(scenario())
+
+
+def test_business_signup_and_password_login_both_require_bound_sms():
+    async def scenario():
+        async with test_app() as (owner, stranger, sessions):
+            await seed(sessions)
+            sms = AsyncMock(return_value=(True, "accepted"))
+            payload = {"name": "Second factor", "type": "other", "plan_type": "plan1", "registration_flow": "access",
+                       "phone": "+380674445566", "password": "team member pw", "terms_accepted": "yes"}
+            with patch.dict("os.environ", {"AUTH_SMS_TOKEN": "isolated"}), patch("services.phone_auth.send_sms", sms):
+                html = await owner.get("/register?industry=other")
+                assert 'name="sms_code"' in html.text
+                assert (await post(owner, "/register", payload)).headers["location"] == "/register?error=sms"
+                result = await owner.post("/register/phone", data={"phone": payload["phone"]},
+                                           headers={**csrf(owner), "accept": "application/json"})
+                assert result.status_code == 200
+                signup = re.search(r"\b[0-9]{6}\b", sms.call_args.args[-1])[0]
+                await stranger.get("/register")
+                assert (await post(stranger, "/register", {**payload, "sms_code": signup})).headers["location"] == "/register?error=sms"
+                assert (await post(owner, "/register", {**payload, "phone": "+380674445567", "sms_code": signup})).headers["location"] == "/register?error=sms"
+                created = await post(owner, "/register", {**payload, "sms_code": signup})
+                assert created.headers["location"].startswith("/pending-activation/")
+                assert (await post(owner, "/register", {**payload, "sms_code": signup})).headers["location"] == "/register?error=sms"
+                signin = await post(owner, "/login", {"username": "+380671111111", "password": "correct horse battery staple"})
+                assert signin.headers["location"] == "/login/verify"
+                assert (await owner.get("/workspace")).headers["location"] == "/login"
+                verification = re.search(r"\b[0-9]{6}\b", sms.call_args.args[-1])[0]
+                assert (await post(stranger, "/login/verify", {"code": verification})).status_code == 422
+                assert (await post(owner, "/login/verify", {"code": verification})).headers["location"] == "/admin"
+                assert (await owner.get("/workspace")).status_code == 200
+                assert (await post(owner, "/login/verify", {"code": verification})).status_code == 422
+            async with sessions() as db:
+                business = await db.scalar(select(Business).where(Business.name == "Second factor"))
+                assert business and business.plan_type == "custom"
+    asyncio.run(scenario())
+
+
+def test_sms_gateway_accepts_documented_queue_response():
+    from types import SimpleNamespace
+    from services.sms import send_sms
+
+    async def scenario():
+        def provider(request):
+            assert json.loads(request.content)["recipients"] == ["380674445566"]
+            return httpx.Response(200, json={"response_code": 800, "response_result": [
+                {"response_code": 0, "phone": "380674445566", "message_id": "accepted"}]})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as client:
+            account = SimpleNamespace(id="example", sms_token="secret-for-test", sms_sender_id="SafeOrbit")
+            assert (await send_sms(client, account, "+380674445566", "test"))[0]
+    asyncio.run(scenario())
+
+
+def test_missing_sms_provider_does_not_grant_public_phone_sessions():
+    async def scenario():
+        async with test_app() as (owner, guest, sessions):
+            await seed(sessions)
+            await owner.get("/login")
+            await guest.get("/maistry/register")
+            with patch.dict("os.environ", {"ENVIRONMENT": "production", "AUTH_SMS_TOKEN": "", "MARKETPLACE_SMS_TOKEN": ""}):
+                signin = await post(owner, "/login", {"username": "+380671111111", "password": "correct horse battery staple"})
+                assert signin.status_code == 503
+                assert (await owner.get("/workspace")).headers["location"] == "/login"
+                assert (await post(guest, "/maistry/register", {"phone": "+380677775500"})).status_code == 503
+    asyncio.run(scenario())
+
+
+def test_sms_cooldown_attempt_limit_and_expiry():
+    from services import phone_auth
+
+    async def scenario():
+        async with test_app() as (_, guest, sessions):
+            mocked = AsyncMock(return_value=(True, "accepted"))
+            number = "+380677775500"
+            async def insert_code():
+                return await post(guest, "/maistry/register", {"phone": number})
+            data = {"name": "Test", "password": "safe password"}
+            await guest.get("/maistry/register")
+            with patch.dict("os.environ", {"AUTH_SMS_TOKEN": "isolated"}), patch("services.phone_auth.send_sms", mocked):
+                assert (await insert_code()).status_code == 303
+                assert (await insert_code()).status_code == 429 and mocked.await_count == 1
+                correct = re.search(r"\b[0-9]{6}\b", mocked.call_args.args[-1])[0]
+                invalid = "000000" if correct != "000000" else "000001"
+                for _ in range(5):
+                    assert (await post(guest, "/maistry/verify", {**data, "code": invalid})).status_code == 422
+                assert (await post(guest, "/maistry/verify", {**data, "code": correct})).status_code == 422
+                async with sessions() as db:
+                    row = await db.get(PhoneChallenge, (number, phone_auth.SIGNUP_CUSTOMER))
+                    assert row.attempts == 5
+                    row.sent_at = phone_auth.now() - timedelta(minutes=2)
+                    await db.commit()
+                assert (await insert_code()).status_code == 303 and mocked.await_count == 2
+                async with sessions() as db:
+                    row = await db.get(PhoneChallenge, (number, phone_auth.SIGNUP_CUSTOMER))
+                    row.expires_at = phone_auth.now() - timedelta(seconds=1)
+                    await db.commit()
+                expired = re.search(r"\b[0-9]{6}\b", mocked.call_args.args[-1])[0]
+                assert (await post(guest, "/maistry/verify", {**data, "code": expired})).status_code == 422
     asyncio.run(scenario())

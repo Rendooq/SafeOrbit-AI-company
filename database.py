@@ -21,7 +21,7 @@ async def get_db(request: Request):
 
     demo_key = request.scope.get("session", {}).get(DEMO_SESSION_KEY)
     public_route = request.url.path in {"/register", "/taryfy"} or (request.method == "POST" and request.url.path == "/login")
-    public_route = public_route or request.url.path.startswith(("/proposals/", "/maistry/", "/signals/", "/books/")) or request.url.path == "/maistry"
+    public_route = public_route or request.url.path.startswith(("/proposals/", "/maistry/", "/signals/", "/books/", "/login/", "/register/")) or request.url.path == "/maistry"
     if demo_key and not public_route:
         routes = READ_ROUTES if request.method == "GET" else WRITE_ROUTES if request.method == "POST" else ()
         route = getattr(request.scope.get("route"), "path", request.url.path)

@@ -1,46 +1,96 @@
 {% extends "platform/base.html" %}
 {% block title %}Знайти барбершоп або майстра — SafeOrbit{% endblock %}
 {% block meta %}<meta name="description" content="Знайдіть барбершоп, салон або майстра. Перегляньте послуги, ціни, відгуки й доступний час для запису."><link rel="canonical" href="https://safeorbit.com.pl/maistry">{% endblock %}
-{% block links %}<a href="/maistry/account">{{ 'Мої візити' if client else 'Увійти клієнтом' }}</a><a href="/register">Для бізнесу</a>{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/static/v2/discovery.css?v=1">{% endblock %}
+{% block surface %}marketplace{% endblock %}
+{% block layout %}market-body{% endblock %}
+{% block links %}
+  {% if client %}<a href="/maistry?saved=true#results">Збережені</a>{% endif %}
+  <a href="/maistry/account">{{ 'Мої візити' if client else 'Увійти клієнтом' }}</a><a class="market-business" href="/register">Для бізнесу ↗</a>
+{% endblock %}
 {% block content %}
-<section class="directory-intro">
-  <div class="intro-copy"><p class="platform-kicker">SafeOrbit · Онлайн-запис</p>
-    <h1>Знайдіть свого майстра.</h1>
-    <p>Обирайте барбершопи, салони й майстрів за послугами, цінами та вільним часом.</p>
-  </div>
-  <div class="directory-mark" aria-hidden="true"><span></span><span></span><span></span></div>
-</section>
-<form class="platform-panel search-panel" action="/maistry" method="get" role="search">
-  <label>Послуга, майстер або заклад<input name="q" placeholder="Наприклад, чоловіча стрижка" maxlength="100" value="{{ q }}"></label>
-  <label>Місто<input name="city" maxlength="100" placeholder="Наприклад, Київ" value="{{ city }}"></label>
-  <label>Дата<input type="date" name="day" value="{{ day }}"></label>
-  <label>Ціна до, грн<input type="number" name="max_price" min="0" max="100000" value="{{ max_price if max_price else '' }}"></label>
-  <button class="platform-button">Шукати</button>
-</form>
-<section class="directory-results" aria-label="Результати пошуку">
-  {% if results %}
-  <div class="profile-grid">
-    {% for row in results %}
-    <a class="module-tile profile-tile" href="/maistry/zaklad/{{ row.id }}{% if day %}?day={{ day }}{% endif %}">
-      <p class="platform-kicker">{{ row.city }}</p><h2>{{ row.name }}</h2>
-      <p>{{ row.address }}</p>{% if row.description %}<p class="clamp">{{ row.description }}</p>{% endif %}
-      <div class="profile-meta">
-        {% if row.price is not none %}<strong>від {{ '%g'|format(row.price) }} грн</strong>{% endif %}
-        {% if row.review_count %}<span>★ {{ '%.1f'|format(row.rating) }} ({{ row.review_count }})</span>{% endif %}
+<section class="discovery-hero" aria-labelledby="discovery-title">
+  <div class="frame discovery-inner">
+    <h1 id="discovery-title">Знайдіть свого майстра.</h1>
+    <p>Від стрижки до масажу. Знайдіть місце, оберіть зручний час і запишіться онлайн.</p>
+    <form class="discovery-form" id="market-search" action="/maistry#results" method="get" role="search">
+      {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+      {% if saved %}<input type="hidden" name="saved" value="true">{% endif %}
+      <div class="discovery-search">
+        <label class="discovery-service"><span>Послуга, майстер або заклад</span><input name="q" placeholder="Наприклад, чоловіча стрижка" maxlength="100" value="{{ q }}"></label>
+        <label><span>Місто</span><input name="city" maxlength="100" placeholder="Наприклад, Київ" value="{{ city }}"></label>
+        <button class="platform-button" type="submit">Шукати <span aria-hidden="true">↗</span></button>
       </div>
-      <span class="tile-arrow" aria-hidden="true">↗</span>
-    </a>
+      <details class="discovery-more" {% if day or max_price %}open{% endif %}>
+        <summary>Дата й ціна</summary>
+        <div class="field-grid">
+          <label>Дата<input type="date" name="day" value="{{ day }}"></label>
+          <label>Ціна до, грн<input type="number" name="max_price" min="0" max="100000" value="{{ max_price if max_price else '' }}"></label>
+        </div>
+      </details>
+    </form>
+    <nav class="discovery-categories" aria-label="Категорії">
+      <a href="/maistry?{{ category_search }}#results" {% if not category %}aria-current="true"{% endif %}>Усі послуги</a>
+      {% for key,label in categories.items() %}
+        <a href="/maistry?{{ category_search }}&amp;category={{ key }}#results" {% if category == key %}aria-current="true"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+</section>
+<section class="frame discovery-results" id="results" aria-labelledby="results-title">
+  <div class="discovery-results-header">
+    <div><h2 id="results-title">{{ 'Збережені заклади' if saved else categories[category] if category else 'Результати пошуку' if filtered else 'Майстри та салони' }}</h2>
+      {% if filtered %}<a href="/maistry#results">Скинути фільтри</a>{% endif %}</div>
+    {% if results %}
+    <form action="/maistry#results" method="get" class="discovery-sort">
+      {% for key,value in [('q',q), ('city',city), ('day',day), ('category',category), ('max_price',max_price), ('saved','true' if saved else '')] %}{% if value %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+      <label>Сортування<select name="sort"><option value="">За назвою</option><option value="rating" {% if sort == 'rating' %}selected{% endif %}>За оцінкою</option><option value="price" {% if sort == 'price' %}selected{% endif %}>За ціною</option></select></label>
+      <button type="submit" class="platform-button secondary">Застосувати</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if results %}
+    <div class="discovery-grid">
+    {% for row in results %}
+      {% set url = '/maistry/zaklad/' ~ row.id %}
+      <article class="discovery-card" id="shop-{{ row.id }}">
+        <a class="discovery-cover" href="{{ url }}{% if day %}?day={{ day }}{% endif %}" aria-label="{{ row.name }}">
+          {% if row.photo_id %}<img src="/maistry/photo/{{ row.photo_id }}" alt="" loading="lazy" width="400" height="280">
+          {% else %}<div class="studio-monogram" aria-hidden="true">{{ row.name[:1]|upper }}</div>{% endif %}
+        </a>
+        {% if client %}
+        <form method="post" action="{{ url }}/favorite" class="discovery-favorite">
+          {% for key,value in [('q',q), ('city',city), ('day',day), ('max_price',max_price), ('category',category), ('sort',sort), ('saved','true' if saved else ''), ('page',page)] %}{% if value %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+          <button name="favorite" value="{{ 'no' if row.id in favorites else 'yes' }}" aria-pressed="{{ 'true' if row.id in favorites else 'false' }}" aria-label="{{ 'Видалити зі збережених' if row.id in favorites else 'Зберегти заклад' }}">
+            <span aria-hidden="true">{{ '♥' if row.id in favorites else '♡' }}</span>
+          </button>
+        </form>
+        {% endif %}
+        <div class="discovery-card-copy">
+          {% if row.review_count %}<p class="discovery-rating"><span aria-hidden="true">★</span> {{ '%.1f'|format(row.rating) }} <small>({{ row.review_count }})</small></p>{% endif %}
+          <h3><a href="{{ url }}{% if day %}?day={{ day }}{% endif %}">{{ row.name }}</a></h3>
+          <p class="discovery-address">{{ row.city }}, {{ row.address }}</p>
+          <div class="discovery-card-foot">
+            <span>{% if row.price is not none %}від <strong>{{ '%g'|format(row.price) }} грн</strong>{% endif %}</span>
+            <a href="{{ url }}{% if day %}?day={{ day }}{% endif %}">Переглянути <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+      </article>
     {% endfor %}
-  </div>
+    </div>
   {% else %}
-  <div class="platform-panel"><h2>Закладів поки не знайдено</h2><p>Спробуйте інше місто, дату або назву послуги.</p>
-    {% if q or day or city or max_price %}<a href="/maistry">Скинути фільтри</a>{% else %}<a href="/workspace/listing">Опублікувати свій заклад</a>{% endif %}
-  </div>
+    <div class="platform-panel discovery-empty">
+      <h3>{{ 'Збережених закладів поки немає' if saved else 'Закладів поки не знайдено' }}</h3>
+      {% if saved %}<a href="/maistry#results">Перейти до каталогу</a>
+      {% elif filtered %}<p>Спробуйте інше місто, дату або назву послуги.</p>
+      {% else %}<p>Тут з’являються заклади, які відкрили онлайн-запис.</p><a href="/workspace/listing">Опублікувати свій заклад</a>{% endif %}
+    </div>
   {% endif %}
   {% if page > 1 or next_page %}
-  <nav class="paging" aria-label="Сторінки">
-    {% if page > 1 %}<a href="/maistry?{{ search }}&amp;page={{ page - 1 }}">← Попередня</a>{% endif %}
-    <span>{{ page }}</span>{% if next_page %}<a href="/maistry?{{ search }}&amp;page={{ page + 1 }}">Наступна →</a>{% endif %}
-  </nav>{% endif %}
+    <nav class="paging" aria-label="Сторінки">
+      {% if page > 1 %}<a href="/maistry?{{ search }}&amp;page={{ page - 1 }}#results">← Попередня</a>{% endif %}
+      <span>{{ page }}</span>{% if next_page %}<a href="/maistry?{{ search }}&amp;page={{ page + 1 }}#results">Наступна →</a>{% endif %}
+    </nav>
+  {% endif %}
 </section>
 {% endblock %}

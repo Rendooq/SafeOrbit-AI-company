@@ -27,14 +27,16 @@
   <p>Вже маєте акаунт? <a href="/maistry/login?next={{ next|urlencode }}">Увійти</a></p>
   {% else %}
   <h1>Підтвердити номер</h1>
-  <form method="post" action="/maistry/verify">
-    <input type="hidden" name="next" value="{{ next }}">
+  <p class="fine">Введіть код із повідомлення. Він дійсний 8 хвилин.</p>
+  <form method="post" action="{{ '/maistry/login/verify' if mode == 'login-verify' else '/maistry/verify' }}">
     <label>Код із SMS<input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
+    {% if mode != 'login-verify' %}
     <label>Ваше ім’я<input name="name" autocomplete="given-name" maxlength="120" required></label>
     <label>Створіть пароль<input type="password" name="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
+    {% endif %}
     <button class="platform-button">Підтвердити й увійти</button>
   </form>
-  <a href="/maistry/register?next={{ next|urlencode }}">Надіслати код знову</a>
+  <a href="{{ '/maistry/login' if mode == 'login-verify' else '/maistry/register' }}?next={{ next|urlencode }}">{{ 'Повторити вхід' if mode == 'login-verify' else 'Надіслати код знову' }}</a>
   {% endif %}
 </section>
 {% endblock %}

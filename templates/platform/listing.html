@@ -10,6 +10,9 @@
       <div class="field-grid"><label>Місто<input name="city" maxlength="100" required value="{{ listing.city if listing else business.city or '' }}"></label>
       <label>Адреса<input name="address" maxlength="220" required value="{{ listing.address if listing else business.address or '' }}"></label></div>
       <label>Опис закладу<textarea name="description" maxlength="1500" rows="5">{{ listing.description if listing else '' }}</textarea></label>
+      <fieldset class="weekday-set"><legend>Категорії в каталозі · до 4</legend>
+        {% for key, label in categories.items() %}<label class="check"><input type="checkbox" name="category" value="{{ key }}" {% if key in chosen_categories %}checked{% endif %}>{{ label }}</label>{% endfor %}
+      </fieldset>
       <fieldset class="weekday-set"><legend>Робочі дні</legend>{% for day in days %}<label class="check"><input type="checkbox" name="days" value="{{ loop.index0 }}" {% if not listing or loop.index0|string in listing.open_days %}checked{% endif %}>{{ day }}</label>{% endfor %}</fieldset>
       <div class="field-grid"><label>З котрої години<input type="time" name="opens" required value="{{ listing.opens if listing else '09:00' }}"></label>
       <label>До котрої години<input type="time" name="closes" required value="{{ listing.closes if listing else '18:00' }}"></label></div>

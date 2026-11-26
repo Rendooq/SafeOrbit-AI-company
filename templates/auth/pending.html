@@ -18,8 +18,13 @@
       <ol>
         {% if setup_required %}<li><span>Разове налаштування</span><strong class="{{ 'done' if setup_paid else '' }}">{{ 'Оплачено' if setup_paid else 'Очікує оплати' }}</strong></li>{% endif %}
         <li><span>Щомісячна підписка</span><strong class="{{ 'done' if monthly_paid else '' }}">{{ 'Оплачено' if monthly_paid else 'Очікує оплати' }}</strong></li>
+        {% if online_offer %}
+        <li><span>Умови підписки</span><strong class="{{ 'done' if offer_accepted else '' }}">{{ 'Прийнято' if offer_accepted else 'Потрібне підтвердження' }}</strong></li>
+        <li><span>Активація доступу</span><strong>Після підтвердження оплати</strong></li>
+        {% else %}
         <li><span>NDA та договір</span><strong class="{{ 'done' if documents_ready else '' }}">{{ 'Отримано' if documents_ready else 'Потрібні документи' }}</strong></li>
         <li><span>Активація доступу</span><strong>{{ 'На перевірці' if setup_paid and monthly_paid and documents_ready else 'Після оплати й документів' }}</strong></li>
+        {% endif %}
       </ol>
     </section>
     <div class="access-features">
@@ -37,7 +42,7 @@
         </dl>
       </div>
     {% endif %}
-    {% if not documents_ready and contract_path %}
+    {% if not online_offer and not documents_ready and contract_path %}
       <section class="access-documents" aria-labelledby="access-documents-title">
         <h3 id="access-documents-title">Обов’язкові документи для активації</h3>
         <p>Завантажте підписані NDA і договір. Адміністратор відкриє доступ після оплати та перевірки документів.</p>
@@ -48,11 +53,18 @@
           <button type="submit" class="button-primary"><span>Надіслати документи</span></button>
         </form>
       </section>
-    {% elif documents_ready %}
+    {% elif not online_offer and documents_ready %}
       <p class="activation-note">Документи отримано.</p>
     {% endif %}
     {% if outstanding and payment_available %}
       <form method="post" action="/pending-activation/{{ checkout_business_id }}/pay" data-creem-checkout>
+        {% if offer_version and not offer_accepted %}
+        {% if offer_error %}<p role="alert" class="info-note">Підтвердьте умови підписки перед переходом до оплати.</p>{% endif %}
+        <label class="consent">
+          <input type="checkbox" name="accept_offer" value="{{ offer_version }}" required>
+          <span>Я приймаю <a href="{{ offer_path }}" target="_blank" rel="noopener">умови підписки SafeOrbit</a> й погоджуюся на щомісячне поновлення через Creem.</span>
+        </label>
+        {% endif %}
         <button type="submit" class="button-primary"><span>{% if outstanding.checkout_id %}Перевірити або продовжити оплату{% else %}Купити доступ · Creem{% endif %}</span><span aria-hidden="true">→</span></button>
         <p class="info-note" role="status" data-checkout-feedback hidden></p>
         <a class="button-primary" target="_blank" rel="noopener" data-checkout-link hidden>Відкрити касу Creem ↗</a>

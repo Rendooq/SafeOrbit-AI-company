@@ -20,6 +20,8 @@ PLAN_PRICES = {
     "production": (("WORKSHOP_SETUP", 0), ("WORKSHOP_MONTHLY", 1290)),
     "custom": (("CUSTOM_SETUP", 0), ("CUSTOM_MONTHLY", 1980)),
 }
+ONLINE_TERMS_VERSION = "2026-11-26"
+ONLINE_TERMS_PLANS = {"commerce", "production", "custom"}
 
 
 def advertised(plan: str) -> tuple[Charge, ...]:
@@ -44,10 +46,21 @@ def enabled() -> bool:
     return bool(key and not key.startswith("creem_test_") and os.getenv("CREEM_ENABLED") == "1")
 
 
+def webhook_ready() -> bool:
+    return bool(os.getenv("CREEM_WEBHOOK_SECRET", "").strip()) and enabled()
+
+
+def offer_version(plan: str) -> str:
+    if (plan in ONLINE_TERMS_PLANS and webhook_ready()
+            and os.getenv("CREEM_ONLINE_TERMS_VERSION", "").strip() == ONLINE_TERMS_VERSION):
+        return ONLINE_TERMS_VERSION
+    return ""
+
+
 def charges(plan: str) -> tuple[Charge, ...]:
     if not enabled():
         return ()
-    if plan in {"commerce", "production", "custom"} and not agreement_path(plan):
+    if plan in ONLINE_TERMS_PLANS and not (offer_version(plan) or agreement_path(plan)):
         return ()
     configured = tuple(
         Charge(os.getenv(f"CREEM_{name}_PRODUCT_ID", "").strip(), cents, index == 1)

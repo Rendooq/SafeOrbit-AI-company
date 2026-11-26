@@ -144,13 +144,20 @@ Do not commit `.env`, database files, uploads, or session secrets.
 - The EUR monthly Creem products for the new plans are
   `CREEM_COMMERCE_MONTHLY_PRODUCT_ID` (€14.90),
   `CREEM_WORKSHOP_MONTHLY_PRODUCT_ID` (€12.90), and
-  `CREEM_CUSTOM_MONTHLY_PRODUCT_ID` (€19.80). Set the corresponding
-  `CREEM_COMMERCE_TERMS_FILE`, `CREEM_PRODUCTION_TERMS_FILE`, and
-  `CREEM_CUSTOM_TERMS_FILE` to the reviewed agreement filenames in `static/`.
-  Checkout stays disabled for an unconfigured plan.
+  `CREEM_CUSTOM_MONTHLY_PRODUCT_ID` (€19.80). Checkout for a new plan requires
+  either approved online terms or a plan-specific signed agreement. For the
+  signed-document flow, set the corresponding `CREEM_COMMERCE_TERMS_FILE`,
+  `CREEM_PRODUCTION_TERMS_FILE`, or `CREEM_CUSTOM_TERMS_FILE` to the reviewed
+  agreement filename in `static/`.
 - Configure the production Creem webhook at `/billing/creem/events` with
-  `CREEM_WEBHOOK_SECRET`. A verified checkout records the payment. The
-  existing document approval remains the first activation step. Synced
+  `CREEM_WEBHOOK_SECRET`. For Commerce, Workshop and Constructor, set
+  `CREEM_ONLINE_TERMS_VERSION` to the exact version approved for publication.
+  The current draft is version `2026-11-26` in
+  `templates/auth/creem-offer.html`. Leave the variable unset until approval.
+  The online flow stores consent before checkout and activates the workspace
+  upon confirmation of the paid subscription and its billing period.
+  Business, Business Pro and the signed-document flow use their existing
+  approval step. Synced
   subscriptions control access on pause, on the end of the paid period,
   and after a confirmed renewal. Existing subscriptions without a mapped
   checkout remain in the original manual flow.

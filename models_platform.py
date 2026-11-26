@@ -161,3 +161,11 @@ class CreemWorkspaceSubscription(Base):
     newest_event: Mapped[int] = mapped_column(BigInteger, default=0)
     status: Mapped[str] = mapped_column(String(24), default="active")
     auto_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class CreemTermsAcceptance(Base):
+    __tablename__ = "creem_terms_acceptances"
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True)
+    plan_type: Mapped[str] = mapped_column(String(24))
+    version: Mapped[str] = mapped_column(String(32))
+    accepted_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

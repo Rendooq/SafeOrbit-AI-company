@@ -307,6 +307,7 @@ def test_creem_events_require_signature_and_handle_ordered_subscription_updates(
         async with test_app() as (owner, _, sessions):
             await seed(sessions)
             async with sessions() as db:
+                (await db.get(Business, 2)).billing_country = "creem"
                 db.add(CreemPayment(id="order-unit", business_id=2, product_id="prod_test", cents=1980, recurring=True,
                                     checkout_id="ch_test", paid=False))
                 await db.commit()

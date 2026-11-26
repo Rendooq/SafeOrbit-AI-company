@@ -32,6 +32,7 @@ from models import (
     ensure_performance_indexes,
 )
 from dependencies import get_current_user
+from services.creem import webhook_ready
 from services.demo_workspace import demo_workspaces
 from exceptions import APIError
 from middleware import LoggingMiddleware, RateLimitMiddleware
@@ -125,7 +126,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     private_preview = request.url.path.startswith("/maket/")
-    if private_preview or request.url.path in {"/", "/login", "/register", "/maistry", "/workspace"} or request.url.path.startswith(("/pending-activation/", "/maistry/", "/workspace/", "/proposals/", "/books/", "/login/", "/register/")):
+    if private_preview or request.url.path in {"/", "/login", "/register", "/maistry", "/workspace"} or request.url.path.startswith(("/pending-activation/", "/maistry/", "/workspace/", "/proposals/", "/books/", "/login/", "/register/", "/terms/subscription/")):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; "
@@ -369,7 +370,7 @@ async def startup():
                 nps_collection_loop, rfm_segmentation_loop,
             )
         ]
-        if creem_events.configured():
+        if webhook_ready():
             app.state.background_tasks.append(asyncio.create_task(creem_events.expire_subscriptions()))
     except Exception as e:
         logger.error(f"Database startup error: {e}")

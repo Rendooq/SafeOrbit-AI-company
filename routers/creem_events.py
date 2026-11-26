@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import or_, select
@@ -16,35 +15,13 @@ from database import AsyncSessionLocal, get_db
 from models import Business, CreemPayment
 from models_platform import CreemWorkspaceSubscription
 from services import creem
+from services.creem_billing import date_field, now, object_id, record_paid_checkout
 from services.marketplace import lock_calendar
 
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 RENEWALS = {"subscription.paid", "subscription.canceled", "subscription.paused", "subscription.expired"}
-
-
-def now():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def configured():
-    return bool(os.getenv("CREEM_WEBHOOK_SECRET", "").strip()) and creem.enabled()
-
-
-def object_id(item):
-    return item.get("id") if isinstance(item, dict) else item
-
-
-def date_field(item, name):
-    raw = item.get(name)
-    if not isinstance(raw, str):
-        return None
-    try:
-        value = datetime.fromisoformat(raw)
-    except ValueError:
-        return None
-    return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else None
 
 
 def reconcile_access(business, subscription):
@@ -74,25 +51,12 @@ async def completed(db, payload, created):
             raise HTTPException(503, "Awaiting provider verification.") from exc
         if not creem.is_paid(payload, checkout_id, payment.product_id, payment.cents):
             return
-    payment.paid = True
-    remote = payload.get("subscription")
-    provider_id = object_id(remote)
-    if not payment.recurring or not isinstance(provider_id, str) or not re.fullmatch(r"sub_[A-Za-z0-9]+", provider_id):
-        return
-    subscription = await db.get(CreemWorkspaceSubscription, payment.business_id, populate_existing=True)
-    if subscription:
-        return
-    paid_until = date_field(remote, "current_period_end_date") if isinstance(remote, dict) else None
-    if paid_until is None:
+    business = await db.get(Business, payment.business_id)
+    if business and business.billing_country == "creem":
         try:
-            current = await creem.api("GET", f"subscriptions/{provider_id}")
+            await record_paid_checkout(db, business, payment, payload, created)
         except creem.CreemError as exc:
             raise HTTPException(503, "Awaiting subscription verification.") from exc
-        paid_until = date_field(current, "current_period_end_date")
-    if paid_until is None:
-        raise HTTPException(503, "No confirmed subscription period.")
-    db.add(CreemWorkspaceSubscription(business_id=payment.business_id, provider_id=provider_id,
-        product_id=payment.product_id, paid_until=paid_until, newest_event=created, status="active"))
 
 
 async def renew(db, kind, payload, created):
@@ -121,8 +85,8 @@ async def renew(db, kind, payload, created):
 
 @router.post("/billing/creem/events")
 async def creem_events(request: Request, db: AsyncSession = Depends(get_db)):
-    secret = os.getenv("CREEM_WEBHOOK_SECRET", "")
-    if not configured():
+    secret = os.getenv("CREEM_WEBHOOK_SECRET", "").strip()
+    if not creem.webhook_ready():
         raise HTTPException(503, "Creem events are not configured.")
     raw = await request.body()
     given = request.headers.get("creem-signature", "")
@@ -148,7 +112,7 @@ async def creem_events(request: Request, db: AsyncSession = Depends(get_db)):
 
 async def expire_subscriptions():
     while True:
-        if os.getenv("CREEM_WEBHOOK_SECRET") and creem.enabled():
+        if creem.webhook_ready():
             try:
                 async with AsyncSessionLocal() as db:
                     ids = (await db.scalars(select(CreemWorkspaceSubscription.business_id).join(

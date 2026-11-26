@@ -19,9 +19,11 @@ from sqlalchemy.orm import joinedload
 from config import SUPERADMIN_TG_BOT_TOKEN, SUPERADMIN_TG_CHAT_ID, UA_TZ
 from database import get_db
 from models import ActivationDocument, Business, CreemPayment, GlobalPaymentSettings, User
+from models_platform import CreemTermsAcceptance
 from utils.security import hash_password, verify_password
 from services.demo_workspace import DEMO_SESSION_KEY, demo_workspaces
 from services import creem, phone_auth
+from services.creem_billing import accepted_offer, record_paid_checkout
 from services.workspace_catalog import INDUSTRIES, MODULES, PLAN_NAMES, allowed_modules, industry_plan
 from utils.templates import login_html, render_template
 from utils.auth import AttemptLimiter, normalize_username, login_limiter, registration_limiter, dummy_password_hash, read_document, save_document, remove_documents, ROOT
@@ -257,6 +259,9 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
         return RedirectResponse("/login", status_code=303)
     status = biz.payment_status or "pending"
     limited = biz.billing_country == "creem" and status == "pending"
+    acceptance = await accepted_offer(db, biz) if limited else None
+    offer_version = creem.offer_version(biz.plan_type) if limited else ""
+    online_offer = bool(offer_version or acceptance)
     payments = []
     available = ()
     if limited:
@@ -279,6 +284,8 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
         title, label = "Ваш акаунт створено.", "Обмежений доступ"
         description = ("Оплатіть підключення та підписку, щоб відкрити робочий простір SafeOrbit."
                        if setup_required else "Оформіть щомісячну підписку, щоб відкрити робочий простір SafeOrbit.")
+    elif limited and online_offer:
+        title, description, label = "Перевіряємо підписку.", "Creem підтверджує термін оплаченого доступу.", "На перевірці"
     else:
         title, description, label = "Дякуємо. Заявка вже у нас.", "Адміністратор перевірить підключення та активує ваш бізнес-простір.", "На перевірці"
     return HTMLResponse(render_template(
@@ -293,7 +300,18 @@ async def pending_activation_page(id: int, request: Request, db: AsyncSession = 
         plan_modules=[MODULES[module].label for module in allowed_modules(biz)[:8]],
         contract_path=("/static/contract_plan1.pdf" if biz.plan_type == "plan1" and setup_required else creem.agreement_path(biz.plan_type)),
         documents_ready=bool(biz.nda_url and biz.contract_url), document_error=payment_error == "documents",
+        online_offer=online_offer, offer_version=offer_version, offer_accepted=bool(acceptance),
+        offer_error=payment_error == "terms", offer_path=f"/terms/subscription/{biz.plan_type}",
     ))
+
+
+@router.get("/terms/subscription/{plan}", response_class=HTMLResponse)
+async def online_subscription_terms(plan: str):
+    version = creem.offer_version(plan)
+    if not version:
+        raise HTTPException(404)
+    return HTMLResponse(render_template("auth/creem-offer.html", plan_name=PLAN_NAMES[plan], version=version,
+                                        monthly=creem.advertised(plan)[0].cents))
 
 
 @router.post("/pending-activation/{id}/documents")
@@ -321,7 +339,7 @@ async def submit_access_documents(id: int, request: Request, nda: UploadFile = F
 
 @router.post("/pending-activation/{id}/pay")
 async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db),
-                    verify_only: Annotated[bool, Form()] = False):
+                    verify_only: Annotated[bool, Form()] = False, accept_offer: Annotated[str, Form()] = ""):
     def respond(location: str):
         if request.headers.get("accept") == "application/json":
             return JSONResponse({"location": location})
@@ -339,6 +357,11 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
     charges = creem.charges(biz.plan_type)
     if not charges and not (payments and creem.enabled()):
         return respond(f"{pending}?payment_error=1")
+    version = creem.offer_version(biz.plan_type)
+    if not verify_only and version and not await accepted_offer(db, biz):
+        if accept_offer != version:
+            return respond(f"{pending}?payment_error=terms")
+        db.add(CreemTermsAcceptance(business_id=id, plan_type=biz.plan_type, version=version))
     if not payments and not verify_only:
         payments = [CreemPayment(id=uuid4().hex, business_id=id, product_id=charge.product_id,
                                  cents=charge.cents, recurring=charge.recurring) for charge in charges]
@@ -350,7 +373,7 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
             if payment.checkout_id:
                 checkout = await creem.api("GET", "checkouts", params={"checkout_id": payment.checkout_id})
                 if creem.is_paid(checkout, payment.checkout_id, payment.product_id, payment.cents):
-                    payment.paid = True
+                    await record_paid_checkout(db, biz, payment, checkout)
                     if verify_only:
                         break
                     continue

@@ -1,6 +1,9 @@
 import asyncio
+import hashlib
+import hmac
 import io
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 from test_regressions import api
@@ -12,6 +15,7 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 
 from models import ActivationDocument, Business, CreemPayment, User
+from models_platform import CreemTermsAcceptance, CreemWorkspaceSubscription
 from routers.auth import creem_pay, pending_activation_page, register_post, submit_access_documents
 from services.creem import Charge, charges, is_paid
 from utils.static import CachedStaticFiles
@@ -96,6 +100,75 @@ def test_business_creem_configuration_needs_only_the_new_monthly_product():
     }, clear=True):
         assert charges("plan1") == (Charge("prod_newmonthly", 990, True),)
         assert charges("plan2") == ()
+
+
+@pytest.mark.parametrize("confirmation", ["webhook", "return"])
+def test_online_plan_requires_approved_offer_and_activates_only_after_confirmed_payment(confirmation):
+    from test_platform import post, test_app
+
+    key = "isolated-signing-secret"
+    configuration = {
+        "CREEM_API_KEY": "creem_local_unit_test",
+        "CREEM_ENABLED": "1",
+        "CREEM_WEBHOOK_SECRET": key,
+        "CREEM_CUSTOM_MONTHLY_PRODUCT_ID": "prod_constructor",
+        "CREEM_ONLINE_TERMS_VERSION": "",
+        "AUTH_SMS_TOKEN": "",
+        "MARKETPLACE_SMS_TOKEN": "",
+    }
+
+    async def scenario():
+        async with test_app() as (owner, webhook, sessions):
+            assert (await owner.get("/terms/subscription/custom")).status_code == 404
+            assert charges("custom") == ()
+            with patch.dict("os.environ", {"CREEM_ONLINE_TERMS_VERSION": "2026-11-26"}):
+                terms = await owner.get("/terms/subscription/custom")
+                assert terms.status_code == 200 and "€19.80" in terms.text
+                await owner.get("/register")
+                submitted = await post(owner, "/register", {"name": "Constructor", "phone": "+380677701531",
+                    "password": "valid constructor password", "type": "other", "terms_accepted": "yes",
+                    "registration_flow": "access"})
+                pending = submitted.headers["location"]
+                page = await owner.get(pending)
+                assert 'name="accept_offer"' in page.text and "/documents" not in page.text
+                refused = await post(owner, pending + "/pay", {})
+                assert refused.headers["location"].endswith("payment_error=terms")
+                async with sessions() as db:
+                    company = await db.scalar(select(Business))
+                    assert not company.is_active and not await db.get(CreemTermsAcceptance, company.id)
+                    business_id = company.id
+                    payment_id = await db.scalar(select(CreemPayment.id))
+                product = {"id": "prod_constructor", "currency": "EUR", "price": 1980,
+                           "status": "active", "billing_type": "recurring", "billing_period": "every-month"}
+                with patch("services.creem.api", AsyncMock(side_effect=[product,
+                        {"id": "ch_constructor", "checkout_url": "https://checkout.creem.io/ch_constructor"}])):
+                    created = await post(owner, pending + "/pay", {"accept_offer": "2026-11-26"})
+                    assert created.headers["location"] == "https://checkout.creem.io/ch_constructor"
+                async with sessions() as db:
+                    assert not (await db.get(Business, business_id)).is_active
+                    assert (await db.get(CreemTermsAcceptance, business_id)).version == "2026-11-26"
+                date = datetime.now(timezone.utc)
+                payment = {"id": "ch_constructor", "request_id": payment_id, "mode": "prod", "status": "completed",
+                    "product": "prod_constructor", "order": {"status": "paid", "currency": "EUR",
+                        "sub_total": 1980, "amount_due": 1980, "amount_paid": 1980},
+                    "subscription": {"id": "sub_constructor", "status": "active",
+                        "current_period_end_date": (date + timedelta(days=30)).isoformat()}}
+                if confirmation == "webhook":
+                    raw = json.dumps({"eventType": "checkout.completed", "object": payment,
+                                      "created_at": int(date.timestamp() * 1000)}).encode()
+                    signature = hmac.new(key.encode(), raw, hashlib.sha256).hexdigest()
+                    assert (await webhook.post("/billing/creem/events", content=raw,
+                                              headers={"creem-signature": signature})).status_code == 204
+                else:
+                    with patch("services.creem.api", AsyncMock(return_value=payment)):
+                        assert (await post(owner, pending + "/pay", {"verify_only": "true"})).status_code == 303
+                async with sessions() as db:
+                    company = await db.get(Business, business_id)
+                    assert company.is_active and company.payment_status == "approved"
+                    assert (await db.get(CreemWorkspaceSubscription, business_id)).provider_id == "sub_constructor"
+
+    with patch.dict("os.environ", configuration):
+        asyncio.run(scenario())
 
 
 def test_single_paid_business_subscription_can_be_approved_with_documents():

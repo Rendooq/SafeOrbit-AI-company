@@ -1,15 +1,63 @@
-.pricing-page { width: min(100% - 32px, 960px); margin: 0 auto; padding: clamp(32px, 7vw, 80px) 0; }
-.pricing-header { margin-bottom: 24px; }
-.pricing-header h1 { margin: 0 0 10px; font-size: clamp(1.9rem, 5vw, 3.2rem); line-height: 1.1; }
-.pricing-header p { max-width: 58ch; }
-.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 16px; }
-.pricing-card, .pricing-steps { background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 16px; padding: clamp(16px, 3vw, 26px); }
-.pricing-card h2, .pricing-steps h2 { margin: 0 0 8px; font-size: 1.3rem; }
-.pricing-card dl { margin: 20px 0; }
-.pricing-card dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; }
-.pricing-card dd { margin: 0; font-weight: 700; text-align: end; white-space: nowrap; }
-.pricing-card dl div:last-child { border-top: 1px solid var(--ui-border); }
-.pricing-card dl div:last-child dd { color: var(--ui-accent); font-size: 1.12em; }
-.pricing-tax-note, .pricing-unavailable { color: var(--ui-muted); font-size: .875rem; }
-.pricing-steps { margin-top: 18px; }
+.pricing-page {
+  width: min(100% - 32px, 1120px);
+  margin-inline: auto;
+  padding-block: clamp(32px, 6vw, 70px);
+}
+
+.pricing-header h1 { margin: 0 0 10px; font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.1; }
+.pricing-header p { max-width: 57ch; color: var(--ui-muted); }
+.plan-jumps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.plan-jumps a { display: inline-flex; align-items: center; min-height: 40px; padding: 6px 13px; border: 1px solid var(--ui-border); border-radius: 9px; color: var(--ui-text); background: var(--ui-surface); font-size: .875rem; }
+.plan-jumps a:hover { border-color: var(--ui-accent); }
+.pricing-card h3 { scroll-margin-top: 16px; }
+.pricing-group { margin-top: clamp(25px, 4vw, 44px); }
+.pricing-group h2 { margin: 0 0 12px; font-size: clamp(1.2rem, 2.6vw, 1.55rem); }
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 16px;
+}
+
+.pricing-card, .pricing-steps {
+  padding: clamp(16px, 2.4vw, 25px);
+  color: var(--ui-text);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+}
+
+.pricing-card { display: flex; flex-direction: column; min-width: 0; }
+.pricing-card h3, .pricing-steps h2 { margin: 0 0 8px; font-size: 1.3rem; }
+.plan-audience { margin: 0 0 16px; color: var(--ui-muted); }
+.plan-rate { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; margin: 0; color: var(--ui-muted); }
+.plan-rate strong { color: var(--ui-text); font-size: clamp(2rem, 4vw, 2.7rem); line-height: 1.12; letter-spacing: -.045em; }
+.plan-rate strong, .plan-cost dd { font-variant-numeric: tabular-nums; }
+.plan-cost { margin: 12px 0 0; font-size: .9rem; }
+.plan-cost div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding-block: 6px; }
+.plan-cost dd { margin: 0; font-weight: 700; text-align: end; white-space: nowrap; }
+.plan-cost div + div { border-top: 1px solid var(--ui-border); }
+.plan-features { margin: 14px 0 16px; padding: 13px 0 0 19px; border-top: 1px solid var(--ui-border); }
+.plan-features li + li { margin-top: 6px; }
+.plan-features li::marker { color: var(--ui-accent); }
+.plan-actions { margin-top: auto; }
+.plan-actions .button-v2 { width: 100%; min-height: 44px; white-space: normal; text-align: center; cursor: pointer; }
+.plan-registration { display: grid; gap: 8px; }
+.plan-registration label { color: var(--ui-muted); font-size: .85rem; }
+.plan-registration select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  color: var(--ui-text);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  font: inherit;
+}
+
+.plan-activation, .pricing-tax-note { color: var(--ui-muted); font-size: .875rem; }
+.plan-activation { margin: 11px 0 4px; }
+.pricing-tax-note { margin-top: 10px; }
+.plan-terms { display: inline-block; padding-block: 7px; color: var(--ui-text); font-size: .875rem; text-decoration: underline; text-underline-offset: .22em; }
+.pricing-steps { margin-top: 28px; }
+.pricing-steps ol { padding-inline-start: 21px; }
 .pricing-steps li { margin-block: 8px; }

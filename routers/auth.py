@@ -438,9 +438,20 @@ async def public_pricing(db: AsyncSession = Depends(get_db), request: Request = 
     settings = await db.get(GlobalPaymentSettings, 1)
     active_plans = {plan for plan in ("plan1", "plan2")
                     if settings is None or getattr(settings, f"is_{plan}_active")}
+    industry_options = {
+        plan: [(key, industry.label) for key, industry in INDUSTRIES.items() if industry.plan == plan]
+        for plan in creem.ONLINE_TERMS_PLANS
+    }
+    active_plans.update(plan for plan in industry_options if creem.charges(plan))
+    online_plans = {plan for plan in industry_options if creem.offer_version(plan)}
+    agreements = {
+        plan: f"/terms/subscription/{plan}" if plan in online_plans else creem.agreement_path(plan)
+        for plan in PLAN_NAMES
+    }
     return HTMLResponse(render_template(
         "marketing/pricing.html", canonical=PUBLIC_SITE + PRICING_PAGE,
-        plans=creem.PLAN_PRICES, active_plans=active_plans,
+        plans=creem.PLAN_PRICES, plan_names=PLAN_NAMES, active_plans=active_plans,
+        industry_options=industry_options, online_plans=online_plans, agreements=agreements,
         has_campaign=bool(campaign_attribution(request)),
     ))
 

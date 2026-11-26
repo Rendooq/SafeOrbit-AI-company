@@ -133,6 +133,39 @@ def test_marketing_campaign_survives_demo_and_pricing_before_registration():
     asyncio.run(scenario())
 
 
+def test_public_pricing_lists_every_plan_and_respects_online_availability():
+    async def scenario():
+        async with api() as (_, sessions):
+            async with sessions() as db:
+                with patch.dict("os.environ", {"CREEM_ENABLED": "0"}):
+                    offline = (await auth.public_pricing(db=db)).body.decode()
+                plan_prices = {"plan1": "9.90", "plan2": "16.74", "commerce": "14.90",
+                               "production": "12.90", "custom": "19.80"}
+                for plan, price in plan_prices.items():
+                    card = offline.split(f'aria-labelledby="plan-{plan}">', 1)[1].split("</article>", 1)[0]
+                    assert f"€{price}" in card
+                    if plan in auth.creem.ONLINE_TERMS_PLANS:
+                        assert 'action="/register"' not in card and 'href="/register?' not in card
+                with patch.dict("os.environ", {
+                    "CREEM_ENABLED": "1",
+                    "CREEM_API_KEY": "creem_live_local",
+                    "CREEM_WEBHOOK_SECRET": "local-check",
+                    "CREEM_ONLINE_TERMS_VERSION": auth.creem.ONLINE_TERMS_VERSION,
+                    "CREEM_COMMERCE_MONTHLY_PRODUCT_ID": "prod_localCommerce",
+                    "CREEM_WORKSHOP_MONTHLY_PRODUCT_ID": "prod_localWorkshop",
+                    "CREEM_CUSTOM_MONTHLY_PRODUCT_ID": "prod_localCustom",
+                }):
+                    online = (await auth.public_pricing(db=db)).body.decode()
+                for plan in auth.creem.ONLINE_TERMS_PLANS:
+                    assert f'href="/terms/subscription/{plan}"' in online
+                assert online.count('action="/register"') == 2
+                assert 'href="/register?industry=other&amp;utm_source=pricing"' in online
+                for industry in ("retail", "restaurant", "construction", "tenders", "furniture", "print"):
+                    assert f'<option value="{industry}">' in online
+
+    asyncio.run(scenario())
+
+
 def test_theme_switch_is_on_all_surfaces_and_style_is_final_layer():
     user=SimpleNamespace(role="superadmin",username="test",business=None)
     shell=get_layout("sample",user,"super")

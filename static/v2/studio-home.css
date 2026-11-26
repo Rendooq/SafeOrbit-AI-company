@@ -292,7 +292,5 @@
 .industry-guide-item h3, .industry-guide-item p { margin: 0; }
 .industry-guide-item p { font-size: .88rem; }
 .industry-guide-item strong { color: var(--link, #5730a9); font-size: .9rem; }
-.mobile-directory-link { display: none; }
-@media (max-width: 850px) {
-  .mobile-directory-link { display: inline-flex; margin-top: 1.15rem; }
-}
+.studio-home .directory-entry { margin-top: .85rem; color: var(--link); background: var(--tint); border: 1px solid var(--rule); }
+.studio-home .directory-entry:hover { border-color: var(--link); }

@@ -17,13 +17,15 @@
   <p>Вперше тут? <a href="/maistry/register?next={{ next|urlencode }}">Створити акаунт</a></p>
   {% elif mode == 'register' %}
   <h1>Створити акаунт</h1>
-  {% if sms %}
   <form method="post" action="/maistry/register">
     <input type="hidden" name="next" value="{{ next }}">
-    <label>Номер телефону<input type="tel" name="phone" maxlength="40" autocomplete="tel" placeholder="+380" required></label>
-    <button class="platform-button">Отримати код SMS</button>
+    <label>Номер телефону<input type="tel" name="phone" maxlength="40" autocomplete="tel" placeholder="+380" value="{{ phone|default('') }}" required></label>
+    {% if not sms %}
+    <label>Ваше ім’я<input name="name" autocomplete="given-name" maxlength="120" value="{{ name|default('') }}" required></label>
+    <label>Створіть пароль<input type="password" name="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
+    {% endif %}
+    <button class="platform-button">{{ 'Отримати код SMS' if sms else 'Створити акаунт' }}</button>
   </form>
-  {% else %}<p class="feedback">Реєстрація тимчасово недоступна. Спробуйте згодом.</p>{% endif %}
   <p>Вже маєте акаунт? <a href="/maistry/login?next={{ next|urlencode }}">Увійти</a></p>
   {% else %}
   <h1>Підтвердити номер</h1>

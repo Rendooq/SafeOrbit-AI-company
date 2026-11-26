@@ -135,11 +135,12 @@ Do not commit `.env`, database files, uploads, or session secrets.
 - Existing businesses can publish a categorized profile and portfolio through
   `/workspace/listing`. The customer directory is `/maistry`. Signed-in
   customers can save listed businesses.
-- Customer signup and password sign-in both require an SMS code. Production also
-  requires codes for business registration and phone-based sign-in.
-  Configure `AUTH_SMS_TOKEN` and `AUTH_SMS_SENDER` for the platform's
-  TurboSMS account before deployment. The previous `MARKETPLACE_SMS_TOKEN`
-  and `MARKETPLACE_SMS_SENDER` names are supported as fallbacks.
+- Customer and business accounts support registration and sign-in with a password.
+  Set `AUTH_SMS_TOKEN` and `AUTH_SMS_SENDER` when TurboSMS is ready to add SMS
+  verification to signup and phone-based sign-in. The previous
+  `MARKETPLACE_SMS_TOKEN` and `MARKETPLACE_SMS_SENDER` names remain supported.
+  Unverified directory bookings keep contact numbers separate from existing CRM
+  guest identities and automatic reminders.
 - The EUR monthly Creem products for the new plans are
   `CREEM_COMMERCE_MONTHLY_PRODUCT_ID` (€14.90),
   `CREEM_WORKSHOP_MONTHLY_PRODUCT_ID` (€12.90), and

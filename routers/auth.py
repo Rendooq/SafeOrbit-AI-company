@@ -68,7 +68,7 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
         plan1_active=plan1_active, plan2_active=plan2_active, selected_plan=selected_plan,
         industries=industries, selected_industry=request.query_params.get("industry", "barbershop"),
         standard_prices={plan: creem.advertised(plan) for plan in ("plan1", "plan2")},
-        sms_required=phone_auth.business_enforced(),
+        sms_required=phone_auth.enabled(),
         sms_pending=phone_auth.pending(request, phone_auth.SIGNUP_BUSINESS) if "session" in request.scope else None,
         **campaign_attribution(request),
     ))
@@ -76,6 +76,8 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/register/phone")
 async def registration_phone():
+    if not phone_auth.enabled():
+        return RedirectResponse("/register", status_code=303)
     return HTMLResponse(render_template("auth/sms.html", mode="register-phone"))
 
 
@@ -99,7 +101,7 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
     if not registration_limiter.allow(remote):
         return RedirectResponse("/register?error=rate", status_code=303)
     name, phone = name.strip(), normalize_username(phone)
-    sms_required = phone_auth.business_enforced()
+    sms_required = phone_auth.enabled()
     phone = phone_auth.normalize_phone(phone) if sms_required else phone
     if not name or len(name) > 160 or not re.fullmatch(r"\+?[0-9]{7,15}", phone) or len(password) < 8 or len(password) > 1024 or type not in INDUSTRIES:
         return RedirectResponse("/register?error=fields", status_code=303)
@@ -494,7 +496,7 @@ async def login(request: Request, username: str = Form(...), password: str = For
     valid = await run_in_threadpool(verify_password, password, encoded)
     if not user or not valid:
         return RedirectResponse("/login?error=invalid", status_code=303)
-    if phone and phone_auth.business_enforced():
+    if phone and phone_auth.enabled():
         identifier = user.id
         await db.rollback()
         try:

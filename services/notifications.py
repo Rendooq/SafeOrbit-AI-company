@@ -1,3 +1,4 @@
+import html
 import httpx
 import logging
 from typing import List
@@ -58,7 +59,7 @@ async def send_admin_alert_notification(biz: Business, user_identifier: str, use
                 await tg_client.post(f"https://api.telegram.org/bot{biz.telegram_token}/sendMessage", json={"chat_id": chat_id, "text": text_body, "reply_markup": reply_markup})
                 logger.info(f"Admin alert telegram sent to {chat_id} for business {biz.id}")
 
-async def send_new_appointment_notifications(biz: Business, appt: Appointment, db: AsyncSession):
+async def send_new_appointment_notifications(biz: Business, appt: Appointment, db: AsyncSession, *, contact_phone=None):
     if not biz.email_notifications_enabled and not biz.telegram_notifications_enabled:
         return
 
@@ -67,19 +68,20 @@ async def send_new_appointment_notifications(biz: Business, appt: Appointment, d
     
     subject = f"Новий запис: {customer.name} на {appt.appointment_time.strftime('%d.%m %H:%M')}"
 
-    delivery_html_line = f"<p><strong>Адреса доставки:</strong> {appt.delivery_address}</p>" if appt.delivery_address else ""
+    displayed_phone = contact_phone or customer.phone_number
+    delivery_html_line = f"<p><strong>Адреса доставки:</strong> {html.escape(appt.delivery_address)}</p>" if appt.delivery_address else ""
     html_body = f"""
     <h2>🔥 Нова реєстрація візиту у CRM</h2>
-    <p><strong>Профіль гостя:</strong> {customer.name or 'Не вказано'}</p>
-    <p><strong>Телефон:</strong> {customer.phone_number}</p>
+    <p><strong>Профіль гостя:</strong> {html.escape(customer.name or 'Не вказано')}</p>
+    <p><strong>Телефон:</strong> {html.escape(displayed_phone)}</p>
     <p><strong>Час:</strong> {appt.appointment_time.strftime('%d.%m.%Y %H:%M')}</p>
-    <p><strong>Сервіс:</strong> {appt.service_type}</p>
+    <p><strong>Сервіс:</strong> {html.escape(appt.service_type)}</p>
     <p><strong>Сума до сплати:</strong> {appt.cost} грн</p>
-    <p><strong>Експерт:</strong> {master.name if master else 'Не вказано'}</p>
+    <p><strong>Експерт:</strong> {html.escape(master.name if master else 'Не вказано')}</p>
         {delivery_html_line}
     """
     delivery_txt_line = f"\nАдреса доставки: {appt.delivery_address}" if appt.delivery_address else ""
-    text_body = f"Реєстрація візиту!\nГість: {customer.name or 'Не вказано'}\nТелефон: {customer.phone_number}\nЧас: {appt.appointment_time.strftime('%d.%m.%Y %H:%M')}\nСервіс: {appt.service_type}\nСума до сплати: {appt.cost} грн\nЕксперт: {master.name if master else 'Не вказано'}{delivery_txt_line}"
+    text_body = f"Реєстрація візиту!\nГість: {customer.name or 'Не вказано'}\nТелефон: {displayed_phone}\nЧас: {appt.appointment_time.strftime('%d.%m.%Y %H:%M')}\nСервіс: {appt.service_type}\nСума до сплати: {appt.cost} грн\nЕксперт: {master.name if master else 'Не вказано'}{delivery_txt_line}"
 
     if biz.email_notifications_enabled and biz.notification_email and biz.smtp_server and biz.smtp_username:
         recipients = [e.strip() for e in biz.notification_email.split(',') if e.strip()]

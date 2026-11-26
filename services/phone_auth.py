@@ -43,8 +43,8 @@ def provider():
     )
 
 
-def business_enforced():
-    return os.getenv("ENVIRONMENT", "").strip().lower() != "test" or bool(provider().sms_token)
+def enabled():
+    return bool(provider().sms_token)
 
 
 def now():

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from database import get_db
 from main import app
-from models import Appointment, Base, Business, CreemPayment, Master, Service, User
+from models import Appointment, Base, Business, CreemPayment, Customer, Master, Service, User
 from models_platform import CreemWorkspaceSubscription, MarketplaceVisit, PhoneChallenge, WorkspaceRecord
 from services import marketplace as calendar, workspace_tools
 from utils.auth import AttemptLimiter
@@ -47,6 +47,7 @@ async def test_app():
                     "routers.auth.login_limiter": AttemptLimiter(),
                     "routers.auth.registration_limiter": AttemptLimiter(limit=6, window=300),
                     "routers.marketplace.LOGIN_LIMIT": AttemptLimiter(limit=12, window=300),
+                    "routers.marketplace.SIGNUP_LIMIT": AttemptLimiter(limit=8, window=600),
                     "services.phone_auth.PER_ADDRESS": AttemptLimiter(limit=20, window=600),
                     "services.phone_auth.PER_NUMBER": AttemptLimiter(limit=6, window=600),
                 }
@@ -342,17 +343,59 @@ def test_sms_gateway_accepts_documented_queue_response():
     asyncio.run(scenario())
 
 
-def test_missing_sms_provider_does_not_grant_public_phone_sessions():
+def test_password_signup_and_booking_work_without_sms_and_do_not_inherit_crm_history():
     async def scenario():
         async with test_app() as (owner, guest, sessions):
             await seed(sessions)
+            number = "+380677775551"
+            async with sessions() as db:
+                db.add(Customer(id=90, business_id=1, phone_number=number, name="Existing private CRM client"))
+                await db.flush()
+                db.add(Appointment(business_id=1, customer_id=90, master_id=1, service_type="Private past visit",
+                                   appointment_time=calendar.now()-timedelta(days=1), cost=650, status="completed"))
+                await db.commit()
             await owner.get("/login")
-            await guest.get("/maistry/register")
             with patch.dict("os.environ", {"ENVIRONMENT": "production", "AUTH_SMS_TOKEN": "", "MARKETPLACE_SMS_TOKEN": ""}):
                 signin = await post(owner, "/login", {"username": "+380671111111", "password": "correct horse battery staple"})
-                assert signin.status_code == 503
-                assert (await owner.get("/workspace")).headers["location"] == "/login"
-                assert (await post(guest, "/maistry/register", {"phone": "+380677775500"})).status_code == 503
+                assert signin.headers["location"] == "/admin"
+                settings = await post(owner, "/workspace/listing", {"city": "Київ", "address": "Хрещатик 1",
+                    "opens": "09:00", "closes": "19:00", "days": list("0123456"), "published": "yes"})
+                assert settings.status_code == 303
+                registration = await guest.get("/maistry/register")
+                assert 'name="password"' in registration.text and 'name="name"' in registration.text
+                assert "Отримати код SMS" not in registration.text
+                password = "marketplace password"
+                signup = await post(guest, "/maistry/register", {"phone": number, "name": "New customer",
+                    "password": password, "next": "/maistry/zaklad/1"})
+                assert signup.headers["location"] == "/maistry/zaklad/1"
+                profile = await guest.get("/maistry/account")
+                assert "Private past visit" not in profile.text
+                tomorrow = str(calendar.now().date()+timedelta(days=1))
+                book = {"day": tomorrow, "service_id": 1, "master_id": 1, "hour": "10:00"}
+                alert = AsyncMock()
+                with patch("routers.marketplace.send_new_appointment_notifications", alert):
+                    assert (await post(guest, "/maistry/zaklad/1/book", book)).status_code == 303
+                    assert (await post(guest, "/maistry/zaklad/1/book", {**book, "hour": "11:00"})).status_code == 303
+                assert alert.call_args.kwargs["contact_phone"] == number + " (номер не підтверджено)"
+                async with sessions() as db:
+                    bookings = (await db.scalars(select(Appointment).where(Appointment.source == "marketplace"))).all()
+                    assert len(bookings) == 2 and bookings[0].customer_id != 90
+                    assert bookings[0].customer_id == bookings[1].customer_id
+                    contact = await db.get(Customer, bookings[0].customer_id)
+                    assert contact.phone_number == "" and number in contact.notes
+                    assert (await db.get(Customer, 90)).name == "Existing private CRM client"
+                assert (await post(guest, "/maistry/logout", {})).status_code == 303
+                assert (await post(guest, "/maistry/login", {"phone": number, "password": "wrong password"})).status_code == 401
+                authenticated = await post(guest, "/maistry/login", {"phone": number, "password": password})
+                assert authenticated.headers["location"] == "/maistry/account"
+                assert "Стрижка" in (await guest.get("/maistry/account")).text
+
+                business_page = await owner.get("/register")
+                assert 'name="sms_code"' not in business_page.text
+                company = await post(owner, "/register", {"name": "New business", "phone": "+380677775552",
+                    "password": "business password", "type": "barbershop", "plan_type": "plan1",
+                    "terms_accepted": "yes", "registration_flow": "access"})
+                assert company.headers["location"].startswith("/pending-activation/")
     asyncio.run(scenario())
 
 

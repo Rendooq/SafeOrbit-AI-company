@@ -27,8 +27,10 @@ from utils.security import hash_password, verify_password
 router = APIRouter()
 PREFIX = "/maistry"
 CLIENT = "marketplace_client_id"
+VERIFIED_CLIENT = "marketplace_phone_verified"
 DAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд")
 LOGIN_LIMIT = AttemptLimiter(limit=12, window=300)
+SIGNUP_LIMIT = AttemptLimiter(limit=8, window=600)
 BOOK_LIMIT = AttemptLimiter(limit=12, window=120)
 STATUSES = {"confirmed": "Підтверджено", "completed": "Відбувся", "cancelled": "Скасовано", "no_show": "Не відбувся"}
 CATEGORIES = {
@@ -211,6 +213,13 @@ async def login(next: str = ""):
     return shell("client-auth", mode="login", next=local_next(next))
 
 
+def finish_client_login(request, client, next_url, verified):
+    request.session[CLIENT] = client.id
+    request.session[VERIFIED_CLIENT] = verified
+    phone_auth.clear(request, phone_auth.SIGNUP_CUSTOMER, phone_auth.SIGNIN_CUSTOMER)
+    return redirect(local_next(next_url))
+
+
 @router.post(PREFIX + "/login")
 async def login_post(request: Request, db: AsyncSession = Depends(get_db)):
     form = await request.form()
@@ -224,6 +233,8 @@ async def login_post(request: Request, db: AsyncSession = Depends(get_db)):
     valid = len(password) <= 1024 and await run_in_threadpool(verify_password, password, encoded)
     if not client or not valid:
         return shell("client-auth", status=401, mode="login", next=next_url, error="Телефон або пароль не збігаються.")
+    if not phone_auth.enabled():
+        return finish_client_login(request, client, next_url, verified=False)
     identity = client.id
     await db.rollback()
     try:
@@ -231,6 +242,7 @@ async def login_post(request: Request, db: AsyncSession = Depends(get_db)):
     except phone_auth.ChallengeError as error:
         return shell("client-auth", status=error.status, mode="login", next=next_url, error=str(error))
     request.session.pop(CLIENT, None)
+    request.session.pop(VERIFIED_CLIENT, None)
     return redirect(PREFIX + "/login/verify")
 
 
@@ -254,13 +266,12 @@ async def verify_login_post(request: Request, db: AsyncSession = Depends(get_db)
     client = await db.get(MarketplaceClient, challenge["identity"])
     if not client or client.phone != challenge["phone"]:
         return redirect(PREFIX + "/login")
-    request.session[CLIENT] = client.id
-    return redirect(local_next(challenge["destination"]))
+    return finish_client_login(request, client, challenge["destination"], verified=True)
 
 
 @router.get(PREFIX + "/register")
 async def register(next: str = ""):
-    return shell("client-auth", mode="register", next=local_next(next), sms=bool(phone_auth.provider().sms_token))
+    return shell("client-auth", mode="register", next=local_next(next), sms=phone_auth.enabled())
 
 
 @router.post(PREFIX + "/register")
@@ -268,11 +279,21 @@ async def send_code(request: Request, db: AsyncSession = Depends(get_db)):
     form = await request.form()
     phone = str(form.get("phone", ""))[:40]
     next_url = local_next(str(form.get("next", "")))
+    if not phone_auth.enabled():
+        if not SIGNUP_LIMIT.allow(ip(request)):
+            return shell("client-auth", status=429, mode="register", next=next_url, error="Забагато спроб. Спробуйте пізніше.")
+        name = str(form.get("name", "")).strip()
+        password = str(form.get("password", ""))
+        normalized = calendar.normalize_phone(phone)
+        if not normalized or not 1 <= len(name) <= 120 or not 8 <= len(password) <= 1024:
+            return shell("client-auth", status=422, mode="register", next=next_url, phone=phone, name=name,
+                         error="Перевірте номер телефону, ім’я й пароль (від 8 символів).")
+        return await create_client(request, db, normalized, name, password, next_url, verified=False)
     try:
         await phone_auth.issue(request, db, phone_auth.SIGNUP_CUSTOMER, phone, destination=next_url)
     except phone_auth.ChallengeError as error:
         return shell("client-auth", status=error.status, mode="register", next=next_url,
-                     sms=bool(phone_auth.provider().sms_token), error=str(error))
+                     sms=phone_auth.enabled(), error=str(error))
     return redirect(PREFIX + "/verify")
 
 
@@ -299,7 +320,10 @@ async def verify_post(request: Request, db: AsyncSession = Depends(get_db)):
         await phone_auth.consume(request, db, phone_auth.SIGNUP_CUSTOMER, code)
     except phone_auth.ChallengeError as error:
         return shell("client-auth", status=error.status, mode="verify", next=next_url, error=str(error))
-    phone = challenge["phone"]
+    return await create_client(request, db, challenge["phone"], name, password, next_url, verified=True)
+
+
+async def create_client(request, db, phone, name, password, next_url, *, verified):
     client = await db.scalar(select(MarketplaceClient).where(MarketplaceClient.phone == phone))
     if client:
         return shell("client-auth", mode="login", next=next_url, error="Цей номер уже має акаунт. Увійдіть із паролем.")
@@ -311,13 +335,13 @@ async def verify_post(request: Request, db: AsyncSession = Depends(get_db)):
     except IntegrityError:
         await db.rollback()
         return shell("client-auth", mode="login", next=next_url, error="Цей номер уже має акаунт. Увійдіть із паролем.")
-    request.session[CLIENT] = client.id
-    return redirect(local_next(next_url))
+    return finish_client_login(request, client, next_url, verified)
 
 
 @router.post(PREFIX + "/logout")
 async def logout(request: Request):
     request.session.pop(CLIENT, None)
+    request.session.pop(VERIFIED_CLIENT, None)
     phone_auth.clear(request, phone_auth.SIGNIN_CUSTOMER, phone_auth.SIGNUP_CUSTOMER)
     return redirect(PREFIX)
 
@@ -362,18 +386,7 @@ async def book(business_id: int, request: Request, db: AsyncSession = Depends(ge
     if start not in calendar.free_slots(listing, master, service, chosen_day, busy):
         return await shop_page(business_id, request, db, day=day, service_id=service_id, master_id=master_id, visit_id=visit_id,
                                error="Цей час уже зайнято. Оберіть інший слот.", status=409)
-    phone_forms = {client.phone, client.phone[1:]}
-    if client.phone.startswith("+380"):
-        phone_forms.add(client.phone[3:])
-    matches = (await db.scalars(select(Customer).where(Customer.business_id == business_id,
-                  Customer.phone_number.in_(phone_forms)).order_by(Customer.id))).all()
-    if any(c.is_blocked for c in matches):
-        raise HTTPException(403, "Цей заклад не приймає запис із вашого акаунта.")
-    customer = next(iter(matches), None)
-    if not customer:
-        customer = Customer(business_id=business_id, phone_number=client.phone, name=client.name)
-        db.add(customer)
-        await db.flush()
+    customer = await appointment_customer(db, business_id, client, request.session.get(VERIFIED_CLIENT) is True)
     if not appointment:
         appointment = Appointment(business_id=business_id, customer_id=customer.id, source="marketplace",
                                   master_id=master_id, appointment_time=start, service_type=service.name, cost=service.price)
@@ -387,8 +400,35 @@ async def book(business_id: int, request: Request, db: AsyncSession = Depends(ge
     db.add(ActionLog(business_id=business_id, action="Перенесення візиту" if visit_id else "Онлайн-запис",
                      details=f"Каталог SafeOrbit · #{appointment.id}"))
     await db.commit()
-    await send_new_appointment_notifications(business, appointment, db)
+    contact = None if customer.phone_number else f"{client.phone} (номер не підтверджено)"
+    await send_new_appointment_notifications(business, appointment, db, contact_phone=contact)
     return redirect(PREFIX + "/account?done=" + ("moved" if visit_id else "booked"))
+
+
+async def appointment_customer(db, business_id, client, verified):
+    # An unverified number is contact information only. Identity comes from the account's bookings.
+    customer = await db.scalar(select(Customer).join(Appointment, Appointment.customer_id == Customer.id)
+        .join(MarketplaceVisit, MarketplaceVisit.appointment_id == Appointment.id)
+        .where(Customer.business_id == business_id, Appointment.business_id == business_id, MarketplaceVisit.client_id == client.id)
+        .order_by(Appointment.id).limit(1))
+    if customer and customer.is_blocked:
+        raise HTTPException(403, "Цей заклад не приймає запис із вашого акаунта.")
+    if not customer and verified:
+        phone_forms = {client.phone, client.phone[1:]}
+        if client.phone.startswith("+380"):
+            phone_forms.add(client.phone[3:])
+        matches = (await db.scalars(select(Customer).where(Customer.business_id == business_id,
+                      Customer.phone_number.in_(phone_forms)).order_by(Customer.id))).all()
+        if any(item.is_blocked for item in matches):
+            raise HTTPException(403, "Цей заклад не приймає запис із вашого акаунта.")
+        customer = next(iter(matches), None)
+    if not customer:
+        contact = None if verified else f"Телефон для зв’язку з каталогу (номер не підтверджено): {client.phone}"
+        customer = Customer(business_id=business_id, phone_number=client.phone if verified else "",
+                            name=client.name, notes=contact)
+        db.add(customer)
+        await db.flush()
+    return customer
 
 
 @router.get(PREFIX + "/account")

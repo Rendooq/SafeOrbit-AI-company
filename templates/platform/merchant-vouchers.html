@@ -1,0 +1,34 @@
+{% extends "platform/base.html" %}
+{% block title %}Ваучери закладу — SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block content %}
+<div class="page-intro"><a class="back-link" href="/workspace/listing">← Профіль закладу</a><h1>Ваучери закладу</h1></div>
+{% if code %}<section class="platform-panel">
+  <h2>Ваучер створено</h2>
+  <p>Скопіюйте код і передайте його клієнту. Повний код показується один раз.</p>
+  <p><code class="secret" data-i18n-ignore>{{ code }}</code></p>
+</section>{% endif %}
+<section class="platform-panel custom-panel">
+  <h2>Випустити ваучер</h2>
+  <p>Ваучер зменшує вартість одного візиту на вказану суму. Клієнт додає код у свій кабінет.</p>
+  <form action="/workspace/listing/vouchers" method="post">
+    <div class="field-grid">
+      <label>Назва<input name="title" maxlength="120" required></label>
+      <label>Знижка, грн<input type="number" name="value" min="1" max="50000" step="0.01" required></label>
+      <label>Діє до<input type="date" name="ends" min="{{ today }}" max="{{ latest }}" required></label>
+    </div>
+    <button class="platform-button">Створити ваучер</button>
+  </form>
+</section>
+<section class="records">
+  {% for voucher,status in rows %}
+    <article class="platform-panel record">
+      <div class="split-head"><h2 data-i18n-ignore>{{ voucher.title }}</h2><span class="badge">{{ status }}</span></div>
+      <p>{{ '%g'|format(voucher.cents / 100) }} грн · <span>Діє до</span> {{ voucher.expires_on.strftime('%d.%m.%Y') }} · ••••{{ voucher.suffix }}</p>
+      {% if status in ['Доступний','Не додано клієнтом'] %}
+      <form method="post" action="/workspace/listing/vouchers/{{ voucher.id }}/revoke" data-confirm="Скасувати цей ваучер?"><button class="text-button danger">Скасувати ваучер</button></form>
+      {% endif %}
+    </article>
+  {% else %}<p class="fine">Випущених ваучерів поки немає.</p>{% endfor %}
+</section>
+{% endblock %}

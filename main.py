@@ -40,7 +40,7 @@ from utils.localization import application_strings
 from utils.request_security import RequestSecurityMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from routers import admin, api_v1, auth, creem_events, dashboard, marketplace, superadmin, webhooks, widget, workspace, workspace_tables, api_schools
-from routers import workflow_modules
+from routers import customer_account, workflow_modules
 from services.background_tasks import (cart_abandonment_loop,
                                        no_show_protection_loop,
                                        nps_collection_loop, reminder_loop,
@@ -146,6 +146,7 @@ app.include_router(workspace.router, include_in_schema=False)
 app.include_router(workspace_tables.router, include_in_schema=False)
 app.include_router(workflow_modules.router, include_in_schema=False)
 app.include_router(marketplace.router, include_in_schema=False)
+app.include_router(customer_account.router, include_in_schema=False)
 app.include_router(creem_events.router, include_in_schema=False)
 app.include_router(webhooks.router, include_in_schema=False)
 app.include_router(api_v1.public_chat_router)

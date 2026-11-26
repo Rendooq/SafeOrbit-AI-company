@@ -4,6 +4,7 @@
 {% block content %}
 <div class="page-intro split-head"><div><a class="back-link" href="/workspace">← Простір</a><h1>Публічний профіль</h1><p>{{ business.name }}</p></div>
 {% if listing and listing.published %}<a href="/maistry/zaklad/{{ business.id }}" class="platform-button secondary">Переглянути профіль ↗</a>{% endif %}</div>
+{% if listing %}<p><a class="platform-button secondary" href="/workspace/listing/vouchers">Керувати ваучерами ↗</a></p>{% endif %}
 <div class="detail-grid">
   <section class="platform-panel">
     <form method="post" action="/workspace/listing">

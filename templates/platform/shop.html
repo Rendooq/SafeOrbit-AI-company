@@ -41,6 +41,7 @@
         <form method="post" action="/maistry/zaklad/{{ business.id }}/book">
           <input type="hidden" name="service_id" value="{{ service_id }}"><input type="hidden" name="master_id" value="{{ master_id }}"><input type="hidden" name="day" value="{{ day }}"><input type="hidden" name="visit_id" value="{{ visit_id }}">
           <fieldset class="slot-set"><legend>Доступний час</legend>{% for slot in slots %}<label><input type="radio" name="hour" value="{{ slot }}" required><span>{{ slot }}</span></label>{% endfor %}</fieldset>
+          {% if wallet %}<label>Застосувати ваучер <select name="voucher_id"><option value="">Без ваучера</option>{% for item, price in wallet %}<option value="{{ item.id }}">{{ item.title }} · {{ '%.2f'|format(price) }} грн після знижки</option>{% endfor %}</select></label>{% endif %}
           <button class="platform-button">{{ 'Підтвердити перенесення' if visit_id else 'Підтвердити запис' }}</button>
         </form>
         {% else %}<p class="fine">Доступний час</p><div class="slot-preview">{% for slot in slots[:8] %}<span>{{ slot }}</span>{% endfor %}{% if slots|length > 8 %}<span>+{{ slots|length - 8 }}</span>{% endif %}</div><a class="platform-button" href="/maistry/login?next={{ back|urlencode }}">Увійти та записатися</a>{% endif %}

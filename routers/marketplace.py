@@ -1,5 +1,6 @@
 """Public directory and authenticated customer booking."""
 import io
+import hmac
 import re
 from datetime import datetime, time, timedelta
 from urllib.parse import urlencode
@@ -11,14 +12,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from database import get_db
+from config import SECRET_KEY
 from models import ActionLog, Appointment, Business, Customer, Master, Service
 from models_platform import (MarketplaceClient, MarketplaceFavorite, MarketplaceListing, MarketplaceListingCategory,
-                             MarketplacePhoto, MarketplaceReview, MarketplaceVisit)
+                             MarketplacePhoto, MarketplaceReview, MarketplaceVisit, MarketplaceVoucher)
 from routers.workspace import redirect, shell, uploaded, workspace_user
 from services.workspace_tools import ToolError
 from services import marketplace as calendar
 from services.notifications import send_new_appointment_notifications
 from services import phone_auth
+from services import marketplace_vouchers as vouchers
 from services.workspace_catalog import allowed_modules
 from utils.auth import AttemptLimiter, dummy_password_hash
 from utils.security import hash_password, verify_password
@@ -27,6 +30,7 @@ from utils.security import hash_password, verify_password
 router = APIRouter()
 PREFIX = "/maistry"
 CLIENT = "marketplace_client_id"
+CLIENT_PASSWORD_TAG = "marketplace_password_tag"
 VERIFIED_CLIENT = "marketplace_phone_verified"
 DAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд")
 LOGIN_LIMIT = AttemptLimiter(limit=12, window=300)
@@ -50,7 +54,13 @@ def ip(request):
 
 async def current_client(request, db):
     uid = request.session.get(CLIENT)
-    return await db.get(MarketplaceClient, uid) if type(uid) is int else None
+    tag = request.session.get(CLIENT_PASSWORD_TAG)
+    client = await db.get(MarketplaceClient, uid) if type(uid) is int and isinstance(tag, str) else None
+    return client if client and hmac.compare_digest(tag, password_tag(client)) else None
+
+
+def password_tag(client):
+    return hmac.digest(SECRET_KEY.encode(), f"marketplace:{client.id}:{client.password}".encode(), "sha256").hex()
 
 
 async def get_listing(db, business_id):
@@ -176,9 +186,13 @@ async def shop_page(business_id, request, db, *, day="", service_id=0, master_id
     specialist = next((m for m in team if m.id == master_id and selected and selected.id in mapping[m.id]), None)
     chosen_day = calendar.date_in_range(day) if day else calendar.now().date()
     slots = []
+    wallet = ()
     if specialist and chosen_day:
         busy = await calendar.occupied(db, business_id, chosen_day, [specialist.id], services, exclude=visit_id or None)
         slots = calendar.free_slots(listing, specialist, selected, chosen_day, busy)
+        if client and not visit_id and selected.price > 0:
+            available = (await db.scalars(vouchers.available_vouchers(client.id, business_id, chosen_day))).all()
+            wallet = [(item, vouchers.net_price(selected.price, item)) for item in available]
     reviews = (await db.execute(select(MarketplaceReview, MarketplaceClient.name, Master.name)
         .join(Appointment, Appointment.id == MarketplaceReview.appointment_id)
         .join(MarketplaceVisit, MarketplaceVisit.appointment_id == Appointment.id)
@@ -190,7 +204,7 @@ async def shop_page(business_id, request, db, *, day="", service_id=0, master_id
                                .where(MarketplacePhoto.business_id == business_id).order_by(MarketplacePhoto.id))).all()
     return shell("shop", status=status, error=error, client=client, business=business, listing=listing,
                  services=services, team=[m for m in team if not selected or selected.id in mapping[m.id]],
-                 reviews=reviews, photos=photos, day=str(chosen_day or ""), today=str(calendar.now().date()),
+                 reviews=reviews, photos=photos, wallet=wallet, day=str(chosen_day or ""), today=str(calendar.now().date()),
                  max_day=str(calendar.now().date()+timedelta(days=60)), service_id=service_id,
                  master_id=master_id, slots=[slot.strftime("%H:%M") for slot in slots], visit_id=visit_id,
                  back=request.url.path + "?" + urlencode({"day": day, "service_id": service_id, "master_id": master_id}))
@@ -215,6 +229,7 @@ async def login(next: str = ""):
 
 def finish_client_login(request, client, next_url, verified):
     request.session[CLIENT] = client.id
+    request.session[CLIENT_PASSWORD_TAG] = password_tag(client)
     request.session[VERIFIED_CLIENT] = verified
     phone_auth.clear(request, phone_auth.SIGNUP_CUSTOMER, phone_auth.SIGNIN_CUSTOMER)
     return redirect(local_next(next_url))
@@ -242,6 +257,7 @@ async def login_post(request: Request, db: AsyncSession = Depends(get_db)):
     except phone_auth.ChallengeError as error:
         return shell("client-auth", status=error.status, mode="login", next=next_url, error=str(error))
     request.session.pop(CLIENT, None)
+    request.session.pop(CLIENT_PASSWORD_TAG, None)
     request.session.pop(VERIFIED_CLIENT, None)
     return redirect(PREFIX + "/login/verify")
 
@@ -341,6 +357,7 @@ async def create_client(request, db, phone, name, password, next_url, *, verifie
 @router.post(PREFIX + "/logout")
 async def logout(request: Request):
     request.session.pop(CLIENT, None)
+    request.session.pop(CLIENT_PASSWORD_TAG, None)
     request.session.pop(VERIFIED_CLIENT, None)
     phone_auth.clear(request, phone_auth.SIGNIN_CUSTOMER, phone_auth.SIGNUP_CUSTOMER)
     return redirect(PREFIX)
@@ -369,6 +386,7 @@ async def book(business_id: int, request: Request, db: AsyncSession = Depends(ge
     chosen_day = calendar.date_in_range(day)
     try:
         service_id, master_id, visit_id = (int(form.get(field, "0")) for field in ("service_id", "master_id", "visit_id"))
+        voucher_id = int(form.get("voucher_id") or "0")
         start = datetime.combine(chosen_day, time.fromisoformat(hour)) if chosen_day else None
     except (TypeError, ValueError):
         raise HTTPException(422, "Перевірте дату, час, майстра й послугу.")
@@ -386,16 +404,31 @@ async def book(business_id: int, request: Request, db: AsyncSession = Depends(ge
     if start not in calendar.free_slots(listing, master, service, chosen_day, busy):
         return await shop_page(business_id, request, db, day=day, service_id=service_id, master_id=master_id, visit_id=visit_id,
                                error="Цей час уже зайнято. Оберіть інший слот.", status=409)
+    voucher = None
+    if appointment:
+        voucher = await db.scalar(select(MarketplaceVoucher).where(MarketplaceVoucher.appointment_id == appointment.id))
+        if voucher and chosen_day > voucher.expires_on:
+            return await shop_page(business_id, request, db, day=day, service_id=service_id, master_id=master_id, visit_id=visit_id,
+                                   error="Оберіть дату в межах строку дії ваучера.", status=409)
+    elif voucher_id:
+        voucher = await db.scalar(vouchers.available_vouchers(client.id, business_id, chosen_day)
+                                  .where(MarketplaceVoucher.id == voucher_id))
+        if not voucher or service.price <= 0:
+            return await shop_page(business_id, request, db, day=day, service_id=service_id, master_id=master_id,
+                                   error="Цей ваучер зараз недоступний. Оновіть вибір.", status=409)
     customer = await appointment_customer(db, business_id, client, request.session.get(VERIFIED_CLIENT) is True)
+    price = vouchers.net_price(service.price, voucher) if voucher else service.price
     if not appointment:
         appointment = Appointment(business_id=business_id, customer_id=customer.id, source="marketplace",
-                                  master_id=master_id, appointment_time=start, service_type=service.name, cost=service.price)
+                                  master_id=master_id, appointment_time=start, service_type=service.name, cost=price)
         db.add(appointment)
         await db.flush()
         db.add(MarketplaceVisit(appointment_id=appointment.id, client_id=client.id, duration=service.duration))
+        if voucher:
+            voucher.appointment_id = appointment.id
     else:
         appointment.appointment_time, appointment.master_id = start, master_id
-        appointment.service_type, appointment.cost, appointment.reminder_sent = service.name, service.price, False
+        appointment.service_type, appointment.cost, appointment.reminder_sent = service.name, price, False
         visit.duration = service.duration
     db.add(ActionLog(business_id=business_id, action="Перенесення візиту" if visit_id else "Онлайн-запис",
                      details=f"Каталог SafeOrbit · #{appointment.id}"))
@@ -429,33 +462,6 @@ async def appointment_customer(db, business_id, client, verified):
         db.add(customer)
         await db.flush()
     return customer
-
-
-@router.get(PREFIX + "/account")
-async def account(request: Request, done: str = "", db: AsyncSession = Depends(get_db)):
-    client = await current_client(request, db)
-    if not client:
-        return redirect(PREFIX + "/login")
-    rows = (await db.execute(select(Appointment, Business.name, Master.name, MarketplaceReview)
-        .join(MarketplaceVisit, MarketplaceVisit.appointment_id == Appointment.id)
-        .join(Business, Business.id == Appointment.business_id).outerjoin(Master, Master.id == Appointment.master_id)
-        .outerjoin(MarketplaceReview, MarketplaceReview.appointment_id == Appointment.id)
-        .where(MarketplaceVisit.client_id == client.id).order_by(Appointment.appointment_time.desc()))).all()
-    return shell("account", client=client, rows=rows, statuses=STATUSES, now=calendar.now(), done=done)
-
-
-@router.post(PREFIX + "/account")
-async def update_account(request: Request, db: AsyncSession = Depends(get_db)):
-    client = await current_client(request, db)
-    if not client:
-        raise HTTPException(401)
-    form = await request.form()
-    name = str(form.get("name", "")).strip()
-    if not 1 <= len(name) <= 120:
-        raise HTTPException(422, "Введіть ім’я.")
-    client.name = name
-    await db.commit()
-    return redirect(PREFIX + "/account")
 
 
 @router.get(PREFIX + "/visits/{appointment_id}/move")
@@ -557,7 +563,7 @@ async def save_listing(request: Request, user=Depends(workspace_user), db: Async
     return redirect("/workspace/listing")
 
 
-def clean_photo(raw):
+def clean_photo(raw, size=(1200, 900)):
     from PIL import Image, ImageOps
 
     try:
@@ -565,7 +571,7 @@ def clean_photo(raw):
             if photo.width * photo.height > 20000000:
                 raise ValueError("Image too large")
             image = ImageOps.exif_transpose(photo).convert("RGB")
-            image.thumbnail((1200, 900))
+            image.thumbnail(size)
             out = io.BytesIO()
             image.save(out, "JPEG", quality=86, optimize=True)
             return out.getvalue()

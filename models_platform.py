@@ -1,7 +1,7 @@
 """Tables for workspaces and the public booking marketplace."""
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models import Base
@@ -52,6 +52,26 @@ class MarketplaceClient(Base):
     name: Mapped[str] = mapped_column(String(120))
     password: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class MarketplaceAvatar(Base):
+    __tablename__ = "marketplace_avatars"
+    client_id: Mapped[int] = mapped_column(ForeignKey("marketplace_clients.id", ondelete="CASCADE"), primary_key=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class MarketplaceVoucher(Base):
+    __tablename__ = "marketplace_vouchers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("marketplace_listings.business_id", ondelete="CASCADE"), index=True)
+    client_id: Mapped[int | None] = mapped_column(ForeignKey("marketplace_clients.id", ondelete="SET NULL"), index=True)
+    appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id", ondelete="SET NULL"), unique=True)
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    suffix: Mapped[str] = mapped_column(String(4))
+    title: Mapped[str] = mapped_column(String(120))
+    cents: Mapped[int] = mapped_column(Integer)
+    expires_on: Mapped[date] = mapped_column(Date)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class MarketplacePhoto(Base):

@@ -7,9 +7,12 @@
 <section class="platform-panel">
   <h2>Ключ перевірки</h2><p>Збережіть ключ зараз. Він показується один раз.</p>
   <p><code class="secret" data-no-translate>{{ token }}</code></p>
-  <p>Установіть Playwright та завантажте сценарій. Скопіюйте конфігурацію, задайте елементи для свого магазину й запустіть <code>node checkout-check.mjs checkout.json</code>. Ключ передається через змінну середовища <code>SAFEORBIT_CHECK_KEY</code>.</p>
-  <p>Для перевірки за розкладом додайте <code>--watch</code>. Інтервал задається в <code>intervalMinutes</code>, стандартно 15 хвилин.</p>
-  <p>Перевірка зупиняється до фактичної оплати чи відправлення замовлення. Перед регулярним запуском перевірте налаштування у тестовому магазині.</p>
+  <p>Вкажіть сторінку товару та елементи кошика й доставки у конфігурації нижче. Завершіть сценарій на перегляді доставки, перед відправленням замовлення або оплатою.</p>
+  <h3>За розкладом у GitHub Actions</h3>
+  <p>Додайте шаблон до <code>.github/workflows/safeorbit-checkout.yml</code> у своєму репозиторії. У секретах GitHub Actions збережіть ключ як <code>SAFEORBIT_CHECK_KEY</code>, а заповнену конфігурацію як <code>SAFEORBIT_CHECKOUT_CONFIG</code>. У вкладці Actions запустіть першу перевірку. На основній гілці наступні запуски заплановані кожні 30 хвилин.</p>
+  <div class="record-actions"><a href="/static/v2/checkout-monitor.yml" download="safeorbit-checkout.yml">Завантажити шаблон GitHub Actions ↓</a></div>
+  <h3>На своєму комп’ютері або сервері</h3>
+  <p>Установіть Playwright і Chromium, збережіть конфігурацію як <code>checkout.json</code> та передайте ключ через <code>SAFEORBIT_CHECK_KEY</code>. Запустіть <code>node checkout-check.mjs checkout.json</code>. Для постійних перевірок додайте <code>--watch</code> і задайте <code>intervalMinutes</code>.</p>
   <div class="record-actions"><a href="/static/v2/checkout-check.mjs" download>Завантажити сценарій ↓</a></div>
   <pre data-no-translate>{
   "reportTo": "https://safeorbit.com.pl/signals/checkout/{{ probe.id }}",

@@ -152,8 +152,8 @@ Do not commit `.env`, database files, uploads, or session secrets.
 - Configure the production Creem webhook at `/billing/creem/events` with
   `CREEM_WEBHOOK_SECRET`. For Commerce, Workshop and Constructor, set
   `CREEM_ONLINE_TERMS_VERSION` to the exact version approved for publication.
-  The current draft is version `2026-11-26` in
-  `templates/auth/creem-offer.html`. Leave the variable unset until approval.
+  Version `2026-11-26` in `templates/auth/creem-offer.html` is approved and
+  published. Enable each new version after approval.
   The online flow stores consent before checkout and activates the workspace
   upon confirmation of the paid subscription and its billing period.
   Business, Business Pro and the signed-document flow use their existing
@@ -161,12 +161,15 @@ Do not commit `.env`, database files, uploads, or session secrets.
   subscriptions control access on pause, on the end of the paid period,
   and after a confirmed renewal. Existing subscriptions without a mapped
   checkout remain in the original manual flow.
-- The checkout monitor runs the downloadable Playwright scenario on a
-  storefront owner's machine or CI runner. Use selectors for the cart and
-  delivery screens and stop before submitting orders. Add `--watch` and set
-  `intervalMinutes` in the configuration for recurring checks. Each run
-  reports its result and a failure screenshot when available. Workspaces with
-  Telegram notifications enabled receive a message on failure and recovery.
+- The checkout monitor offers a downloadable Playwright scenario and GitHub
+  Actions workflow. Configure selectors for the cart and delivery screens and
+  stop before submitting orders. For a continuous local run, add `--watch`
+  and set `intervalMinutes`. Each run reports its result and a failure
+  screenshot when available. Workspaces with Telegram notifications enabled
+  receive a message on failure and recovery.
+- The public SafeOrbit production monitor runs from this repository's Actions
+  every 30 minutes. It checks the mobile home page, marketplace search,
+  registration forms and live subscription terms with read-only requests.
 - Reconciliation shows expected and received totals. Invoice comparison
   normalizes g/kg and ml/l across pack sizes. Feed validation can save a
   corrected XML copy using reference prices and availability. The cutting

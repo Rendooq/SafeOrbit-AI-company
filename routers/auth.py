@@ -62,7 +62,9 @@ async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
     selected_plan = "plan2" if plan2_active and (preferred == "plan2" or not plan1_active) else "plan1"
     industries = [
         (key, industry, [MODULES[module].label for module in industry.modules], creem.advertised(industry.plan),
-         PLAN_NAMES[industry.plan], creem.agreement_path(industry.plan))
+         PLAN_NAMES[industry.plan],
+         (f"/terms/subscription/{industry.plan}" if creem.offer_version(industry.plan)
+          else creem.agreement_path(industry.plan)))
         for key, industry in INDUSTRIES.items()
     ]
     return HTMLResponse(render_template(

@@ -1,0 +1,53 @@
+name: SafeOrbit checkout monitor
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: safeorbit-checkout-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          cd "$RUNNER_TEMP"
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.65.1
+          npx --no-install playwright install --with-deps chromium
+      - name: Download the SafeOrbit scenario
+        run: |
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --max-time 30 \
+            --output checkout-check.mjs \
+            https://raw.githubusercontent.com/Rendooq/SafeOrbit-AI-company/f9712c33dd35dfc71cbfb4753d7070afc93e50c5/static/v2/checkout-check.mjs
+          printf '%s\n' '34dd52a9429dcc69e9ae7357b5938e1acc6628305b7546f805afac000082231e  checkout-check.mjs' | sha256sum -c -
+      - name: Run the checkout check
+        env:
+          SAFEORBIT_CHECK_KEY: ${{ secrets.SAFEORBIT_CHECK_KEY }}
+          SAFEORBIT_CHECKOUT_CONFIG: ${{ secrets.SAFEORBIT_CHECKOUT_CONFIG }}
+        run: |
+          cd "$RUNNER_TEMP"
+          if [[ -z "$SAFEORBIT_CHECK_KEY" || -z "$SAFEORBIT_CHECKOUT_CONFIG" ]]; then
+            echo "Set SAFEORBIT_CHECK_KEY and SAFEORBIT_CHECKOUT_CONFIG in Actions secrets."
+            exit 1
+          fi
+          umask 077
+          trap 'rm -f checkout.json' EXIT
+          printf '%s' "$SAFEORBIT_CHECKOUT_CONFIG" > checkout.json
+          unset SAFEORBIT_CHECKOUT_CONFIG
+          curl --fail --silent --show-error --retry 1 --max-time 100 \
+            --output /dev/null https://safeorbit.com.pl/maistry
+          node checkout-check.mjs checkout.json

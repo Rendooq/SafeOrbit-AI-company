@@ -124,7 +124,8 @@ def test_online_plan_requires_approved_offer_and_activates_only_after_confirmed_
             with patch.dict("os.environ", {"CREEM_ONLINE_TERMS_VERSION": "2026-11-26"}):
                 terms = await owner.get("/terms/subscription/custom")
                 assert terms.status_code == 200 and "€19.80" in terms.text
-                await owner.get("/register")
+                registration = await owner.get("/register?industry=other")
+                assert 'href="/terms/subscription/custom"' in registration.text
                 submitted = await post(owner, "/register", {"name": "Constructor", "phone": "+380677701531",
                     "password": "valid constructor password", "type": "other", "terms_accepted": "yes",
                     "registration_flow": "access"})

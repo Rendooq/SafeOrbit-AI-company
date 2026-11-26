@@ -19,7 +19,7 @@
     <div class="frame mast">
       <a class="platform-brand" href="/"><img src="/static/v2/brand.svg" width="31" height="31" alt="">SafeOrbit</a>
       <nav aria-label="Навігація">
-        {% block links %}<a href="/maistry">Знайти майстра</a><a href="/workspace">Робочий простір</a>{% endblock %}
+        {% block links %}<a href="/maistry">Знайти майстра</a>{% if workspace_nav %}<a href="/workspace">Робочий простір</a>{% endif %}{% endblock %}
       </nav>
       {% include "partials/language-select.html" %}
       {% include "partials/theme-toggle.html" %}

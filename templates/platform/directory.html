@@ -83,7 +83,9 @@
       <h3>{{ 'Збережених закладів поки немає' if saved else 'Закладів поки не знайдено' }}</h3>
       {% if saved %}<a href="/maistry#results">Перейти до каталогу</a>
       {% elif filtered %}<p>Спробуйте інше місто, дату або назву послуги.</p>
-      {% else %}<p>Тут з’являються заклади, які відкрили онлайн-запис.</p><a href="/workspace/listing">Опублікувати свій заклад</a>{% endif %}
+      {% else %}<p>Тут з’являються заклади, які відкрили онлайн-запис.</p>
+        {% if can_publish_listing %}<a href="/workspace/listing">Опублікувати свій заклад</a>{% endif %}
+      {% endif %}
     </div>
   {% endif %}
   {% if page > 1 or next_page %}

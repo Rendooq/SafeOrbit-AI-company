@@ -35,7 +35,7 @@ async def owned(db, table_id, business_id):
 async def tables(user=Depends(table_user), db: AsyncSession = Depends(get_db)):
     rows = (await db.scalars(select(WorkspaceTable).where(
         WorkspaceTable.business_id == user.business_id).order_by(WorkspaceTable.id))).all()
-    return shell("tables", tables=rows, kinds=KINDS)
+    return shell("tables", workspace_nav=True, tables=rows, kinds=KINDS)
 
 
 @router.post("")
@@ -64,7 +64,8 @@ async def show_table(table_id: int, user=Depends(table_user), db: AsyncSession =
     table = await owned(db, table_id, user.business_id)
     rows = (await db.scalars(select(WorkspaceTableRow).where(
         WorkspaceTableRow.table_id == table.id).order_by(WorkspaceTableRow.id.desc()).limit(1000))).all()
-    return shell("table", table=table, fields=json.loads(table.fields), rows=[(row.id, json.loads(row.cells)) for row in rows])
+    return shell("table", workspace_nav=True, table=table, fields=json.loads(table.fields),
+                 rows=[(row.id, json.loads(row.cells)) for row in rows])
 
 
 @router.post("/{table_id}/rows")

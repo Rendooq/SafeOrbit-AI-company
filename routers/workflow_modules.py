@@ -110,7 +110,8 @@ async def page(key, spec, user, db, *, q="", status_filter="", page_number=1, er
               for field in spec.fields if field.key in spec.aggregate}
     max_page = max(1, (len(filtered) + PAGE_SIZE - 1) // PAGE_SIZE)
     page_number = max(1, min(page_number, max_page))
-    return shell("tool-workflow", key=key, spec=spec, status=status_code, error=error, q=q, records=filtered[(page_number-1)*PAGE_SIZE:page_number*PAGE_SIZE],
+    return shell("tool-workflow", workspace_nav=True, key=key, spec=spec, status=status_code, error=error, q=q,
+                 records=filtered[(page_number-1)*PAGE_SIZE:page_number*PAGE_SIZE],
                  editing=editing, values=values or {}, title=title, status_filter=status_filter, states=counts, totals=totals,
                  page_number=page_number, max_page=max_page, default_status=(editing[1].get("status") if editing else ""),
                  count=len(filtered), total_count=len(existing))

@@ -3,6 +3,7 @@ from utils.templates import render_template
 import html
 from models import User
 from config import LABELS
+from dependencies import can_access_workspace
 
 def get_layout(content: str, user: User, active: str, scripts: str = ""):
     is_demo = getattr(user, "is_demo_workspace", False)
@@ -21,7 +22,7 @@ def get_layout(content: str, user: User, active: str, scripts: str = ""):
         menu_items.append(("/superadmin", "super", "fa-user-shield", "Адмінпанель"))
     else:
         menu_items.append(("/admin", "dash", "fa-house", "Огляд"))
-        if user.role in {"owner", "admin"}:
+        if can_access_workspace(user):
             menu_items.append(("/workspace", "workspace", "fa-table-cells-large", "Робочий простір"))
         menu_items.append(("/admin#day-agenda", "agenda", "fa-calendar-days", "Записи"))
         menu_items.append(("/admin/klienci", "kli", "fa-users", l['clients']))

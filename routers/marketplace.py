@@ -13,6 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from database import get_db
 from config import SECRET_KEY
+from dependencies import can_access_workspace, get_current_user
 from models import ActionLog, Appointment, Business, Customer, Master, Service
 from models_platform import (MarketplaceClient, MarketplaceFavorite, MarketplaceListing, MarketplaceListingCategory,
                              MarketplacePhoto, MarketplaceReview, MarketplaceVisit, MarketplaceVoucher)
@@ -72,9 +73,20 @@ async def get_listing(db, business_id):
     return found
 
 
+def can_manage_listing(user):
+    return can_access_workspace(user) and "directory" in allowed_modules(user.business)
+
+
+async def listing_user(user=Depends(workspace_user)):
+    if not can_manage_listing(user):
+        raise HTTPException(404)
+    return user
+
+
 @router.get(PREFIX)
 async def directory(request: Request, city: str = "", q: str = "", max_price: str = "", day: str = "",
-                    category: str = "", sort: str = "", saved: bool = False, page: int = 1, db: AsyncSession = Depends(get_db)):
+                    category: str = "", sort: str = "", saved: bool = False, page: int = 1,
+                    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     city, q, page = city.strip()[:100], q.strip()[:100], max(1, min(page, 1000))
     if max_price and not re.fullmatch(r"[0-9]{1,6}", max_price):
         raise HTTPException(422, "Вкажіть коректну максимальну ціну.")
@@ -151,7 +163,7 @@ async def directory(request: Request, city: str = "", q: str = "", max_price: st
     return shell("directory", results=results[:18], client=client, city=city, q=q, category=category, sort=sort, saved=saved,
                  favorites=favorites, categories=CATEGORIES, day=day, max_price=max_price, page=page, next_page=len(results) > 18,
                  search=urlencode({**filters, "category": category}), category_search=urlencode(filters),
-                 filtered=bool(city or q or max_price or day or category or saved))
+                 filtered=bool(city or q or max_price or day or category or saved), can_publish_listing=can_manage_listing(user))
 
 
 @router.post(PREFIX + "/zaklad/{business_id}/favorite")
@@ -507,23 +519,19 @@ async def review(appointment_id: int, request: Request, db: AsyncSession = Depen
 
 
 @router.get("/workspace/listing")
-async def listing_settings(user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
-    if "directory" not in allowed_modules(user.business):
-        raise HTTPException(404)
+async def listing_settings(user=Depends(listing_user), db: AsyncSession = Depends(get_db)):
     listing = await db.get(MarketplaceListing, user.business_id)
     services, team, _ = await calendar.services_and_team(db, user.business_id)
     photos = (await db.execute(select(MarketplacePhoto.id, MarketplacePhoto.caption)
                                .where(MarketplacePhoto.business_id == user.business_id).order_by(MarketplacePhoto.id))).all()
     categories = (await db.scalars(select(MarketplaceListingCategory.category).where(
         MarketplaceListingCategory.business_id == user.business_id))).all()
-    return shell("listing", business=user.business, listing=listing, days=DAYS, services=services, team=team,
+    return shell("listing", workspace_nav=True, business=user.business, listing=listing, days=DAYS, services=services, team=team,
                  photos=photos, categories=CATEGORIES, chosen_categories=categories)
 
 
 @router.post("/workspace/listing")
-async def save_listing(request: Request, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
-    if "directory" not in allowed_modules(user.business):
-        raise HTTPException(404)
+async def save_listing(request: Request, user=Depends(listing_user), db: AsyncSession = Depends(get_db)):
     form = await request.form()
     published = form.get("published") == "yes"
     city, address, description = (str(form.get(key, "")).strip() for key in ("city", "address", "description"))
@@ -580,9 +588,7 @@ def clean_photo(raw, size=(1200, 900)):
 
 
 @router.post("/workspace/listing/photos")
-async def add_photo(request: Request, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
-    if "directory" not in allowed_modules(user.business):
-        raise HTTPException(404)
+async def add_photo(request: Request, user=Depends(listing_user), db: AsyncSession = Depends(get_db)):
     form = await request.form()
     caption = str(form.get("caption", "")).strip()
     if len(caption) > 120:
@@ -614,9 +620,7 @@ async def gallery_photo(photo_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/workspace/listing/photos/{photo_id}/delete")
-async def remove_photo(photo_id: int, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
-    if "directory" not in allowed_modules(user.business):
-        raise HTTPException(404)
+async def remove_photo(photo_id: int, user=Depends(listing_user), db: AsyncSession = Depends(get_db)):
     await db.execute(delete(MarketplacePhoto).where(MarketplacePhoto.id == photo_id, MarketplacePhoto.business_id == user.business_id))
     await db.commit()
     return redirect("/workspace/listing#photos")

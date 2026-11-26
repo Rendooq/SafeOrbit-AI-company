@@ -11,24 +11,29 @@ from exceptions import InvalidApiKeyError, UnauthorizedError
 from models import ApiKey, User, Business
 
 
+def can_access_workspace(user: Optional[User]) -> bool:
+    return bool(
+        user and user.role in {"owner", "admin"} and getattr(user, "business_id", None) and user.business
+        and user.business.is_active and not getattr(user, "is_demo_workspace", False)
+    )
+
+
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> Optional[User]:
-    from services.demo_workspace import DEMO_USER_ID
+    from services.demo_workspace import DEMO_SESSION_KEY, DEMO_USER_ID
 
     demo = getattr(request.state, "demo_workspace", False)
     uid = DEMO_USER_ID if demo else request.session.get("user_id")
     if not isinstance(uid, int):
-        if uid is not None:
-            request.session.clear()
+        request.session.pop("user_id", None)
         return None
     user = await db.get(User, uid)
-    if not user:
-        request.session.clear()
-        return None
-    if user.business_id:
+    if user and user.business_id:
         user.business = await db.get(Business, user.business_id)
         if not user.business or not user.business.is_active:
-            request.session.clear()
-            return None
+            user = None
+    if not user:
+        request.session.pop(DEMO_SESSION_KEY if demo else "user_id", None)
+        return None
     user.is_demo_workspace = demo
     return user
 

@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile as FormUpload
 
 from database import get_db
-from dependencies import get_current_user
+from dependencies import can_access_workspace, get_current_user
 from models import Business, User
 from models_platform import BookShare, CheckoutProbe, WorkspaceAttachment, WorkspaceLayout, WorkspaceRecord
 from services import workspace_tools as tools
@@ -38,7 +38,6 @@ MEDIA = {
     "mp3": "audio/mpeg", "ogg": "audio/ogg", "webm": "audio/webm",
     "wav": "audio/wav", "m4a": "audio/mp4",
 }
-OWNER = {"owner", "admin"}
 
 FORMATS = {
     "reconcile": ("ttn;amount", "Очікувані виплати", "Реєстр виплат"),
@@ -49,12 +48,8 @@ FORMATS = {
 EXPORTS = {"reconcile", "invoices", "feeds", "tender", "cutting", "preflight", "cars", "budget", "time"}
 
 
-def shell(template, *, status=200, **data):
-    return HTMLResponse(render_template("platform/" + template + ".html", **data), status_code=status)
-
-
-def active_owner(user):
-    return user and user.role in OWNER and user.business_id and user.business and not getattr(user, "is_demo_workspace", False)
+def shell(template, *, status=200, workspace_nav=False, **data):
+    return HTMLResponse(render_template("platform/" + template + ".html", workspace_nav=workspace_nav, **data), status_code=status)
 
 
 def redirect(path):
@@ -62,14 +57,14 @@ def redirect(path):
 
 
 async def workspace_user(user: User = Depends(get_current_user)):
-    if not active_owner(user):
+    if not can_access_workspace(user):
         raise HTTPException(403, "Потрібен доступ власника робочого простору.")
     return user
 
 
 @router.get("/workspace")
 async def workspace(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not active_owner(user):
+    if not can_access_workspace(user):
         return redirect("/login")
     return await workspace_page(user, db)
 
@@ -83,7 +78,7 @@ async def workspace_page(user, db, error="", status=200):
     default = (INDUSTRIES["other"].modules if business.plan_type == "custom" else industry.modules if industry else allowed[:6])
     layout = [key for key in settings.get("layout", default) if key in allowed]
     return shell(
-        "workspace", status=status, business=business, catalog=MODULES, settings=settings, layout=layout,
+        "workspace", status=status, workspace_nav=True, business=business, catalog=MODULES, settings=settings, layout=layout,
         accents=ACCENTS, widths=WIDTHS, spacing=SPACING, available=[key for key in allowed if key not in layout],
         groups=tuple(dict.fromkeys(MODULES[key].group for key in allowed)), module_count=len(allowed),
         industry=INDUSTRIES.get(business.type), plan_name=PLAN_NAMES.get(business.plan_type, "Business"),
@@ -272,7 +267,7 @@ async def module_page(module, user, db, error="", status=200, editing=None):
     probes = []
     if module == "checkout":
         probes = (await db.scalars(select(CheckoutProbe).where(CheckoutProbe.business_id == user.business_id))).all()
-    return shell("module", status=status, key=module, module=MODULES[module], rows=rows, error=error,
+    return shell("module", status=status, workspace_nav=True, key=module, module=MODULES[module], rows=rows, error=error,
                  format=FORMATS.get(module), export=module in EXPORTS, total=total, probes=probes, editing=editing,
                  transcribe=bool(os.getenv("WORKSPACE_TRANSCRIPTION_KEY")) and module == "book")
 
@@ -370,7 +365,7 @@ async def book_page(db, business, owner=False, share=None):
     indexed = defaultdict(list)
     for asset in assets:
         indexed[asset.record_id].append(asset)
-    return shell("book", business=business.name, owner=owner, share=share, chapters=[
+    return shell("book", workspace_nav=owner, business=business.name, owner=owner, share=share, chapters=[
         (record, json.loads(record.data), indexed[record.id]) for record in records])
 
 
@@ -542,7 +537,7 @@ async def add_probe(request: Request, user=Depends(workspace_user), db: AsyncSes
     except IntegrityError:
         await db.rollback()
         return await module_page("checkout", user, db, "Цей домен уже додано.", 422)
-    return shell("probe", probe=probe, token=token)
+    return shell("probe", workspace_nav=True, probe=probe, token=token)
 
 
 @router.post("/workspace/probes/{probe_id}/delete")

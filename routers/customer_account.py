@@ -10,10 +10,9 @@ from starlette.concurrency import run_in_threadpool
 from database import get_db
 from models import Appointment, Business, Master
 from models_platform import MarketplaceAvatar, MarketplaceClient, MarketplaceFavorite, MarketplaceListing, MarketplacePhoto, MarketplaceReview, MarketplaceVisit, MarketplaceVoucher
-from routers.marketplace import CLIENT_PASSWORD_TAG, PREFIX, STATUSES, clean_photo, current_client, ip, password_tag
-from routers.workspace import redirect, shell, uploaded, workspace_user
+from routers.marketplace import CLIENT_PASSWORD_TAG, PREFIX, STATUSES, clean_photo, current_client, ip, listing_user, password_tag
+from routers.workspace import redirect, shell, uploaded
 from services import marketplace as calendar, marketplace_vouchers as vouchers
-from services.workspace_catalog import allowed_modules
 from services.workspace_tools import ToolError, amount
 from utils.auth import AttemptLimiter
 from utils.security import hash_password, verify_password
@@ -195,8 +194,8 @@ async def claim_voucher(request: Request, db: AsyncSession = Depends(get_db)):
     return redirect(ACCOUNT + "/vouchers?done=voucher")
 
 
-async def check_merchant(db, user):
-    if "directory" not in allowed_modules(user.business) or not await db.get(MarketplaceListing, user.business_id):
+async def require_listing(db, user):
+    if not await db.get(MarketplaceListing, user.business_id):
         raise HTTPException(404)
 
 
@@ -205,20 +204,20 @@ async def merchant_screen(db, user, *, code=None, error="", status=200):
              .where(MarketplaceVoucher.business_id == user.business_id).order_by(MarketplaceVoucher.id.desc()).limit(100))
     rows = [(item, vouchers.status(item, visit)) for item, visit in (await db.execute(query)).all()]
     today = calendar.now().date()
-    return shell("merchant-vouchers", status=status, error=error, rows=rows, code=code, today=today.isoformat(),
+    return shell("merchant-vouchers", status=status, workspace_nav=True, error=error, rows=rows, code=code, today=today.isoformat(),
                  latest=(today + timedelta(days=730)).isoformat())
 
 
 @router.get(MERCHANT)
-async def merchant_vouchers(request: Request, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
-    await check_merchant(db, user)
+async def merchant_vouchers(request: Request, user=Depends(listing_user), db: AsyncSession = Depends(get_db)):
+    await require_listing(db, user)
     issued = request.session.pop("issued_marketplace_voucher", None)
     return await merchant_screen(db, user, code=issued[1] if issued and issued[0] == user.business_id else None)
 
 
 @router.post(MERCHANT)
-async def issue_voucher(request: Request, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
-    await check_merchant(db, user)
+async def issue_voucher(request: Request, user=Depends(listing_user), db: AsyncSession = Depends(get_db)):
+    await require_listing(db, user)
     form = await request.form()
     label = str(form.get("title", "")).strip()
     try:
@@ -237,8 +236,8 @@ async def issue_voucher(request: Request, user=Depends(workspace_user), db: Asyn
 
 
 @router.post(MERCHANT + "/{voucher_id}/revoke")
-async def revoke_voucher(voucher_id: int, user=Depends(workspace_user), db: AsyncSession = Depends(get_db)):
-    await check_merchant(db, user)
+async def revoke_voucher(voucher_id: int, user=Depends(listing_user), db: AsyncSession = Depends(get_db)):
+    await require_listing(db, user)
     await calendar.lock_calendar(db, user.business_id)
     item = await db.scalar(select(MarketplaceVoucher).where(MarketplaceVoucher.id == voucher_id, MarketplaceVoucher.business_id == user.business_id))
     if not item:

@@ -193,6 +193,52 @@ def test_public_listing_real_slots_sms_book_move_cancel_and_verified_reviews():
     asyncio.run(scenario())
 
 
+def test_catalog_only_renders_publish_action_for_eligible_business_accounts():
+    async def scenario():
+        async with test_app() as (owner, customer, sessions):
+            await seed(sessions)
+            path = "/workspace/listing"
+            action = f'href="{path}"'
+
+            anonymous = await customer.get("/maistry")
+            assert anonymous.status_code == 200 and action not in anonymous.text
+            await customer.get("/maistry/register")
+            assert (await post(customer, "/maistry/register", {
+                "phone": "+380677772103", "name": "Клієнт", "password": "customer password"
+            })).status_code == 303
+            signed_in = await customer.get("/maistry")
+            assert action not in signed_in.text and "Мої візити" in signed_in.text
+            assert (await customer.get(path)).status_code == 403
+
+            await owner.get("/login")
+            await post(owner, "/login", {"username": "+380671111111", "password": "correct horse battery staple"})
+            assert action in (await owner.get("/maistry")).text
+            settings = await owner.get(path)
+            assert settings.status_code == 200 and 'href="/workspace"' in settings.text
+
+            for role, industry, expected_status in (("admin", "barbershop", 200), ("admin", "clinic", 404),
+                                                     ("master", "barbershop", 403)):
+                async with sessions() as db:
+                    (await db.get(User, 1)).role = role
+                    (await db.get(Business, 1)).type = industry
+                    await db.commit()
+                catalog = await owner.get("/maistry")
+                assert catalog.status_code == 200
+                assert (action in catalog.text) == (expected_status == 200)
+                assert (await owner.get(path)).status_code == expected_status
+
+            await owner.get("/maistry/register")
+            assert (await post(owner, "/maistry/register", {
+                "phone": "+380677772104", "name": "Клієнт і співробітник", "password": "customer password"
+            })).status_code == 303
+            async with sessions() as db:
+                (await db.get(Business, 1)).is_active = False
+                await db.commit()
+            assert action not in (await owner.get("/maistry")).text
+            assert (await owner.get("/maistry/account")).status_code == 200
+    asyncio.run(scenario())
+
+
 def test_file_tools_parse_real_documents_and_escape_spreadsheet_formulas():
     from pypdf import PdfWriter
 
@@ -232,7 +278,8 @@ def test_constructor_table_proposal_and_revocable_book_sharing():
             proposal_page = await owner.get(proposal.headers["location"])
             link = re.search(r'href="(/proposals/[^"]+)"', proposal_page.text)[1]
             assert (await guest.get(link + "z")).status_code == 404
-            assert (await guest.get(link)).status_code == 200
+            public_proposal = await guest.get(link)
+            assert public_proposal.status_code == 200 and 'href="/workspace"' not in public_proposal.text
             assert (await post(guest, link, {"name": "Approval", "action": "approved"})).status_code == 303
             assert "Погоджено" in (await guest.get(link)).text
 

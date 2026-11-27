@@ -1,3 +1,4 @@
+import asyncio
 import html
 import io
 import json
@@ -26,11 +27,14 @@ from utils.logger import log_action
 from utils.templates import render_template
 from database import get_db, AsyncSessionLocal
 from config import UA_TZ
-from services import marketing_funnel
+from services import creem, marketing_funnel
+from services.workspace_catalog import PLAN_NAMES
+from utils.auth import AttemptLimiter
 import httpx
 import logging
 
 router = APIRouter(prefix="/superadmin", tags=["Superadmin"])
+CREEM_DIAGNOSTIC_LIMIT = AttemptLimiter(limit=4, window=60)
 
 
 @router.get("/campaigns", response_class=HTMLResponse, include_in_schema=False)
@@ -41,6 +45,29 @@ async def campaign_report(days: int = 30, user: User = Depends(get_current_user)
     days = days if days in periods else 30
     rows, totals = await marketing_funnel.report(db, days)
     return HTMLResponse(render_template("platform/campaigns.html", days=days, periods=periods, rows=rows, totals=totals),
+                        headers={"Cache-Control": "private, no-store"})
+
+
+@router.get("/creem-check", response_class=HTMLResponse, include_in_schema=False)
+async def creem_check(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "superadmin":
+        return RedirectResponse("/", status_code=303)
+    if not CREEM_DIAGNOSTIC_LIMIT.allow(str(user.id)):
+        raise HTTPException(429)
+    global_settings = await db.get(GlobalPaymentSettings, 1)
+    checks = []
+    for plan, name in PLAN_NAMES.items():
+        charges = creem.charges(plan)
+        if plan in {"plan1", "plan2"} and global_settings and not getattr(global_settings, f"is_{plan}_active"):
+            charges = ()
+        if charges:
+            checks.extend((name, charge) for charge in charges)
+        else:
+            checks.extend((name, charge) for charge in creem.advertised(plan))
+    states = await asyncio.gather(*(creem.check_product(charge) for _, charge in checks))
+    entries = [(name, charge.cents, charge.recurring, state)
+               for (name, charge), state in zip(checks, states, strict=True)]
+    return HTMLResponse(render_template("platform/creem-check.html", entries=entries),
                         headers={"Cache-Control": "private, no-store"})
 
 

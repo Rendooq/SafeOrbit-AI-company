@@ -393,11 +393,7 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
             if verify_only:
                 break
             product = await creem.get_product(payment.product_id)
-            expected_type = "recurring" if payment.recurring else "onetime"
-            if (product.get("id") != payment.product_id or product.get("currency") != "EUR"
-                    or product.get("price") != payment.cents or product.get("status") != "active"
-                    or product.get("billing_type") != expected_type
-                    or (payment.recurring and product.get("billing_period") != "every-month")):
+            if not creem.product_matches(product, payment.product_id, payment.cents, payment.recurring):
                 raise creem.CreemError("Product configuration differs from the advertised price")
             checkout = await creem.api("POST", "checkouts", json={
                 "product_id": payment.product_id,

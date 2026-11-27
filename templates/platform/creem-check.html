@@ -1,0 +1,22 @@
+{% extends "platform/base.html" %}
+{% block title %}Перевірити продукти Creem{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block locale_assets %}<script defer src="/static/locales/campaigns.js?v=2"></script>{% endblock %}
+{% block links %}<a href="/superadmin">Адмінпанель</a><a href="/superadmin/campaigns">Кампанії SafeOrbit</a>{% endblock %}
+{% block content %}
+{% set labels = {'ready': 'Підтверджено в Creem', 'mismatch': 'Параметри продукту відрізняються', 'unreachable': 'Creem не повернув дані продукту', 'unavailable': 'Підключення недоступне'} %}
+<header class="page-intro">
+  <h1>Перевірити продукти Creem</h1>
+  <p>Перевірка статусу продуктів, валюти, ціни та періоду оплати через API Creem.</p>
+</header>
+<section class="platform-panel table-scroll">
+  <table>
+    <thead><tr><th scope="col">Тариф</th><th scope="col">Тип платежу</th><th scope="col">Ціна</th><th scope="col">Статус</th></tr></thead>
+    <tbody>
+      {% for name, cents, recurring, state in entries %}
+      <tr><th scope="row">{{ name }}</th><td>{{ 'Щомісячна підписка' if recurring else 'Разове підключення' }}</td><td>€{{ '%.2f'|format(cents / 100) }}</td><td>{{ labels[state] }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

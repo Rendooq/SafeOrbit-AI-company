@@ -1,13 +1,14 @@
 import asyncio
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import select
 from test_platform import post, test_app
 
 from models import Business, CampaignVisit, CreemPayment
 from routers import auth
-from routers.superadmin import campaign_report
-from services import marketing_funnel
+from routers.superadmin import campaign_report, creem_check
+from services import creem, marketing_funnel
 
 
 def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payments():
@@ -47,10 +48,38 @@ def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payme
                                     cents=1980, recurring=True, checkout_id="ch_custom", paid=True))
                 await db.commit()
                 assert (await marketing_funnel.report(db, 30))[1] == [1, 1, 1, 1]
-                admin = type("Admin", (), {"role": "superadmin"})()
+                admin = SimpleNamespace(role="superadmin")
                 rendered = await campaign_report(user=admin, db=db)
                 assert "slot_recovery" in rendered.body.decode()
                 assert rendered.headers["cache-control"] == "private, no-store"
 
     with patch.dict("os.environ", {"AUTH_SMS_TOKEN": "", "MARKETPLACE_SMS_TOKEN": "", "CREEM_ENABLED": "0"}):
+        asyncio.run(scenario())
+
+
+def test_creem_check_is_private_and_reports_prices_without_exposing_product_ids():
+    async def scenario():
+        async with test_app() as (visitor, _, sessions):
+            assert (await visitor.get("/superadmin/creem-check")).status_code == 303
+            product = {"id": "prod_privateTest", "currency": "EUR", "price": 1980,
+                       "status": "active", "billing_type": "recurring", "billing_period": "every-month"}
+            async with sessions() as db:
+                admin = SimpleNamespace(role="superadmin", id=48173)
+                with patch.object(creem, "get_product", AsyncMock(return_value=product)) as provider:
+                    response = await creem_check(user=admin, db=db)
+                    provider.assert_awaited_once_with("prod_privateTest")
+                    assert "Підтверджено в Creem" in response.body.decode()
+                    assert "prod_privateTest" not in response.body.decode()
+                    product["price"] = 1990
+                    response = await creem_check(user=admin, db=db)
+                    assert "Параметри продукту відрізняються" in response.body.decode()
+
+    with patch.dict("os.environ", {
+        "CREEM_ENABLED": "1", "CREEM_API_KEY": "local_diagnostic",
+        "CREEM_WEBHOOK_SECRET": "local_diagnostic",
+        "CREEM_ONLINE_TERMS_VERSION": "2026-11-26",
+        "CREEM_BUSINESS_MONTHLY_V2_PRODUCT_ID": "", "CREEM_PRO_MONTHLY_PRODUCT_ID": "",
+        "CREEM_COMMERCE_MONTHLY_PRODUCT_ID": "", "CREEM_WORKSHOP_MONTHLY_PRODUCT_ID": "",
+        "CREEM_CUSTOM_MONTHLY_PRODUCT_ID": "prod_privateTest",
+    }):
         asyncio.run(scenario())

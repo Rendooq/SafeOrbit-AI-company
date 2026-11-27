@@ -36,4 +36,26 @@ Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
     pl: "Płatność jest uwzględniana po utworzeniu sesji Creem. Subskrypcja jest uwzględniana po potwierdzeniu płatności miesięcznej.",
     zh: "创建 Creem 付款会话后计入付款环节。确认月度付款后计入订阅。",
   },
+  "Перевірити продукти Creem": {
+    en: "Check Creem products", ru: "Проверить продукты Creem", pl: "Sprawdź produkty Creem", zh: "检查 Creem 产品",
+  },
+  "Перевірка статусу продуктів, валюти, ціни та періоду оплати через API Creem.": {
+    en: "Check product status, currency, price and billing period through the Creem API.",
+    ru: "Проверка статуса продуктов, валюты, цены и периода оплаты через API Creem.",
+    pl: "Sprawdzanie statusu, waluty, ceny i okresu płatności przez API Creem.",
+    zh: "通过 Creem API 检查产品状态、货币、价格和结算周期。",
+  },
+  "Тип платежу": { en: "Payment type", ru: "Тип платежа", pl: "Typ płatności", zh: "付款类型" },
+  "Підтверджено в Creem": {
+    en: "Verified in Creem", ru: "Подтверждено в Creem", pl: "Zweryfikowano w Creem", zh: "已在 Creem 验证",
+  },
+  "Параметри продукту відрізняються": {
+    en: "Product settings do not match", ru: "Параметры продукта не совпадают", pl: "Parametry produktu są niezgodne", zh: "产品设置不匹配",
+  },
+  "Creem не повернув дані продукту": {
+    en: "Creem did not return the product", ru: "Creem не вернул данные продукта", pl: "Creem nie zwrócił danych produktu", zh: "Creem 未返回产品信息",
+  },
+  "Підключення недоступне": {
+    en: "Signup unavailable", ru: "Подключение недоступно", pl: "Rejestracja niedostępna", zh: "暂不可开通",
+  },
 });

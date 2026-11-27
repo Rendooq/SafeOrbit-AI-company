@@ -1,13 +1,14 @@
 {% extends "platform/base.html" %}
 {% block title %}Кампанії SafeOrbit{% endblock %}
 {% block meta %}<meta name="robots" content="noindex">{% endblock %}
-{% block locale_assets %}<script defer src="/static/locales/campaigns.js?v=1"></script>{% endblock %}
+{% block locale_assets %}<script defer src="/static/locales/campaigns.js?v=2"></script>{% endblock %}
 {% block links %}<a href="/superadmin">Адмінпанель</a>{% endblock %}
 {% block content %}
 {% set stages = ('Переходи з кампаній', 'Реєстрації', 'Відкриття каси Creem', 'Підтверджені підписки') %}
 <header class="page-intro">
   <h1>Кампанії SafeOrbit</h1>
   <p>Від переходу за рекламним посиланням до першої підтвердженої підписки.</p>
+  <a class="platform-button secondary" href="/superadmin/creem-check">Перевірити продукти Creem</a>
 </header>
 <section class="platform-panel">
   <form method="get" action="/superadmin/campaigns" class="field-grid">

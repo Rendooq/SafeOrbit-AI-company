@@ -99,6 +99,29 @@ async def get_product(product_id: str) -> dict:
     return await api("GET", f"products/{product_id}")
 
 
+def product_matches(product: dict, product_id: str, cents: int, recurring: bool) -> bool:
+    return (
+        product.get("id") == product_id
+        and product.get("currency") == "EUR"
+        and product.get("price") == cents
+        and product.get("status") == "active"
+        and product.get("billing_type") == ("recurring" if recurring else "onetime")
+        and (not recurring or product.get("billing_period") == "every-month")
+    )
+
+
+async def check_product(charge: Charge) -> str:
+    if not charge.product_id:
+        return "unavailable"
+    try:
+        product = await get_product(charge.product_id)
+    except CreemError:
+        return "unreachable"
+    if not product_matches(product, charge.product_id, charge.cents, charge.recurring):
+        return "mismatch"
+    return "ready"
+
+
 def checkout_url(value: object) -> str:
     if not isinstance(value, str):
         raise CreemError("Missing checkout URL")

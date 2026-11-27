@@ -62,6 +62,7 @@ async def capture_visit(request, db):
         logger.warning("Could not record campaign visit")
         return
     session[VISIT_SESSION_KEY] = {"id": visit_id, "identity": identity}
+    logger.info("Campaign visit recorded: source=%s campaign=%s", source, campaign or "unspecified")
 
 
 async def link_registration(request, business_id: int, db):

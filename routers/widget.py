@@ -1,10 +1,10 @@
 import html
 import logging
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, time as clock_time, timedelta
 
 import httpx
-from fastapi import APIRouter, Depends, Form, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Response
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ from services.integrations import (push_to_beauty_pro, push_to_cleverbox,
                                     push_to_integrica, push_to_luckyfit,
                                     push_to_uspacy)
 from services.notifications import send_new_appointment_notifications
-from services.marketplace import conflicts
+from services.marketplace import conflicts, date_in_range, now, occupied
 
 router = APIRouter(prefix="/widget", tags=["Widget"])
 logger = logging.getLogger(__name__)
@@ -30,8 +30,8 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
     services = (await db.execute(select(Service).where(Service.business_id == business_id))).scalars().all()
     masters = (await db.execute(select(Master).where(and_(Master.business_id == business_id, Master.is_active == True)))).scalars().all()
     
-    s_opts = "".join([f"<option value='{s.name}'>{s.name} ({s.price} грн)</option>" for s in services])
-    m_opts = "".join([f"<option value='{m.id}'>{m.name}</option>" for m in masters])
+    s_opts = "".join(f"<option value='{html.escape(s.name)}'>{html.escape(s.name)} ({s.price} грн)</option>" for s in services)
+    m_opts = "".join(f"<option value='{m.id}'>{html.escape(m.name)}</option>" for m in masters)
     
     l = LABELS.get(biz.type, LABELS["generic"])
     
@@ -54,6 +54,7 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+    <script defer src="/static/locales/widget.js?v=1"></script>
     <script defer src="/static/i18n.js?v=complete-locales1"></script>
     <style>
         *, *::before, *::after {{ box-sizing: border-box; }}
@@ -242,9 +243,26 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
         .spinner {{ width: 48px; height: 48px; border: 4px solid rgba(175, 133, 255, 0.18); border-left-color: var(--accent-primary); border-radius: 50%; animation: spin 1s linear infinite; }}
         @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
         
-        .toast-msg {{ position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #22c55e; color: white; padding: 1rem 2rem; border-radius: 100px; font-weight: 600; box-shadow: 0 10px 30px rgba(34, 197, 94, 0.4); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); z-index: 10000; }}
-        .toast-msg.show {{ transform: translateX(-50%) translateY(0); }}
-        .toast-msg.error {{ background: #ef4444; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); }}
+        .toast-msg {{
+            position: fixed;
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            left: 50%;
+            width: max-content;
+            max-width: min(32rem, calc(100% - 2rem));
+            visibility: hidden;
+            transform: translate(-50%, 120%);
+            background: #166534;
+            color: white;
+            padding: 0.8rem 1.15rem;
+            border-radius: 16px;
+            text-align: center;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.25);
+            transition: transform 0.3s ease;
+            z-index: 10000;
+        }}
+        .toast-msg.show {{ visibility: visible; transform: translate(-50%, 0); }}
+        .toast-msg.error {{ background: #991b1b; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.25); }}
         
         @media (max-width: 480px) {{ 
             .booking-container {{ padding: 0 10px; width: 100%; max-width: 100vw; overflow-x: hidden; }}
@@ -257,10 +275,10 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
     </style></head>
     <body>
         <div class="loader-overlay" id="loader"><div class="spinner"></div></div>
-        <div class="toast-msg" id="toastMsg"></div>
+        <div class="toast-msg" id="toastMsg" role="status" aria-live="polite"></div>
         
         <div class="header-block">
-            <div class="avatar-wrapper animate-up" style="animation-delay: 0.1s;">{(biz.name[0].upper() if biz.name else 'S')}</div>
+            <div class="avatar-wrapper animate-up" style="animation-delay: 0.1s;">{html.escape(biz.name[0].upper() if biz.name else 'S')}</div>
             <h3 class="fw-bold mb-1 animate-up" style="animation-delay: 0.2s; letter-spacing: -0.03em;">{html.escape(biz.name)}</h3>
             <p class="animate-up mb-0" style="animation-delay: 0.3s;">Оберіть послугу та зручний час</p>
         </div>
@@ -320,6 +338,10 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
         const timeSlotsContainer = document.getElementById('timeSlots');
         const selectedDateInput = document.getElementById('selectedDate');
         const selectedTimeInput = document.getElementById('selectedTime');
+        const serviceInput = document.querySelector('select[name="service"]');
+        const masterInput = document.querySelector('select[name="master_id"]');
+        const retailBooking = {'true' if biz.type == 'retail' else 'false'};
+        let slotsRequest;
         const daysOfWeek = ['Нд', 'Пн', 'Вв', 'Ср', 'Чт', 'Пт', 'Сб'];
         const today = new Date();
 
@@ -351,35 +373,79 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
             generateTimes();
         }}
 
-        function generateTimes() {{
-            timeSlotsContainer.innerHTML = '';
-            selectedTimeInput.value = '';
-            const startHour = 9;
-            const endHour = 19; 
+        function renderTimes(times, hint = '') {{
+            timeSlotsContainer.replaceChildren();
+            if (hint) {{
+                const message = document.createElement('div');
+                message.className = 'time-hint text-center w-100 py-3';
+                message.style.gridColumn = '1 / -1';
+                message.setAttribute('role', 'status');
+                message.textContent = hint;
+                timeSlotsContainer.appendChild(message);
+                return;
+            }}
+            for (const timeStr of times) {{
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'time-slot';
+                button.textContent = timeStr;
+                button.setAttribute('aria-pressed', 'false');
+                button.onclick = () => selectTime(button, timeStr);
+                timeSlotsContainer.appendChild(button);
+            }}
+        }}
 
-        const now = new Date();
-        const todayStr = `${{now.getFullYear()}}-${{String(now.getMonth()+1).padStart(2,'0')}}-${{String(now.getDate()).padStart(2,'0')}}`;
-        const isToday = selectedDateInput.value === todayStr;
-        const currentHour = now.getHours();
-        const currentMin = now.getMinutes();
-
-            
-            for(let h = startHour; h <= endHour; h++) {{
-                for(let m of ['00', '30']) {{
-                if (isToday && (h < currentHour || (h === currentHour && parseInt(m) <= currentMin))) continue;
-                    let timeStr = `${{String(h).padStart(2, '0')}}:${{m}}`;
-                    let btn = document.createElement('div');
-                    btn.className = 'time-slot';
-                    btn.innerText = timeStr;
-                    btn.onclick = () => selectTime(btn, timeStr);
-                    timeSlotsContainer.appendChild(btn);
+        function retailTimes(day) {{
+            const current = new Date();
+            const todayString = `${{current.getFullYear()}}-${{String(current.getMonth()+1).padStart(2, '0')}}-${{String(current.getDate()).padStart(2, '0')}}`;
+            const times = [];
+            for (let hour = 9; hour <= 19; hour++) {{
+                for (const minute of [0, 30]) {{
+                    if (day === todayString && hour * 60 + minute <= current.getHours() * 60 + current.getMinutes()) continue;
+                    times.push(`${{String(hour).padStart(2, '0')}}:${{String(minute).padStart(2, '0')}}`);
                 }}
+            }}
+            return times;
+        }}
+
+        async function generateTimes() {{
+            slotsRequest?.abort();
+            selectedTimeInput.value = '';
+            const day = selectedDateInput.value;
+            if (!day) {{
+                renderTimes([], 'Спочатку оберіть дату');
+                return;
+            }}
+            if (retailBooking) {{
+                renderTimes(retailTimes(day));
+                return;
+            }}
+            if (!serviceInput.value) {{
+                renderTimes([], 'Спочатку оберіть послугу');
+                return;
+            }}
+            const request = new AbortController();
+            slotsRequest = request;
+            const query = new URLSearchParams({{ day, service: serviceInput.value }});
+            if (masterInput.value) query.set('master_id', masterInput.value);
+            renderTimes([], 'Перевіряємо вільний час…');
+            try {{
+                const response = await fetch(`/widget/{business_id}/slots?${{query}}`, {{ signal: request.signal }});
+                if (!response.ok) throw new Error('Availability request failed');
+                const {{ times }} = await response.json();
+                if (!request.signal.aborted) renderTimes(times, times.length ? '' : 'На цей день вільного часу немає. Оберіть іншу дату.');
+            }} catch {{
+                if (!request.signal.aborted) renderTimes([], 'Не вдалося перевірити час. Оберіть дату ще раз.');
             }}
         }}
         
         function selectTime(element, timeStr) {{
-            document.querySelectorAll('.time-slot').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.time-slot.active').forEach(el => {{
+                el.classList.remove('active');
+                el.setAttribute('aria-pressed', 'false');
+            }});
             element.classList.add('active');
+            element.setAttribute('aria-pressed', 'true');
             selectedTimeInput.value = timeStr;
         }}
 
@@ -392,6 +458,8 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
             }}
 
         generateDates();
+        serviceInput.addEventListener('change', generateTimes);
+        masterInput.addEventListener('change', generateTimes);
 
         document.getElementById('bookingForm').addEventListener('submit', function(e) {{
             if(!selectedDateInput.value || !selectedTimeInput.value) {{ 
@@ -408,6 +476,39 @@ async def public_booking_widget(business_id: int, db: AsyncSession = Depends(get
         </script>
     </body></html>"""
     return HTMLResponse(content=html_content)
+
+
+@router.get("/{business_id}/slots")
+async def public_booking_slots(business_id: int, day: str, service: str, master_id: int | None = None,
+                               db: AsyncSession = Depends(get_db)):
+    business = await db.get(Business, business_id)
+    if not business or not business.is_active or business.type == "retail":
+        raise HTTPException(404, "Недоступний бізнес")
+    selected_day = date_in_range(day)
+    if selected_day is None:
+        raise HTTPException(400, "Некоректна дата")
+    if master_id is not None:
+        master = await db.get(Master, master_id)
+        if not master or master.business_id != business_id or not master.is_active:
+            raise HTTPException(400, "Недоступний спеціаліст")
+
+    services = (await db.scalars(select(Service).where(Service.business_id == business_id).order_by(Service.id))).all()
+    selected = next((item for item in services if item.name == service), None)
+    if not selected:
+        raise HTTPException(400, "Недоступна послуга")
+
+    midnight = datetime.combine(selected_day, clock_time.min)
+    duration = timedelta(minutes=max(1, min(selected.duration or 90, 720)))
+    slots = [midnight + timedelta(minutes=minute) for minute in range(9 * 60, 20 * 60, 30)]
+    scope = None if master_id is None else [master_id]
+    busy = await occupied(db, business_id, selected_day, scope, services)
+    last_day = (slots[-1] + duration).date()
+    if last_day != selected_day:
+        busy.extend(await occupied(db, business_id, last_day, scope, services))
+    current = now()
+    return {"times": [slot.strftime("%H:%M") for slot in slots if slot > current and not any(
+        slot < end and slot + duration > begin for _, begin, end in busy
+    )]}
 
 
 @router.post("/book/{business_id}")

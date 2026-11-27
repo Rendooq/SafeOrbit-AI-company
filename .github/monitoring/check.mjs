@@ -80,6 +80,9 @@ try {
 
   stage = "Pricing localization";
   await open("/taryfy");
+  for (const plan of ["plan1", "plan2", "commerce", "production", "custom"]) {
+    await page.locator(`#plan-${plan}`).waitFor({state: "visible"});
+  }
   const picker = page.locator("[data-language-select]");
   for (const [lang, heading] of [
     ["en", "SafeOrbit plans"], ["ru", "Тарифы SafeOrbit"], ["pl", "Cennik SafeOrbit"],
@@ -89,6 +92,21 @@ try {
     await page.getByRole("heading", {name: heading, exact: true}).waitFor({state: "visible"});
   }
   console.log("PASS Pricing in all five languages");
+
+  stage = "Cancellation guide and schedule audit";
+  const guide = "/yak-zapovnyty-vilni-vikna-u-saloni";
+  await open(guide);
+  assert.equal(await page.locator('link[rel="canonical"]').getAttribute("href"), site + guide);
+  await page.locator('article a[href="/login-demo"]').waitFor({state: "visible"});
+  const auditLink = page.locator('article a[href="/rozbir-rozkladu"]');
+  await Promise.all([
+    page.waitForURL(`${site}/rozbir-rozkladu`),
+    auditLink.click(),
+  ]);
+  await page.locator("#audit-example").click();
+  await page.locator("#audit-data").waitFor({state: "visible"});
+  assert.ok(Number(await page.locator("#audit-matches").textContent()) > 0);
+  console.log("PASS Cancellation guide and waitlist example");
 } catch (error) {
   console.error(`FAIL ${stage}`);
   if (page?.url().startsWith(site + "/")) {

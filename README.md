@@ -167,14 +167,17 @@ Do not commit `.env`, database files, uploads, or session secrets.
   and set `intervalMinutes`. Each run reports its result and a failure
   screenshot when available. Workspaces with Telegram notifications enabled
   receive a message on failure and recovery.
-- The public SafeOrbit production monitor runs from this repository's Actions
-  every 30 minutes. It checks the mobile home page, marketplace search,
-  registration forms and live subscription terms with read-only requests.
+- The public SafeOrbit production monitor is scheduled in GitHub Actions every
+  30 minutes. It checks the mobile home page, marketplace search, registration
+  forms, pricing, live subscription terms, and the schedule audit example with
+  read-only requests.
 - The superadmin campaign report at `/superadmin/campaigns` groups tagged visits
   by source and campaign. It follows each captured visit through registration,
   Creem checkout creation, and the first verified recurring payment. Link
   previews and repeated visits from the same signed browser session on the same
   day are filtered.
+- `/superadmin/creem-check` compares Creem's configured products with published
+  prices and billing periods using read-only requests.
 - Reconciliation shows expected and received totals. Invoice comparison
   normalizes g/kg and ml/l across pack sizes. Feed validation can save a
   corrected XML copy using reference prices and availability. The cutting

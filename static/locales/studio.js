@@ -1,5 +1,24 @@
-// Homepage-only copy and fictional names from the studio preview.
+// Marketing copy and fictional names from the studio preview.
 Object.assign(window.SafeOrbitLocaleCatalog ||= {}, {
+  "Від підтвердження до календаря майстра": {
+    en: "From booking confirmation to the stylist's calendar",
+    ru: "От подтверждения записи до календаря мастера",
+    pl: "Od potwierdzenia wizyty do grafiku stylisty",
+    zh: "从预约确认到发型师日程",
+  },
+  "У демозаписі клієнт обирає 11:00, а адміністратор бачить візит у розкладі. У відкритому демо можна переглянути календар команди.": {
+    en: "In the example, the client selects 11:00 and the booking appears in the salon's schedule. Open the demo to explore the team calendar.",
+    ru: "В примере клиент выбирает 11:00, и запись появляется в расписании салона. В открытом демо можно посмотреть календарь команды.",
+    pl: "W przykładzie klient wybiera godzinę 11:00, a wizyta pojawia się w grafiku salonu. Otwórz demo, aby sprawdzić kalendarz zespołu.",
+    zh: "示例中，客户选择 11:00，预约随即出现在门店的日程里。打开演示即可查看团队日历。",
+  },
+  "Демозапис українською, 21 секунда": {
+    en: "Booking demonstration in Ukrainian, 21 seconds",
+    ru: "Пример записи на украинском, 21 секунда",
+    pl: "Przykład rezerwacji po ukraińsku, 21 sekund",
+    zh: "乌克兰语预约演示，21 秒",
+  },
+  "Відкрити відео": {en: "Open the video", ru: "Открыть видео", pl: "Otwórz film", zh: "打开视频"},
   "Розібрати розклад": {
     "en": "Audit the schedule",
     "ru": "Разобрать расписание",

@@ -15,7 +15,15 @@
 .salon-setup li strong { display: block; margin-bottom: 7px; }
 .salon-setup p { color: var(--ui-muted); font-size: .95rem; }
 .salon-setup-note { margin-block: 15px 5px; }
+.salon-video { display: grid; grid-template-columns: minmax(0,1fr) minmax(200px,270px); align-items: center; gap: clamp(24px,5vw,72px); }
+.salon-video p { margin-block: .85rem 1.4rem; max-width: 39rem; }
+.salon-video h2 { scroll-margin-top: 5rem; }
+.salon-video video { display: block; width: 100%; max-width: 270px; aspect-ratio: 9 / 16; border: 1px solid var(--ui-border); border-radius: 18px; background: #121121; }
 @media (max-width: 800px) {
   .salon-page .hero-v2 { gap: 24px; }
   .salon-setup ol { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .salon-video { grid-template-columns: 1fr; }
+  .salon-video video { justify-self: center; }
 }

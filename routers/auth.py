@@ -535,6 +535,7 @@ async def login_demo(request: Request):
     if campaign:
         request.session[CAMPAIGN_SESSION_KEY] = campaign
     if visit:
+        marketing_funnel.record_demo_open(visit)
         request.session[marketing_funnel.VISIT_SESSION_KEY] = visit
     return RedirectResponse("/admin", status_code=303)
 

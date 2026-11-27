@@ -62,7 +62,23 @@ async def capture_visit(request, db):
         logger.warning("Could not record campaign visit")
         return
     session[VISIT_SESSION_KEY] = {"id": visit_id, "identity": identity}
-    logger.info("Campaign visit recorded: source=%s campaign=%s", source, campaign or "unspecified")
+    logger.info("Campaign visit recorded: source=%s campaign=%s user_navigation=%s", source,
+                campaign or "unspecified", request.headers.get("sec-fetch-user") == "?1")
+
+
+def record_demo_open(visit):
+    if not isinstance(visit, dict) or visit.get("demo_opened"):
+        return
+    identity = visit.get("identity")
+    if not isinstance(identity, list) or len(identity) != 3:
+        return
+    source, campaign, _ = identity
+    if not isinstance(source, str) or source not in SOURCES or not isinstance(campaign, str):
+        return
+    if campaign and not _TAG.fullmatch(campaign):
+        return
+    visit["demo_opened"] = True
+    logger.info("Campaign demo opened: source=%s campaign=%s", source, campaign or "unspecified")
 
 
 async def link_registration(request, business_id: int, db):

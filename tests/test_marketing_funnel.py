@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -11,7 +12,7 @@ from routers.superadmin import campaign_report, creem_check
 from services import creem, marketing_funnel
 
 
-def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payments():
+def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payments(caplog):
     async def scenario():
         async with test_app() as (visitor, stranger, sessions):
             campaign = auth.SLOT_RECOVERY_PAGE + "?utm_source=linkedin&utm_medium=organic_social&utm_campaign=slot_recovery"
@@ -21,6 +22,7 @@ def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payme
             assert 'href="/rozbir-rozkladu"' in landing.text
             assert (await visitor.get(campaign)).status_code == 200
             with patch.object(auth.demo_workspaces, "start", return_value="local-marketing-demo"):
+                assert (await visitor.get("/login-demo")).headers["location"] == "/admin"
                 assert (await visitor.get("/login-demo")).headers["location"] == "/admin"
             signup = await visitor.get("/register?industry=other")
             assert 'name="utm_source" value="linkedin"' in signup.text
@@ -63,8 +65,11 @@ def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payme
                 ]
                 assert totals == [2, 1, 1, 1]
 
-    with patch.dict("os.environ", {"AUTH_SMS_TOKEN": "", "MARKETPLACE_SMS_TOKEN": "", "CREEM_ENABLED": "0"}):
+    with caplog.at_level(logging.INFO, logger=marketing_funnel.__name__), patch.dict("os.environ", {
+        "AUTH_SMS_TOKEN": "", "MARKETPLACE_SMS_TOKEN": "", "CREEM_ENABLED": "0",
+    }):
         asyncio.run(scenario())
+    assert caplog.messages.count("Campaign demo opened: source=linkedin campaign=slot_recovery") == 1
 
 
 def test_creem_check_is_private_and_reports_prices_without_exposing_product_ids():

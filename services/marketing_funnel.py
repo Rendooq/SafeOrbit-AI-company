@@ -16,7 +16,7 @@ LANDINGS = {
     "/rozbir-rozkladu", "/yak-zapovnyty-vilni-vikna-u-saloni", "/register",
 }
 SOURCES = {
-    "linkedin", "facebook", "instagram", "spilno", "product-radar", "product_radar",
+    "linkedin", "facebook", "instagram", "spilno", "osyo", "product-radar", "product_radar",
     "g2", "capterra", "getapp", "software-advice", "telegram", "email", "referral",
     "partner", "youtube", "reddit",
 }

@@ -53,6 +53,16 @@ def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payme
                 assert "slot_recovery" in rendered.body.decode()
                 assert rendered.headers["cache-control"] == "private, no-store"
 
+            directory = "/?utm_source=osyo&utm_medium=referral&utm_campaign=safeorbit&utm_content=product_page"
+            assert (await stranger.get(directory)).status_code == 200
+            async with sessions() as db:
+                rows, totals = await marketing_funnel.report(db, 30)
+                assert [list(row) for row in rows] == [
+                    ["linkedin", "slot_recovery", 1, 1, 1, 1],
+                    ["osyo", "safeorbit", 1, 0, 0, 0],
+                ]
+                assert totals == [2, 1, 1, 1]
+
     with patch.dict("os.environ", {"AUTH_SMS_TOKEN": "", "MARKETPLACE_SMS_TOKEN": "", "CREEM_ENABLED": "0"}):
         asyncio.run(scenario())
 

@@ -435,6 +435,12 @@ async def salon_landing(request: Request = None, db: AsyncSession = Depends(get_
     ))
 
 
+@router.get("/demo-zapys", include_in_schema=False)
+async def booking_demo_video_link():
+    return RedirectResponse(f"{SALON_PAGE}?utm_source=referral&utm_medium=video&utm_campaign=booking_widget_film",
+                            status_code=307)
+
+
 @router.get(PRICING_PAGE, response_class=HTMLResponse)
 async def public_pricing(db: AsyncSession = Depends(get_db), request: Request = None):
     await marketing_funnel.capture_visit(request, db)

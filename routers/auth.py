@@ -35,6 +35,7 @@ SALON_PAGE = "/crm-dlia-saloniv"
 PRICING_PAGE = "/taryfy"
 BOOKING_TEMPLATE_PAGE = "/shablon-zhurnalu-zapysiv"
 SCHEDULE_AUDIT_PAGE = "/rozbir-rozkladu"
+SLOT_RECOVERY_PAGE = "/yak-zapovnyty-vilni-vikna-u-saloni"
 CAMPAIGN_KEYS = ("utm_source", "utm_medium", "utm_campaign")
 CAMPAIGN_SESSION_KEY = "marketing_campaign"
 
@@ -485,6 +486,15 @@ async def public_schedule_audit(request: Request, db: AsyncSession = Depends(get
     ))
 
 
+@router.get(SLOT_RECOVERY_PAGE, response_class=HTMLResponse)
+async def public_slot_recovery(request: Request, db: AsyncSession = Depends(get_db)):
+    await marketing_funnel.capture_visit(request, db)
+    campaign_attribution(request)
+    return HTMLResponse(render_template(
+        "platform/slot-recovery.html", canonical=PUBLIC_SITE + SLOT_RECOVERY_PAGE, public_site=PUBLIC_SITE,
+    ))
+
+
 @router.get("/sitemap.xml")
 async def sitemap_xml():
     return Response(
@@ -495,7 +505,8 @@ async def sitemap_xml():
         f'<url><loc>{PUBLIC_SITE}{PRICING_PAGE}</loc></url>'
         f'<url><loc>{PUBLIC_SITE}/maistry</loc></url>'
         f'<url><loc>{PUBLIC_SITE}{BOOKING_TEMPLATE_PAGE}</loc></url>'
-        f'<url><loc>{PUBLIC_SITE}{SCHEDULE_AUDIT_PAGE}</loc></url></urlset>',
+        f'<url><loc>{PUBLIC_SITE}{SCHEDULE_AUDIT_PAGE}</loc></url>'
+        f'<url><loc>{PUBLIC_SITE}{SLOT_RECOVERY_PAGE}</loc></url></urlset>',
         media_type="application/xml",
     )
 
@@ -516,10 +527,13 @@ async def login_demo(request: Request):
         raise HTTPException(429, "Забагато спроб відкрити демо. Спробуйте за хвилину.")
     key = await demo_workspaces.start(existing)
     campaign = campaign_attribution(request)
+    visit = request.session.get(marketing_funnel.VISIT_SESSION_KEY)
     request.session.clear()
     request.session[DEMO_SESSION_KEY] = key
     if campaign:
         request.session[CAMPAIGN_SESSION_KEY] = campaign
+    if visit:
+        request.session[marketing_funnel.VISIT_SESSION_KEY] = visit
     return RedirectResponse("/admin", status_code=303)
 
 

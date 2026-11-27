@@ -5,6 +5,7 @@ from sqlalchemy import select
 from test_platform import post, test_app
 
 from models import Business, CampaignVisit, CreemPayment
+from routers import auth
 from routers.superadmin import campaign_report
 from services import marketing_funnel
 
@@ -12,10 +13,14 @@ from services import marketing_funnel
 def test_funnel_groups_registered_visits_and_counts_only_confirmed_monthly_payments():
     async def scenario():
         async with test_app() as (visitor, stranger, sessions):
-            campaign = "/rozbir-rozkladu?utm_source=linkedin&utm_medium=organic_social&utm_campaign=slot_recovery"
+            campaign = auth.SLOT_RECOVERY_PAGE + "?utm_source=linkedin&utm_medium=organic_social&utm_campaign=slot_recovery"
             assert (await stranger.get(campaign, headers={"User-Agent": "LinkedInBot"})).status_code == 200
+            landing = await visitor.get(campaign)
+            assert landing.status_code == 200
+            assert 'href="/rozbir-rozkladu"' in landing.text
             assert (await visitor.get(campaign)).status_code == 200
-            assert (await visitor.get(campaign)).status_code == 200
+            with patch.object(auth.demo_workspaces, "start", return_value="local-marketing-demo"):
+                assert (await visitor.get("/login-demo")).headers["location"] == "/admin"
             signup = await visitor.get("/register?industry=other")
             assert 'name="utm_source" value="linkedin"' in signup.text
             response = await post(visitor, "/register", {

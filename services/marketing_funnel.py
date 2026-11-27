@@ -11,13 +11,16 @@ from models import Business, CampaignVisit, CreemPayment
 from utils.auth import AttemptLimiter
 
 
-LANDINGS = {"/", "/taryfy", "/crm-dlia-saloniv", "/shablon-zhurnalu-zapysiv", "/rozbir-rozkladu", "/register"}
+LANDINGS = {
+    "/", "/taryfy", "/crm-dlia-saloniv", "/shablon-zhurnalu-zapysiv",
+    "/rozbir-rozkladu", "/yak-zapovnyty-vilni-vikna-u-saloni", "/register",
+}
 SOURCES = {
     "linkedin", "facebook", "instagram", "spilno", "product-radar", "product_radar",
     "g2", "capterra", "getapp", "software-advice", "telegram", "email", "referral",
     "partner", "youtube", "reddit",
 }
-_COOKIE_KEY = "campaign_visit"
+VISIT_SESSION_KEY = "campaign_visit"
 _TAG = re.compile(r"[a-z0-9][a-z0-9_-]{0,47}")
 _TOKEN = re.compile(r"[a-f0-9]{32}")
 _PREVIEW = re.compile(r"bot\b|crawler|spider|facebookexternalhit|slack-imgproxy|headless|preview", re.I)
@@ -45,7 +48,7 @@ async def capture_visit(request, db):
     campaign = campaign if _TAG.fullmatch(campaign) else ""
     moment = utc_now()
     identity = [source, campaign, moment.date().isoformat()]
-    previous = session.get(_COOKIE_KEY)
+    previous = session.get(VISIT_SESSION_KEY)
     if isinstance(previous, dict) and previous.get("identity") == identity:
         return
     if not _VISITS.allow(request.client.host if request.client else "unknown"):
@@ -58,11 +61,11 @@ async def capture_visit(request, db):
         await db.rollback()
         logger.warning("Could not record campaign visit")
         return
-    session[_COOKIE_KEY] = {"id": visit_id, "identity": identity}
+    session[VISIT_SESSION_KEY] = {"id": visit_id, "identity": identity}
 
 
 async def link_registration(request, business_id: int, db):
-    reference = request.scope.get("session", {}).get(_COOKIE_KEY)
+    reference = request.scope.get("session", {}).get(VISIT_SESSION_KEY)
     visit_id = reference.get("id", "") if isinstance(reference, dict) else ""
     if not isinstance(visit_id, str) or not _TOKEN.fullmatch(visit_id):
         return

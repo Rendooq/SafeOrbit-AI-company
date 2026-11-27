@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/static/v2/schedule-audit.css?v=3">
   <script type="module" src="/static/v2/schedule-audit.mjs?v=3"></script>
   <script defer src="/static/locales/catalog.js?v=complete-locales1"></script>
+  <script defer src="/static/locales/slot-recovery.js?v=1"></script>
   <script defer src="/static/i18n.js?v=complete-locales1"></script>
 </head>
 <body class="studio-home audit-page">
@@ -77,8 +78,12 @@
       </section>
     </div>
     <section class="audit-next" aria-labelledby="audit-next-title">
-      <div><h2 id="audit-next-title">Ведіть записи в календарі SafeOrbit</h2><p>Перегляньте розклад команди, створіть пробний запис і відкрийте звіт про візити.</p></div>
-      <a class="action action-ink" href="/login-demo">Відкрити демо CRM <span aria-hidden="true">→</span></a>
+      <div><h2 id="audit-next-title">Ведіть записи в календарі SafeOrbit</h2><p>Перегляньте розклад команди, створіть пробний запис і відкрийте звіт про візити.</p>
+        <a class="text-action" href="/yak-zapovnyty-vilni-vikna-u-saloni">Як заповнювати вільні вікна після скасувань</a></div>
+      <div class="audit-input-actions">
+        <a class="action action-ink" href="/login-demo">Відкрити демо CRM <span aria-hidden="true">→</span></a>
+        <a class="action action-violet" href="/register?industry=barbershop">Створити акаунт <span aria-hidden="true">→</span></a>
+      </div>
     </section>
   </main>
 </body>

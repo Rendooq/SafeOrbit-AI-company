@@ -1,0 +1,45 @@
+{% extends "platform/base.html" %}
+{% block title %}Як заповнити вільне вікно в салоні | SafeOrbit{% endblock %}
+{% block meta %}
+  <meta name="description" content="Як запропонувати час після скасування клієнтам зі списку очікування. Покроковий приклад для салону або барбершопу і безкоштовний розбір CSV.">
+  <link rel="canonical" href="{{ canonical }}">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="{{ canonical }}">
+  <meta property="og:title" content="Як заповнити вільне вікно в салоні">
+  <meta property="og:description" content="Приклад із розкладом майстра, списком очікування та повідомленням клієнту.">
+  <meta property="og:image" content="{{ public_site }}/static/v2/social-demo.jpg">
+{% endblock %}
+{% block locale_assets %}<script defer src="/static/locales/slot-recovery.js?v=1"></script>{% endblock %}
+{% block layout %}narrow-frame{% endblock %}
+{% block links %}<a href="/crm-dlia-saloniv">CRM для салонів</a><a href="/taryfy">Тарифи</a>{% endblock %}
+{% block content %}
+<article>
+  <header class="page-intro">
+    <h1>Як заповнити вільне вікно в салоні після скасування</h1>
+    <p>Візит із 13:00 до 14:30 скасували. Ось як запропонувати цей час клієнту, який уже чекає на відповідний запис.</p>
+  </header>
+  <div class="records">
+    <section class="platform-panel">
+      <h2>Звірте тривалість послуги та перерви</h2>
+      <p>Стрижка займає 60 хвилин. Якщо після неї потрібно 15 хвилин на прибирання, шукайте щонайменше 75 хвилин поспіль у графіку того самого майстра.</p>
+    </section>
+    <section class="platform-panel">
+      <h2>Перевірте, коли клієнт може прийти</h2>
+      <p>Один клієнт вільний з 13:15, інший — до 14:00. Першому можна запропонувати 13:15, другому — 13:00. Перед підтвердженням перевірте, що після візиту майстер встигає підготувати місце для наступного клієнта.</p>
+    </section>
+    <section class="platform-panel">
+      <h2>Напишіть із конкретною пропозицією</h2>
+      <p>Запропонуйте час одному клієнту й дочекайтеся відповіді, перш ніж підтверджувати той самий час іншому.</p>
+      <blockquote class="info-note">Вітаю! Сьогодні о 13:15 звільнився час на стрижку. Якщо вам підходить, напишіть, будь ласка, і я підтверджу запис.</blockquote>
+    </section>
+    <section class="platform-panel">
+      <h2>Перевірте свій розклад</h2>
+      <p>Відкрийте приклад або завантажте CSV зі своїми змінами, візитами та списком очікування. Розбір покаже вільні вікна потрібної тривалості й варіанти часу після скасувань.</p>
+      <div class="record-actions">
+        <a class="platform-button" href="/rozbir-rozkladu">Розібрати розклад</a>
+        <a class="platform-button secondary" href="/login-demo">Відкрити демо CRM</a>
+      </div>
+    </section>
+  </div>
+</article>
+{% endblock %}

@@ -8,7 +8,6 @@ from typing import List, Optional
 import urllib.parse
 
 
-import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (HTMLResponse, RedirectResponse,
                                StreamingResponse)
@@ -24,12 +23,25 @@ from models import (ActionLog, Appointment, Business, ChatLog, CreemPayment, Cus
 from ui import get_layout # verify_password is removed
 from utils.security import hash_password
 from utils.logger import log_action
+from utils.templates import render_template
 from database import get_db, AsyncSessionLocal
 from config import UA_TZ
+from services import marketing_funnel
 import httpx
 import logging
 
 router = APIRouter(prefix="/superadmin", tags=["Superadmin"])
+
+
+@router.get("/campaigns", response_class=HTMLResponse, include_in_schema=False)
+async def campaign_report(days: int = 30, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not user or user.role != "superadmin":
+        return RedirectResponse("/", status_code=303)
+    periods = (7, 30, 90)
+    days = days if days in periods else 30
+    rows, totals = await marketing_funnel.report(db, days)
+    return HTMLResponse(render_template("platform/campaigns.html", days=days, periods=periods, rows=rows, totals=totals),
+                        headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("", response_class=HTMLResponse, include_in_schema=False)
@@ -229,6 +241,7 @@ async def super_admin_page(sort: str = "date_desc", user: User = Depends(get_cur
             <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-broadcast"><i class="fas fa-bullhorn me-2"></i>Розсилка</button></li>
             <li class="nav-item"><button class="nav-link rounded-pill fw-600" data-bs-toggle="pill" role="tab" data-bs-target="#sa-updates"><i class="fas fa-newspaper me-2"></i>Оновлення</button></li>
         </ul>
+        <a href="/superadmin/campaigns" class="btn-glass superadmin-rates text-decoration-none"><i class="fas fa-chart-line me-2" aria-hidden="true"></i>Аналітика</a>
         <a href="/superadmin/global-payment-settings" class="btn-glass superadmin-rates text-decoration-none"><i class="fas fa-globe me-2" aria-hidden="true"></i>Налаштувати тарифи</a>
     </div>
     
@@ -1091,6 +1104,8 @@ async def export_payments(user: User = Depends(get_current_user), db: AsyncSessi
             "Посилання на чек": pl.receipt_url or ""
         })
     
+    import pandas as pd
+
     df = pd.DataFrame(data)
     stream = io.StringIO()
     df.to_csv(stream, index=False)

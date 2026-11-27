@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse, FileResponse, JSONResponse, HTML
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
-from sqlalchemy import select, and_, func, text
+from sqlalchemy import select, and_, func, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -334,20 +334,41 @@ async def chrome_devtools_probe():
     return Response(content="{}", media_type="application/json")
 
 
+def pending_column_migrations(connection, statements):
+    inspector = inspect(connection)
+    columns = {}
+    pending = []
+    for statement in statements:
+        fields = statement.rstrip(";").split()
+        table, operation = fields[2:4]
+        column = fields[7] if operation == "DROP" else fields[5]
+        if table not in columns:
+            columns[table] = {item["name"] for item in inspector.get_columns(table)}
+        column_exists = column in columns[table]
+        if (operation == "ADD" and not column_exists) or (operation == "DROP" and column_exists):
+            pending.append(statement)
+    return pending
+
+
 @app.on_event("startup")
 async def startup():
     try:
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            def ensure_appointment_timestamp(connection):
-                from sqlalchemy import inspect, text
-                columns = {column["name"] for column in inspect(connection).get_columns("appointments")}
+            def prepare_schema(connection):
+                inspector = inspect(connection)
+                existing = set(inspector.get_table_names())
+                missing = [table for table in Base.metadata.sorted_tables if table.name not in existing]
+                if missing:
+                    Base.metadata.create_all(connection, tables=missing)
+                if "appointments" not in existing:
+                    return
+                columns = {column["name"] for column in inspector.get_columns("appointments")}
                 if "created_at" not in columns:
                     connection.execute(text("ALTER TABLE appointments ADD COLUMN created_at TIMESTAMP"))
                     # Unknown historical creation times must not trigger new-record notifications.
                     connection.execute(text("UPDATE appointments SET created_at = :historical WHERE created_at IS NULL"),
                                        {"historical": datetime(1970, 1, 1)})
-            await conn.run_sync(ensure_appointment_timestamp)
+            await conn.run_sync(prepare_schema)
                 
         # Автоматичне додавання нових колонок (кожна у власній транзакції)
         migrations = [
@@ -378,7 +399,9 @@ async def startup():
             "ALTER TABLE api_keys DROP COLUMN IF EXISTS prefix;",
             "ALTER TABLE api_keys DROP COLUMN IF EXISTS key_hash;"
         ]
-        for query in migrations:
+        async with engine.connect() as conn:
+            pending = await conn.run_sync(pending_column_migrations, migrations)
+        for query in pending:
             try:
                 async with engine.begin() as m_conn:
                     await m_conn.execute(text(query))
@@ -402,8 +425,8 @@ async def startup():
             businesses_without_secret = (await db.execute(select(Business).where(Business.webhook_secret == None))).scalars().all()
             for biz in businesses_without_secret:
                 biz.webhook_secret = secrets.token_hex(32)
+            if businesses_without_secret:
                 await db.commit()
-                await db.refresh(biz)
             
             logger.info("Database startup and migrations complete.")
 

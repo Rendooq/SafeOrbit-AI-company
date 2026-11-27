@@ -11,6 +11,7 @@ from sqlalchemy import (
     LargeBinary,
     Text,
     func,
+    inspect,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -133,6 +134,18 @@ class ActivationDocument(Base):
     url: Mapped[str] = mapped_column(Text, primary_key=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
     content: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class CampaignVisit(Base):
+    __tablename__ = "campaign_visits"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    source: Mapped[str] = mapped_column(Text)
+    campaign: Mapped[str] = mapped_column(Text)
+    visited_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    business_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("businesses.id", ondelete="SET NULL"), unique=True,
+    )
 
 
 class CreemPayment(Base):
@@ -424,5 +437,11 @@ PERFORMANCE_INDEXES = (
 
 
 def ensure_performance_indexes(connection):
+    inspector = inspect(connection)
+    existing = {}
     for index in PERFORMANCE_INDEXES:
-        index.create(connection, checkfirst=True)
+        table = index.table.name
+        if table not in existing:
+            existing[table] = {item["name"] for item in inspector.get_indexes(table)}
+        if index.name not in existing[table]:
+            index.create(connection, checkfirst=True)

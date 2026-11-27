@@ -22,7 +22,7 @@ from models import ActivationDocument, Business, CreemPayment, GlobalPaymentSett
 from models_platform import CreemTermsAcceptance
 from utils.security import hash_password, verify_password
 from services.demo_workspace import DEMO_SESSION_KEY, demo_workspaces
-from services import creem, phone_auth
+from services import creem, marketing_funnel, phone_auth
 from services.creem_billing import accepted_offer, record_paid_checkout
 from services.workspace_catalog import INDUSTRIES, MODULES, PLAN_NAMES, allowed_modules, industry_plan
 from utils.templates import login_html, render_template
@@ -55,6 +55,7 @@ def campaign_attribution(request: Request | None) -> dict[str, str]:
 
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request, db: AsyncSession = Depends(get_db)):
+    await marketing_funnel.capture_visit(request, db)
     settings = await db.get(GlobalPaymentSettings, 1)
     plan1_active = settings.is_plan1_active if settings else True
     plan2_active = settings.is_plan2_active if settings else True
@@ -219,8 +220,10 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
         await db.rollback()
         await remove_documents(saved)
         raise
+    business_id = nb.id
+    await marketing_funnel.link_registration(request, business_id, db)
     request.session.clear()
-    request.session["pending_business_id"] = nb.id
+    request.session["pending_business_id"] = business_id
     
     superadmin = (await db.execute(select(User).where(User.role == 'superadmin'))).scalars().first()
     bot_token = superadmin.tg_bot_token if superadmin and getattr(superadmin, 'tg_bot_token', None) else SUPERADMIN_TG_BOT_TOKEN
@@ -240,7 +243,7 @@ async def register_post(request: Request, background_tasks: BackgroundTasks, nam
             msg = f"🚀 🔥 УВАГА! НОВА VIP ЗАЯВКА!\nБізнес: {name}\nТелефон: {phone}\nКраїна оплати: {country_label}\nТариф: PRO (39 750 грн + 825 грн/міс) 💰\nОчікує перевірки!"
         background_tasks.add_task(notify_registration, bot_token, chat_id, msg)
             
-    return RedirectResponse(f"/pending-activation/{nb.id}", status_code=303)
+    return RedirectResponse(f"/pending-activation/{business_id}", status_code=303)
 
 
 async def notify_registration(bot_token, chat_id, message):
@@ -415,7 +418,8 @@ async def creem_pay(id: int, request: Request, db: AsyncSession = Depends(get_db
     return respond(pending)
 
 @router.get("/", response_class=HTMLResponse)
-async def public_home(request: Request = None):
+async def public_home(request: Request = None, db: AsyncSession = Depends(get_db)):
+    await marketing_funnel.capture_visit(request, db)
     campaign_attribution(request)
     return HTMLResponse(render_template(
         "marketing/home.html", public_site=PUBLIC_SITE, plans=creem.PLAN_PRICES,
@@ -426,7 +430,8 @@ async def public_home(request: Request = None):
 
 
 @router.get(SALON_PAGE, response_class=HTMLResponse)
-async def salon_landing(request: Request = None):
+async def salon_landing(request: Request = None, db: AsyncSession = Depends(get_db)):
+    await marketing_funnel.capture_visit(request, db)
     campaign_attribution(request)
     return HTMLResponse(render_template(
         "marketing/salons.html", canonical=PUBLIC_SITE + SALON_PAGE, public_site=PUBLIC_SITE,
@@ -435,6 +440,7 @@ async def salon_landing(request: Request = None):
 
 @router.get(PRICING_PAGE, response_class=HTMLResponse)
 async def public_pricing(db: AsyncSession = Depends(get_db), request: Request = None):
+    await marketing_funnel.capture_visit(request, db)
     settings = await db.get(GlobalPaymentSettings, 1)
     active_plans = {plan for plan in ("plan1", "plan2")
                     if settings is None or getattr(settings, f"is_{plan}_active")}
@@ -457,7 +463,8 @@ async def public_pricing(db: AsyncSession = Depends(get_db), request: Request = 
 
 
 @router.get(BOOKING_TEMPLATE_PAGE, response_class=HTMLResponse)
-async def public_booking_template(request: Request):
+async def public_booking_template(request: Request, db: AsyncSession = Depends(get_db)):
+    await marketing_funnel.capture_visit(request, db)
     campaign_attribution(request)
     return HTMLResponse(render_template(
         "marketing/booking-template.html", canonical=PUBLIC_SITE + BOOKING_TEMPLATE_PAGE, public_site=PUBLIC_SITE,
@@ -470,7 +477,8 @@ async def robots_txt():
 
 
 @router.get(SCHEDULE_AUDIT_PAGE, response_class=HTMLResponse)
-async def public_schedule_audit(request: Request):
+async def public_schedule_audit(request: Request, db: AsyncSession = Depends(get_db)):
+    await marketing_funnel.capture_visit(request, db)
     campaign_attribution(request)
     return HTMLResponse(render_template(
         "marketing/schedule-audit.html", canonical=PUBLIC_SITE + SCHEDULE_AUDIT_PAGE,

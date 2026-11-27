@@ -18,9 +18,10 @@ async def get_db(request: Request):
     """
     # Import lazily so offline callers can keep using the standard database.
     from services.demo_workspace import DEMO_SESSION_KEY, READ_ROUTES, WRITE_ROUTES, demo_workspaces
+    from services.marketing_funnel import LANDINGS
 
     demo_key = request.scope.get("session", {}).get(DEMO_SESSION_KEY)
-    public_route = request.url.path in {"/register", "/taryfy"} or (request.method == "POST" and request.url.path == "/login")
+    public_route = request.url.path in LANDINGS or (request.method == "POST" and request.url.path == "/login")
     public_route = public_route or request.url.path.startswith(("/proposals/", "/maistry/", "/signals/", "/books/", "/maket/", "/login/", "/register/")) or request.url.path == "/maistry"
     if demo_key and not public_route:
         routes = READ_ROUTES if request.method == "GET" else WRITE_ROUTES if request.method == "POST" else ()

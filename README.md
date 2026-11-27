@@ -170,6 +170,11 @@ Do not commit `.env`, database files, uploads, or session secrets.
 - The public SafeOrbit production monitor runs from this repository's Actions
   every 30 minutes. It checks the mobile home page, marketplace search,
   registration forms and live subscription terms with read-only requests.
+- The superadmin campaign report at `/superadmin/campaigns` groups tagged visits
+  by source and campaign. It follows each captured visit through registration,
+  Creem checkout creation, and the first verified recurring payment. Link
+  previews and repeated visits from the same signed browser session on the same
+  day are filtered.
 - Reconciliation shows expected and received totals. Invoice comparison
   normalizes g/kg and ml/l across pack sizes. Feed validation can save a
   corrected XML copy using reference prices and availability. The cutting

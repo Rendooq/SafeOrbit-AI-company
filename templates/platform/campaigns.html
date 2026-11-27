@@ -1,0 +1,39 @@
+{% extends "platform/base.html" %}
+{% block title %}Кампанії SafeOrbit{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block locale_assets %}<script defer src="/static/locales/campaigns.js?v=1"></script>{% endblock %}
+{% block links %}<a href="/superadmin">Адмінпанель</a>{% endblock %}
+{% block content %}
+{% set stages = ('Переходи з кампаній', 'Реєстрації', 'Відкриття каси Creem', 'Підтверджені підписки') %}
+<header class="page-intro">
+  <h1>Кампанії SafeOrbit</h1>
+  <p>Від переходу за рекламним посиланням до першої підтвердженої підписки.</p>
+</header>
+<section class="platform-panel">
+  <form method="get" action="/superadmin/campaigns" class="field-grid">
+    <label>Період переходів
+      <select name="days">{% for period in periods %}<option value="{{ period }}"{% if period == days %} selected{% endif %}>{{ period }} дн.</option>{% endfor %}</select>
+    </label>
+    <button type="submit" class="platform-button secondary">Показати</button>
+  </form>
+  <dl class="workflow-totals">
+    {% for label in stages %}<div><dt>{{ label }}</dt><dd>{{ totals[loop.index0] }}</dd></div>{% endfor %}
+  </dl>
+</section>
+<section class="platform-panel">
+  <h2>Результати за кампаніями</h2>
+  {% if rows %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Джерело</th><th scope="col">Кампанія</th>{% for label in stages %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for source, campaign, visits, registrations, checkouts, paid in rows %}
+        <tr><th scope="row" translate="no">{{ source }}</th><td translate="no">{{ campaign or '—' }}</td><td>{{ visits }}</td><td>{{ registrations }}</td><td>{{ checkouts }}</td><td>{{ paid }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p>За цей період переходів із відстежуваних кампаній немає.</p>{% endif %}
+  <p class="fine">Каса враховується після створення платіжної сесії Creem. Підписка враховується після підтвердження щомісячного платежу.</p>
+</section>
+{% endblock %}
